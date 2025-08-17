@@ -1,0 +1,116 @@
+import Phaser from 'phaser'
+import { registerCharacterSheets, registerClothingSheets, registerHairSheets } from '../core/characters'
+
+export class PreloadScene extends Phaser.Scene {
+  constructor() {
+    super('Preload')
+  }
+
+  preload(): void {
+    const width = this.scale.width
+    const height = this.scale.height
+    const progressBar = this.add.rectangle(width / 2, height / 2, 400, 24, 0x2e7d32).setOrigin(0.5)
+    const progressBg = this.add.rectangle(width / 2, height / 2, 420, 32, 0x1d1f24).setOrigin(0.5)
+    progressBar.width = 0
+
+    this.load.on('progress', (value: number) => {
+      progressBar.width = 400 * value
+    })
+
+    // Фоны день/ночь (5 слоев)
+    for (let i = 1; i <= 5; i++) {
+      this.load.image(`bg_day_${i}`, `src/sprites/2 Background/Day/${i}.png`)
+      this.load.image(`bg_night_${i}`, `src/sprites/2 Background/Night/${i}.png`)
+    }
+
+    // Текстуры комнат
+    this.load.image('room_bathroom', 'src/sprites/rooms/bathroom.png')
+    this.load.image('room_bedroom', 'src/sprites/rooms/bedroom.png')
+    this.load.image('room_computer', 'src/sprites/rooms/computer_room.png')
+    this.load.image('room_dining', 'src/sprites/rooms/dining_room.png')
+    this.load.image('room_elevator', 'src/sprites/rooms/elevator.png')
+    this.load.image('room_entrance_in', 'src/sprites/rooms/entrance_inside.png')
+    this.load.image('room_entrance_out', 'src/sprites/rooms/entrance_outside.png')
+    this.load.image('room_hospital', 'src/sprites/rooms/hospital.png')
+    this.load.image('room_lab', 'src/sprites/rooms/lab_room.png')
+    this.load.image('room_storage', 'src/sprites/rooms/storage_room.png')
+    this.load.image('room_tech', 'src/sprites/rooms/tech_room.png')
+
+    // Персонажи (спрайтшиты)
+    registerCharacterSheets(this)
+    registerClothingSheets(this)
+    registerHairSheets(this)
+
+    // Оружие: пистолет (кадры 64x32)
+    this.load.image('pistol_f00', 'src/sprites/weapon/pistol/frame_00_delay-0.3s.png')
+    this.load.image('pistol_f01', 'src/sprites/weapon/pistol/frame_01_delay-0.02s.png')
+    this.load.image('pistol_f02', 'src/sprites/weapon/pistol/frame_02_delay-0.02s.png')
+    this.load.image('pistol_f03', 'src/sprites/weapon/pistol/frame_03_delay-0.02s.png')
+    this.load.image('pistol_f04', 'src/sprites/weapon/pistol/frame_04_delay-0.03s.png')
+    this.load.image('pistol_f05', 'src/sprites/weapon/pistol/frame_05_delay-0.03s.png')
+    this.load.image('pistol_f06', 'src/sprites/weapon/pistol/frame_06_delay-0.05s.png')
+    this.load.image('pistol_f07', 'src/sprites/weapon/pistol/frame_07_delay-0.05s.png')
+    this.load.image('pistol_f08', 'src/sprites/weapon/pistol/frame_08_delay-0.05s.png')
+    this.load.image('pistol_f09', 'src/sprites/weapon/pistol/frame_09_delay-0.1s.png')
+    this.load.image('pistol_f10', 'src/sprites/weapon/pistol/frame_10_delay-0.1s.png')
+    this.load.image('pistol_f11', 'src/sprites/weapon/pistol/frame_11_delay-0.05s.png')
+
+    // Враги: зомби (спрайтшиты 96x96, 1 слой, смотрят вправо)
+    // Дикий зомби
+    this.load.spritesheet('zombie_wild_walk', 'src/sprites/enemies/Zombie/Wild Zombie/Walk.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_wild_idle', 'src/sprites/enemies/Zombie/Wild Zombie/Idle.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_wild_dead', 'src/sprites/enemies/Zombie/Wild Zombie/Dead.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_wild_hurt', 'src/sprites/enemies/Zombie/Wild Zombie/Hurt.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_wild_attack1', 'src/sprites/enemies/Zombie/Wild Zombie/Attack_1.png', { frameWidth: 96, frameHeight: 96 })
+    // Зомби мужчина
+    this.load.spritesheet('zombie_man_walk', 'src/sprites/enemies/Zombie/Zombie Man/Walk.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_man_idle', 'src/sprites/enemies/Zombie/Zombie Man/Idle.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_man_dead', 'src/sprites/enemies/Zombie/Zombie Man/Dead.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_man_hurt', 'src/sprites/enemies/Zombie/Zombie Man/Hurt.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_man_attack', 'src/sprites/enemies/Zombie/Zombie Man/Bite.png', { frameWidth: 96, frameHeight: 96 })
+    // Зомби женщина
+    this.load.spritesheet('zombie_woman_walk', 'src/sprites/enemies/Zombie/Zombie Woman/Walk.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_woman_idle', 'src/sprites/enemies/Zombie/Zombie Woman/Idle.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_woman_dead', 'src/sprites/enemies/Zombie/Zombie Woman/Dead.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_woman_hurt', 'src/sprites/enemies/Zombie/Zombie Woman/Hurt.png', { frameWidth: 96, frameHeight: 96 })
+    this.load.spritesheet('zombie_woman_attack1', 'src/sprites/enemies/Zombie/Zombie Woman/Attack_1.png', { frameWidth: 96, frameHeight: 96 })
+
+    // Враги: мутанты (hard_zombie), спрайтшиты 128x128
+    // Мутант 1
+    this.load.spritesheet('mutant1_walk', 'src/sprites/enemies/hard_zombie/Zombie_1/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant1_idle', 'src/sprites/enemies/hard_zombie/Zombie_1/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant1_dead', 'src/sprites/enemies/hard_zombie/Zombie_1/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant1_hurt', 'src/sprites/enemies/hard_zombie/Zombie_1/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant1_attack', 'src/sprites/enemies/hard_zombie/Zombie_1/Attack.png', { frameWidth: 128, frameHeight: 128 })
+    // Мутант 2
+    this.load.spritesheet('mutant2_walk', 'src/sprites/enemies/hard_zombie/Zombie_2/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant2_idle', 'src/sprites/enemies/hard_zombie/Zombie_2/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant2_dead', 'src/sprites/enemies/hard_zombie/Zombie_2/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant2_hurt', 'src/sprites/enemies/hard_zombie/Zombie_2/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant2_attack', 'src/sprites/enemies/hard_zombie/Zombie_2/Attack.png', { frameWidth: 128, frameHeight: 128 })
+    // Мутант 3
+    this.load.spritesheet('mutant3_walk', 'src/sprites/enemies/hard_zombie/Zombie_3/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant3_idle', 'src/sprites/enemies/hard_zombie/Zombie_3/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant3_dead', 'src/sprites/enemies/hard_zombie/Zombie_3/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant3_hurt', 'src/sprites/enemies/hard_zombie/Zombie_3/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant3_attack', 'src/sprites/enemies/hard_zombie/Zombie_3/Attack.png', { frameWidth: 128, frameHeight: 128 })
+    // Мутант 4
+    this.load.spritesheet('mutant4_walk', 'src/sprites/enemies/hard_zombie/Zombie_4/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant4_idle', 'src/sprites/enemies/hard_zombie/Zombie_4/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant4_dead', 'src/sprites/enemies/hard_zombie/Zombie_4/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant4_hurt', 'src/sprites/enemies/hard_zombie/Zombie_4/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('mutant4_attack', 'src/sprites/enemies/hard_zombie/Zombie_4/Attack.png', { frameWidth: 128, frameHeight: 128 })
+
+    // Враги: солдат 128x128
+    this.load.spritesheet('soldier_walk', 'src/sprites/enemies/soldier/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('soldier_idle', 'src/sprites/enemies/soldier/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('soldier_dead', 'src/sprites/enemies/soldier/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('soldier_hurt', 'src/sprites/enemies/soldier/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+  }
+
+  create(): void {
+    this.scene.start('MainMenu')
+  }
+}
+
+

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bunker Survivors</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+      html, body { height: 100%; margin: 0; background:#111; overflow: hidden; }
+      #game {
+        width: 100vw;
+        height: var(--app-vh, 100dvh);
+        display:flex;
+      }
+      canvas { display:block; margin:auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+    </style>
+    <script type="module" crossorigin src="/assets/index-CL_qKvh6.js"></script>
+  </head>
+  <body>
+    <div id="game"></div>
+  </body>
+  <script>
+    // Mobile viewport height fix (fallback for browsers without 100dvh)
+    function setAppVh() {
+      document.documentElement.style.setProperty('--app-vh', window.innerHeight + 'px')
+    }
+    setAppVh()
+    window.addEventListener('resize', setAppVh)
+    window.addEventListener('orientationchange', setAppVh)
+
+    // Prevent passive pinch-zoom scroll issues on mobile
+    document.addEventListener('gesturestart', function (e) { e.preventDefault() }, { passive: false })
+  </script>
+  
+</html>
+
+
