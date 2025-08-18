@@ -4,8 +4,8 @@ import { onResize, isPortrait } from '../core/responsive'
 import { THEME, applyPanelBackground, uiScale, fs } from '../core/theme'
 import type { Difficulty } from './DifficultyScene'
 import { ParallaxBackground } from '../core/parallax'
-import { SimpleBunkerView } from '../core/bunkerView'
-import { createCharacterSprite, pickSkinForGender, ensureCharacterAnimations, pickClothingSetForGender, pickHairForGender } from '../core/characters'
+import { SimpleBunkerView, RoomState } from '../core/bunkerView'
+import { createCharacterSprite, pickSkinForGender, ensureCharacterAnimations, pickClothingSetForGender, pickHairForGender, ensureSpecialistAnimations, getSpecialistSpriteKey, isSpecialistSprite } from '../core/characters'
 
 type Phase = 'day' | 'night'
 
@@ -140,11 +140,11 @@ export class GameScene extends Phaser.Scene {
     return Math.max(0, shots)
   }
   private getBunkerCapacity(): number {
-    // 1 "Комната отдыха" = 4 места. Считаем из текущего bunkerView
+    // 1 "Спальня" = 4 места. Считаем из текущего bunkerView
     const bv: any = this.simpleBunker
     if (!bv || !(bv as any).roomNames) return 0
     const rooms: string[] = (bv as any).roomNames || []
-    const restCount = rooms.filter(n => n === 'Комната отдыха').length
+    const restCount = rooms.filter(n => n === 'Спальня').length
     return restCount * 4
   }
 
@@ -218,7 +218,7 @@ export class GameScene extends Phaser.Scene {
     mkOnce('m2_dead', 'mutant2_dead', 4, 8); mkOnce('m2_hurt', 'mutant2_hurt', 3, 10); mkOnce('m2_attack', 'mutant2_attack', 4, 10)
     // m3
     mkLoop('m3_walk', 'mutant3_walk', 9, 10); mkLoop('m3_idle', 'mutant3_idle', 5, 6)
-    mkOnce('m3_dead', 'mutant3_dead', 4, 8); mkOnce('m3_hurt', 'mutant3_hurt', 3, 10); mkOnce('m3_attack', 'mutant3_attack', 4, 10)
+    mkOnce('m3_dead', 'mutant3_dead', 4, 8); mkOnce('m3_hurt', 'mutant3_hurt', 3, 10); mkOnce('m3_attack', 'mutant3_attack', 3, 10)
     // m4
     mkLoop('m4_walk', 'mutant4_walk', 9, 10); mkLoop('m4_idle', 'mutant4_idle', 5, 6)
     mkOnce('m4_dead', 'mutant4_dead', 4, 8); mkOnce('m4_hurt', 'mutant4_hurt', 3, 10); mkOnce('m4_attack', 'mutant4_attack', 4, 10)
@@ -232,6 +232,7 @@ export class GameScene extends Phaser.Scene {
     mkLoop('sold_idle', 'soldier_idle', 6, 6)
     mkOnce('sold_dead', 'soldier_dead', 4, 8)
     mkOnce('sold_hurt', 'soldier_hurt', 3, 10)
+    mkOnce('sold_attack', 'soldier_attack', 3, 10) // Shot_1.png - 4 кадра (0-3)
   }
 
   private pickEnemyType(): 'МАРОДЕР' | 'ЗОМБИ' | 'МУТАНТ' | 'СОЛДАТ' {
@@ -255,6 +256,46 @@ export class GameScene extends Phaser.Scene {
     if (r < wM + wZ) return 'ЗОМБИ'
     if (r < wM + wZ + wMu) return 'МУТАНТ'
     return 'СОЛДАТ'
+  }
+
+  private playEnemyAttackAnimation(enemy: any, sprite?: Phaser.GameObjects.Sprite, shirt?: Phaser.GameObjects.Sprite, pants?: Phaser.GameObjects.Sprite, footwear?: Phaser.GameObjects.Sprite, hair?: Phaser.GameObjects.Sprite): void {
+    try {
+      if (enemy.type === 'МАРОДЕР') {
+        // Мародёр: используем текстуру каждого слоя + "_attack"
+        const playMarauder = (s?: Phaser.GameObjects.Sprite) => {
+          if (!s) return
+          const k = s.texture?.key as string
+          if (k && k !== '__DEFAULT') {
+            try { s.anims.play(`${k}_attack`, true) } catch {}
+          }
+        }
+        playMarauder(sprite)
+        playMarauder(shirt)
+        playMarauder(pants)
+        playMarauder(footwear)
+        playMarauder(hair)
+      } else if (enemy.type === 'ЗОМБИ') {
+        // Зомби: используем префикс z_ + вид + _attack
+        if (sprite) {
+          const kind = enemy.zombieKind || 'wild'
+          try { sprite.anims.play(`z_${kind}_attack`, true) } catch {}
+        }
+      } else if (enemy.type === 'МУТАНТ') {
+        // Мутант: используем префикс m + номер + _attack
+        if (sprite) {
+          const kind = enemy.mutantKind || '1'
+          try { sprite.anims.play(`m${kind}_attack`, true) } catch {}
+        }
+      } else if (enemy.type === 'СОЛДАТ') {
+        // Солдат: используем sold_attack
+        if (sprite) {
+          this.ensureSoldierAnimations()
+          try { sprite.anims.play('sold_attack', true) } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('[playEnemyAttackAnimation] Error:', err)
+    }
   }
 
   private fireWeaponOnce(): void {
@@ -409,6 +450,47 @@ export class GameScene extends Phaser.Scene {
       if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
     }
   }
+
+  // Вражеский урон по ресурсу "Защита" раз в час
+  private processEnemyDefenseDamage(hour: number): void {
+    if (this.enemyQueueItems.length === 0) return
+    const damageByType = (type: string): number => {
+      switch (type) {
+        case 'МАРОДЕР': return 1
+        case 'ЗОМБИ': return 2
+        case 'МУТАНТ': return 5
+        case 'СОЛДАТ': return 10
+        default: return 1
+      }
+    }
+    // Первый враг бьёт каждый час
+    const first = this.enemyQueueItems[0]
+    if (first) {
+      const d = damageByType((first as any).type || first.type)
+      this.defense = Math.max(0, this.defense - d)
+      this.updateResourcesText()
+      // Атака: проиграть attack в превью и на поверхности, если есть
+      try {
+        // Превью
+        if (this.personPreviewSprite && (this as any)._previewCurrentIsEnemy && (this as any)._previewCurrentId === first.id) {
+          // Играть правильную анимацию атаки в зависимости от типа врага
+          this.playEnemyAttackAnimation(first, this.personPreviewSprite, this.personPreviewShirt, this.personPreviewPants, this.personPreviewFootwear, this.personPreviewHair)
+        }
+        // Поверхность — первый враг
+        const any = first as any
+        this.playEnemyAttackAnimation(first, any.sprite, any.shirt, any.pants, any.footwear, any.hair)
+      } catch {}
+    }
+    // Остальные враги: урон раз в 12/6/2 часа по сложности
+    const cadence = this.difficulty === 'easy' ? 12 : this.difficulty === 'normal' ? 6 : 2
+    for (let i = 1; i < this.enemyQueueItems.length; i++) {
+      if (hour % cadence !== 0) break
+      const it = this.enemyQueueItems[i] as any
+      const d = damageByType(it.type)
+      this.defense = Math.max(0, this.defense - d)
+    }
+    this.updateResourcesText()
+  }
   constructor() {
     super('Game')
   }
@@ -425,6 +507,21 @@ export class GameScene extends Phaser.Scene {
     // Случайный сессионный сид для разнообразия генерации персонажей
     this.sessionSeed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     console.log('[GameScene] sessionSeed:', this.sessionSeed, 'difficulty:', this.difficulty)
+    
+    // Демонстрация системы электростанций (можно удалить после тестирования)
+    this.time.delayedCall(5000, () => {
+      console.log('=== Демонстрация системы электростанций ===')
+      console.log('💡 Подсказка: Стройте комнаты и электростанции чтобы увидеть как работает система питания!')
+      
+      // Объясняем систему иконок
+      console.log('[Icons] Система иконок состояния комнат:')
+      console.log('🚪/🚫 - Доступность | ⚙️/🚧 - Работоспособность | 💡/🌑 - Свет | ⚡/🔌 - Энергия | ✅/⚠️ - Безопасность')
+      console.log('Иконки отображаются в заголовке каждой комнаты!')
+      
+      console.log('[Power System] Стартовые комнаты (Вход, Спальня, Столовая, Туалет) всегда имеют питание')
+      console.log('[Power System] Новые комнаты нуждаются в станциях: 1 станция = питание для 3 комнат + себя')
+      console.log('[Power System] Попробуйте построить комнаты без станций, а потом добавить станцию!')
+    })
 
     // Top bar
     this.topBar = this.add.container(0, 0)
@@ -490,7 +587,7 @@ export class GameScene extends Phaser.Scene {
     this.bunkerArea = this.add.container(0, 0)
     // Set explicit depths - все области на одном уровне, но топ-бар выше
     this.surfaceArea.setDepth(2)
-    this.personArea.setDepth(2)
+    this.personArea.setDepth(4000) // Очень высокий depth для области превью персонажей
     this.peopleArea.setDepth(2)
     this.resourcesArea.setDepth(2)
     this.bunkerArea.setDepth(2)
@@ -610,6 +707,7 @@ export class GameScene extends Phaser.Scene {
 
     // Верхняя часть: вход в бункер + Accept / Deny
     this.personTop = this.add.container(0, 0)
+    this.personTop.setDepth(2000) // Высокий z-index для контейнера
     // Фоновая подложка для обеспечения валидной области контейнера (перехватывает размеры)
     const topBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0).setOrigin(0)
     this.personTop.add(topBg)
@@ -629,9 +727,9 @@ export class GameScene extends Phaser.Scene {
     this.personTop.add(this.personPreviewFootwear)
     this.personTop.add(this.personPreviewHair)
     this.personPreview = this.add.rectangle(0, 0, 56, 72, 0x000000, 0).setOrigin(0.5, 1)
-    // Отключаем отладочную рамку превью навсегда
-    this.personPreview.setStrokeStyle(0)
+    // Скрываем отладочную рамку превью
     this.personPreview.setVisible(false)
+    console.log('[DEBUG] Создана рамка превью:', this.personPreview)
     this.personTop.add(this.personPreview)
     this.acceptBtnObj = this.add.text(0, 0, `[ ${t('accept')} ]`, { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#81c784' }).setInteractive({ useHandCursor: true })
     this.denyBtnObj = this.add.text(0, 0, `[ ${t('deny')} ]`, { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#e57373' }).setInteractive({ useHandCursor: true })
@@ -1020,11 +1118,26 @@ export class GameScene extends Phaser.Scene {
       this.personSkillText.setPosition(pad, this.personDetailsText.y + this.personDetailsText.height + 6)
       this.personSkillText.setWordWrapWidth(Math.max(1, rect.width - pad * 2))
     }
+    
+    // Рамка превью скрыта, не отображаем отладочную информацию
   }
 
   // ======== Очередь посетителей на поверхности ========
   private seedInitialVisitors(count: number): void {
-    for (let i = 0; i < count; i++) this.enqueueVisitor()
+    for (let i = 0; i < count; i++) {
+      const visitor = this.enqueueVisitor(true) // createOnly = true, чтобы не вызывать layoutQueue сразу
+      if (visitor && visitor.sprite) {
+        // Для начальных посетителей устанавливаем правильную ориентацию - смотрят к входу (вправо)
+        const textureKey = visitor.sprite.texture?.key || ''
+        if (isSpecialistSprite(textureKey)) {
+          visitor.sprite.setFlipX(false) // Спрайты специализаций по умолчанию смотрят вправо, не отзеркаливаем
+          const data = this.getPersonData(visitor.id)
+          const profession = data.profession.toLowerCase()
+          try { visitor.sprite.anims.play(`${profession}_idle`, true) } catch {}
+        }
+        // Начальные посетители правильно ориентированы
+      }
+    }
     if (this.lastSurfaceRect) this.layoutQueue(this.lastSurfaceRect)
   }
 
@@ -1043,10 +1156,18 @@ export class GameScene extends Phaser.Scene {
     v.rect.setPosition(startX, target.y)
     if (v.sprite) {
       v.sprite.setPosition(startX, target.y)
-      // Бежит направо к входу
+      const textureKey = v.sprite.texture?.key || ''
+      if (isSpecialistSprite(textureKey)) {
+        // Спрайт специализации: смотрит вправо по умолчанию, движется направо к входу
+        v.sprite.setFlipX(false)
+        const data = this.getPersonData(v.id)
+        const profession = data.profession.toLowerCase()
+        try { v.sprite.anims.play(`${profession}_walk`, true) } catch {}
+      } else {
+        // Старые спрайты: бежит направо к входу
       v.sprite.setFlipX(true)
-      const skin = v.sprite.texture.key
-      try { v.sprite.anims.play(`${skin}_run`, true) } catch {}
+        try { v.sprite.anims.play(`${textureKey}_run`, true) } catch {}
+      }
     }
     if (v.shirt) { v.shirt.setPosition(startX, target.y); v.shirt.setFlipX(true); try { v.shirt.anims.play(`${v.shirt.texture.key}_run`, true) } catch {} }
     if (v.pants) { v.pants.setPosition(startX, target.y); v.pants.setFlipX(true); try { v.pants.anims.play(`${v.pants.texture.key}_run`, true) } catch {} }
@@ -1054,8 +1175,19 @@ export class GameScene extends Phaser.Scene {
     if (v.hair) { v.hair.setPosition(startX, target.y); v.hair.setFlipX(true); try { v.hair.anims.play(`${v.hair.texture.key}_run`, true) } catch {} }
     this.tweens.add({ targets: [v.rect, v.sprite!, v.shirt!, v.pants!, v.footwear!, v.hair!], x: target.x, duration: 600, ease: 'Sine.easeOut', onComplete: () => {
       if (v.sprite) {
+        // Определяем тип по изначальному specialistSpriteKey, а не по текущей текстуре анимации
+        const data = this.getPersonData(v.id)
+        const profession = data.profession.toLowerCase()
+        const specialistSpriteKey = getSpecialistSpriteKey(profession)
+        
+        if (specialistSpriteKey) {
+          // Для спрайтов специализаций используем имя профессии
+          try { v.sprite.anims.play(`${profession}_idle`, true) } catch {}
+        } else {
+          // Для старых спрайтов используем texture key (но для них нужен базовый ключ)
         const skin = v.sprite.texture.key
         try { v.sprite.anims.play(`${skin}_idle`, true) } catch {}
+        }
       }
       if (v.shirt) { try { v.shirt.anims.play(`${v.shirt.texture.key}_idle`, true) } catch {} }
       if (v.pants) { try { v.pants.anims.play(`${v.pants.texture.key}_idle`, true) } catch {} }
@@ -1092,35 +1224,33 @@ export class GameScene extends Phaser.Scene {
     const id = this.nextVisitorId++
     console.log('[enqueueVisitor] id=', id, 'day=', this.dayNumber, 'clock=', this.getClockText())
     const box = this.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0, 1)
-    box.setStrokeStyle(2, 0x4fc3f7, 0.9)
+    box.setStrokeStyle(2, 0x4fc3f7, 1.0)
+    box.setVisible(true)
+    // Создаем спрайт по специализации или оставляем рамку
+    const data = this.getPersonData(id)
+    const profession = data.profession.toLowerCase()
+    const specialistSpriteKey = getSpecialistSpriteKey(profession)
+    
+    let sprite = undefined
+    let shirt = undefined 
+    let pants = undefined
+    let footwear = undefined
+    let hair = undefined
+    
+    if (specialistSpriteKey) {
+      // Создаем спрайт для специализации
+      ensureSpecialistAnimations(this, profession)
+      sprite = this.add.sprite(0, 0, specialistSpriteKey, 0).setOrigin(0, 1)
+      sprite.setDepth(100) // Устанавливаем depth для спрайтов в очереди
+      sprite.anims.play(`${profession}_idle`)
+      // Масштабируем спрайт 128x128 под размер рамки (28x36)
+      const scaleX = 28 / 128
+      const scaleY = 36 / 128  
+      sprite.setScale(scaleX, scaleY)
+      this.surfaceQueue.add(sprite)
+      // Скрываем рамку когда показываем спрайт
     box.setVisible(false)
-    // Спрайт тела
-    const data = this.generatePersonData(id)
-    const skinKey = pickSkinForGender(data.gender, id)
-    ensureCharacterAnimations(this, skinKey)
-    const sprite = this.add.sprite(0, 0, skinKey, 0).setOrigin(0, 1)
-    sprite.anims.play(`${skinKey}_idle`)
-    sprite.setScale((28 / 80) * 1.5, (36 / 64) * 1.5)
-    // Одежда
-    const clothes = pickClothingSetForGender(data.gender, id)
-    const mkPiece = (key: string | undefined): Phaser.GameObjects.Sprite | undefined => {
-      if (!key) return undefined
-      ensureCharacterAnimations(this, key)
-      const s = this.add.sprite(0, 0, key, 0).setOrigin(0, 1)
-      s.anims.play(`${key}_idle`)
-      s.setScale((28 / 80) * 1.5, (36 / 64) * 1.5)
-      return s
     }
-    const shirt = mkPiece(clothes.shirt)
-    const pants = mkPiece(clothes.pants)
-    const footwear = mkPiece(clothes.footwear)
-    const hairKey = pickHairForGender(data.gender, id)
-    const hair = mkPiece(hairKey)
-    this.surfaceQueue.add(sprite)
-    if (shirt) this.surfaceQueue.add(shirt)
-    if (pants) this.surfaceQueue.add(pants)
-    if (footwear) this.surfaceQueue.add(footwear)
-    if (hair) this.surfaceQueue.add(hair)
     const item = { id, rect: box, sprite, shirt, pants, footwear, hair }
     this.queueItems.push(item)
     this.surfaceQueue.add(box)
@@ -1154,11 +1284,22 @@ export class GameScene extends Phaser.Scene {
       item.rect.setPosition(p.x, p.y)
       if (item.sprite) {
         item.sprite.setPosition(p.x, p.y)
-        // Все стоят лицом к входу (вправо)
+        // Определяем тип спрайта и устанавливаем правильную ориентацию
+                const textureKey = item.sprite.texture?.key || ''
+        const data = this.getPersonData(item.id)
+        const profession = data.profession.toLowerCase()
+        
+                        if (isSpecialistSprite(textureKey)) {
+          // Все спрайты специализаций в очереди должны смотреть вправо к входу
+          item.sprite.setFlipX(false)
+          // Проигрываем анимацию idle для специализации
+          try { item.sprite.anims.play(`${profession}_idle`, true) } catch {}
+        } else {
+          // Старые спрайты: стоят лицом к входу (вправо)
         item.sprite.setFlipX(true)
-        const skin = (item.sprite.texture && item.sprite.texture.key) || ''
-        if (skin) {
-          try { item.sprite.anims.play(`${skin}_idle`, true) } catch {}
+          if (textureKey) {
+            try { item.sprite.anims.play(`${textureKey}_idle`, true) } catch {}
+          }
         }
       }
       if (item.shirt) { item.shirt.setPosition(p.x, p.y); item.shirt.setFlipX(true); try { item.shirt.anims.play(`${item.shirt.texture.key}_idle`, true) } catch {} }
@@ -1248,7 +1389,8 @@ export class GameScene extends Phaser.Scene {
     const id = this.nextEnemyId++
     const type = this.pickEnemyType()
     const box = this.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0, 1)
-    box.setStrokeStyle(2, 0xe53935, 0.95)
+    box.setStrokeStyle(2, 0xe53935, 1.0)
+    box.setVisible(true)
     const item: any = { id, rect: box, type }
     // Инициализация HP сразу, чтобы шкала была полной при первом показе
     // Настройка HP по типу и сложности: соответствие количеству попаданий разным оружием
@@ -1275,35 +1417,14 @@ export class GameScene extends Phaser.Scene {
     item.maxHp = hpByType(type)
     item.hp = item.maxHp
     if (type === 'МАРОДЕР') {
+      // Убираем отображение спрайтов для мародеров, оставляем только данные для логики
       const gender = Math.random() < 0.5 ? 'М' : 'Ж'
-      const skinKey = pickSkinForGender(gender, id + 10000)
-      ensureCharacterAnimations(this, skinKey)
-      const sprite = this.add.sprite(0, 0, skinKey, 0).setOrigin(0, 1)
-      sprite.anims.play(`${skinKey}_idle`)
-      sprite.setScale((28 / 80) * 1.5, (36 / 64) * 1.5)
-      const clothes = pickClothingSetForGender(gender, id + 10000)
-      const mkPiece = (key: string | undefined): Phaser.GameObjects.Sprite | undefined => {
-        if (!key) return undefined
-        ensureCharacterAnimations(this, key)
-        const s = this.add.sprite(0, 0, key, 0).setOrigin(0, 1)
-        s.anims.play(`${key}_idle`)
-        s.setScale((28 / 80) * 1.5, (36 / 64) * 1.5)
-        return s
-      }
-      const shirt = mkPiece(clothes.shirt)
-      const pants = mkPiece(clothes.pants)
-      const footwear = mkPiece(clothes.footwear)
-      const hair = mkPiece(pickHairForGender(gender, id + 10000))
-      this.surfaceEnemyQueue.add(sprite)
-      if (shirt) this.surfaceEnemyQueue.add(shirt)
-      if (pants) this.surfaceEnemyQueue.add(pants)
-      if (footwear) this.surfaceEnemyQueue.add(footwear)
-      if (hair) this.surfaceEnemyQueue.add(hair)
-      item.sprite = sprite
-      item.shirt = shirt
-      item.pants = pants
-      item.footwear = footwear
-      item.hair = hair
+      item.sprite = undefined
+      item.shirt = undefined
+      item.pants = undefined
+      item.footwear = undefined
+      item.hair = undefined
+      item.gender = gender
     } else if (type === 'ЗОМБИ') {
       this.ensureZombieAnimations()
       const kinds = ['wild','man','woman'] as const
@@ -1359,20 +1480,10 @@ export class GameScene extends Phaser.Scene {
     const startX = -40 // приходят с левой границы
     v.rect.setPosition(startX, target.y)
     const item: any = v
-    const tweenTargets: any[] = [v.rect]
-    if (item.type === 'МАРОДЕР') {
-      const flip = true
-      const prepare = (s?: Phaser.GameObjects.Sprite) => {
-        if (!s) return
-        s.setPosition(startX, target.y).setFlipX(flip)
-        try { s.anims.play(`${s.texture.key}_run`, true) } catch {}
-        tweenTargets.push(s)
-      }
-      prepare(item.sprite)
-      prepare(item.shirt)
-      prepare(item.pants)
-      prepare(item.footwear)
-      prepare(item.hair)
+          const tweenTargets: any[] = [v.rect]
+      if (item.type === 'МАРОДЕР') {
+        // Мародеры без спрайтов - только двигаем rect
+        // (спрайты не создаются, поэтому prepare не нужен)
     } else if (item.type === 'ЗОМБИ' && item.sprite) {
       // Зомби не отражаем, просто двигаем и играем walk
       item.sprite.setPosition(startX, target.y)
@@ -1395,8 +1506,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.tweens.add({ targets: tweenTargets, x: target.x, duration: 600, ease: 'Sine.easeOut', onComplete: () => {
       if (item.type === 'МАРОДЕР') {
-        const idle = (s?: Phaser.GameObjects.Sprite) => { if (!s) return; try { s.anims.play(`${s.texture.key}_idle`, true) } catch {} }
-        idle(item.sprite); idle(item.shirt); idle(item.pants); idle(item.footwear); idle(item.hair)
+        // Мародеры без спрайтов - анимация не нужна
       } else if (item.type === 'ЗОМБИ' && item.sprite) {
         try {
           if (item.zombieKind === 'wild') item.sprite.anims.play('z_wild_idle', true)
@@ -1438,31 +1548,36 @@ export class GameScene extends Phaser.Scene {
         this.announce(`принят ${personData.name} ${personData.profession}`)
         // Перенос ресурсов персонажа в бункер, защищённый от повторного начисления
         this.claimVisitorLoot(first.id)
-        // 1) Превью: приподнять и скрыть
-        const pvTargets: any[] = []
-        if (this.personPreviewSprite?.visible) pvTargets.push(this.personPreviewSprite)
-        if (this.personPreviewShirt?.visible) pvTargets.push(this.personPreviewShirt)
-        if (this.personPreviewPants?.visible) pvTargets.push(this.personPreviewPants)
-        if (this.personPreviewFootwear?.visible) pvTargets.push(this.personPreviewFootwear)
-        if (this.personPreviewHair?.visible) pvTargets.push(this.personPreviewHair)
+        // 1) Превью: приподнять и скрыть (спрайт или рамку)
         ;(this as any)._previewBusy = true
-        if (pvTargets.length > 0) {
-          this.tweens.add({ targets: pvTargets, y: "+= -24", alpha: 0, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
-            pvTargets.forEach((t: any) => { try { t.setAlpha(1); t.setVisible(false) } catch {} })
+        if (this.personPreviewSprite && this.personPreviewSprite.visible) {
+          // Анимация поднятия для спрайта
+          this.tweens.add({ targets: this.personPreviewSprite, y: "+= -24", alpha: 0, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
+            this.personPreviewSprite?.setAlpha(1)
+            this.personPreviewSprite?.setVisible(false)
             ;(this as any)._previewBusy = false
             this.updatePersonInfoFromQueue()
           } })
+        } else if (this.personPreview && this.personPreview.visible) {
+          // Анимация поднятия для рамки
+          this.tweens.add({ targets: this.personPreview, y: "+= -24", alpha: 0, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
+            this.personPreview?.setAlpha(1)
+            this.personPreview?.setVisible(false)
+            ;(this as any)._previewBusy = false
+            this.updatePersonInfoFromQueue()
+          } })
+        } else {
+          // Если ничего не видно, сразу обновляем очередь
+          ;(this as any)._previewBusy = false
+          this.updatePersonInfoFromQueue()
         }
-        // 2) Очередь на поверхности: уход вправо (как раньше)
+        // 2) Очередь на поверхности: уход вправо (rect + спрайт специализации если есть)
         const targetX = sr.width + 60
         const outTargets: any[] = [rect]
-        if (sprite) { sprite.setFlipX(true); try { sprite.anims.play(`${sprite.texture.key}_walk`, true) } catch {}; outTargets.push(sprite) }
-        if (first.shirt) { first.shirt.setFlipX(true); try { first.shirt.anims.play(`${first.shirt.texture.key}_walk`, true) } catch {}; outTargets.push(first.shirt) }
-        if (first.pants) { first.pants.setFlipX(true); try { first.pants.anims.play(`${first.pants.texture.key}_walk`, true) } catch {}; outTargets.push(first.pants) }
-        if (first.footwear) { first.footwear.setFlipX(true); try { first.footwear.anims.play(`${first.footwear.texture.key}_walk`, true) } catch {}; outTargets.push(first.footwear) }
-        if (first.hair) { first.hair.setFlipX(true); try { first.hair.anims.play(`${first.hair.texture.key}_walk`, true) } catch {}; outTargets.push(first.hair) }
+        if (sprite) outTargets.push(sprite)
         this.tweens.add({ targets: outTargets, x: targetX, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
-          rect.destroy(); sprite?.destroy(); first.shirt?.destroy(); first.pants?.destroy(); first.footwear?.destroy(); first.hair?.destroy()
+          rect.destroy()
+          sprite?.destroy()
           this.simpleBunker?.syncResidents(this.bunkerResidents.length)
         } })
       } else {
@@ -1476,43 +1591,51 @@ export class GameScene extends Phaser.Scene {
         const positions = this.getQueuePositions(this.queueItems.length, sr)
         this.queueItems.forEach((it, i) => {
           const p = positions[i]
-          this.tweens.add({ targets: [it.rect, it.sprite!], x: p.x, y: p.y, duration: 400, ease: 'Sine.easeOut' })
+          // Смещение очереди направо (только rect, спрайты отсутствуют)
+          this.tweens.add({ targets: [it.rect], x: p.x, y: p.y, duration: 400, ease: 'Sine.easeOut' })
         })
       }
     } else {
-      // Уходят влево
-      // Движение влево — лицом влево (flipX=false)
-      if (sprite) { sprite.setFlipX(false); try { sprite.anims.play(`${sprite.texture.key}_walk`, true) } catch {} }
-      if (first.shirt) { first.shirt.setFlipX(false); try { first.shirt.anims.play(`${first.shirt.texture.key}_walk`, true) } catch {} }
-      if (first.pants) { first.pants.setFlipX(false); try { first.pants.anims.play(`${first.pants.texture.key}_walk`, true) } catch {} }
-      if (first.footwear) { first.footwear.setFlipX(false); try { first.footwear.anims.play(`${first.footwear.texture.key}_walk`, true) } catch {} }
-      if (first.hair) { first.hair.setFlipX(false); try { first.hair.anims.play(`${first.hair.texture.key}_walk`, true) } catch {} }
-      this.tweens.add({ targets: [rect, sprite!, first.shirt!, first.pants!, first.footwear!, first.hair!], x: -60, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
+      // Отказ: анимация выхода влево для превью + очереди
+      ;(this as any)._previewBusy = true
+      // 1) Превью: уход влево с исчезновением (спрайт или рамка)
+      if (this.personPreviewSprite && this.personPreviewSprite.visible) {
+        // Анимация выхода для спрайта
+        // Поворачиваем лицом в сторону движения (влево)
+        this.personPreviewSprite.setFlipX(true)
+        this.tweens.add({ targets: this.personPreviewSprite, x: -60, alpha: 0, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
+          this.personPreviewSprite?.setAlpha(1)
+          this.personPreviewSprite?.setVisible(false)
+          ;(this as any)._previewBusy = false
+          this.updatePersonInfoFromQueue()
+        } })
+      } else if (this.personPreview && this.personPreview.visible) {
+        // Анимация выхода для рамки
+        this.tweens.add({ targets: this.personPreview, x: -60, alpha: 0, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
+          this.personPreview?.setAlpha(1)
+          this.personPreview?.setVisible(false)
+          ;(this as any)._previewBusy = false
+          this.updatePersonInfoFromQueue()
+        } })
+      } else {
+        ;(this as any)._previewBusy = false
+      }
+      // 2) Очередь: уходят влево (rect + спрайт специализации если есть)
+      const leftTargets: any[] = [rect]
+      if (sprite) leftTargets.push(sprite)
+      this.tweens.add({ targets: leftTargets, x: -60, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
         rect.destroy()
         sprite?.destroy()
-        first.shirt?.destroy()
-        first.pants?.destroy()
-        first.footwear?.destroy()
-        first.hair?.destroy()
-        this.updatePersonInfoFromQueue()
+        if (!(this as any)._previewBusy) this.updatePersonInfoFromQueue()
       }})
     }
     const positions = this.getQueuePositions(this.queueItems.length, sr)
     this.queueItems.forEach((it, i) => {
       const p = positions[i]
-      // Смещение очереди направо — лицом вправо
-      if (it.sprite) { it.sprite.setFlipX(true); try { it.sprite.anims.play(`${it.sprite.texture.key}_walk`, true) } catch {} }
-      if (it.shirt) { it.shirt.setFlipX(true); try { it.shirt.anims.play(`${it.shirt.texture.key}_walk`, true) } catch {} }
-      if (it.pants) { it.pants.setFlipX(true); try { it.pants.anims.play(`${it.pants.texture.key}_walk`, true) } catch {} }
-      if (it.footwear) { it.footwear.setFlipX(true); try { it.footwear.anims.play(`${it.footwear.texture.key}_walk`, true) } catch {} }
-      if (it.hair) { it.hair.setFlipX(true); try { it.hair.anims.play(`${it.hair.texture.key}_walk`, true) } catch {} }
-      this.tweens.add({ targets: [it.rect, it.sprite!, it.shirt!, it.pants!, it.footwear!, it.hair!], x: p.x, y: p.y, duration: 400, ease: 'Sine.easeOut', onComplete: () => {
-        if (it.sprite) { try { it.sprite.anims.play(`${it.sprite.texture.key}_idle`, true) } catch {} }
-        if (it.shirt) { try { it.shirt.anims.play(`${it.shirt.texture.key}_idle`, true) } catch {} }
-        if (it.pants) { try { it.pants.anims.play(`${it.pants.texture.key}_idle`, true) } catch {} }
-        if (it.footwear) { try { it.footwear.anims.play(`${it.footwear.texture.key}_idle`, true) } catch {} }
-        if (it.hair) { try { it.hair.anims.play(`${it.hair.texture.key}_idle`, true) } catch {} }
-      } })
+      // Смещение очереди направо (rect + спрайт специализации если есть)
+      const moveTargets: any[] = [it.rect]
+      if (it.sprite) moveTargets.push(it.sprite)
+      this.tweens.add({ targets: moveTargets, x: p.x, y: p.y, duration: 400, ease: 'Sine.easeOut' })
     })
     // Обновление превью выполняется по завершению анимации превью/очереди
   }
@@ -1547,6 +1670,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updatePersonInfoFromQueue(): void {
+    // Не обновляем превью пока идет анимация
+    if ((this as any)._previewBusy) return
+    
     const slideInFromLeft = (targets: any[], toX: number, toY: number, onDone?: () => void) => {
       // старт за пределами слева
       targets.forEach((t: any) => { if (t && typeof t.setPosition === 'function') t.setPosition(-60, toY) })
@@ -1575,32 +1701,15 @@ export class GameScene extends Phaser.Scene {
       // Превью врага: мародёр — слои персонажа, иначе — красный прямоугольник
       if (this.personPreview && this.personPreviewSprite) {
         if (e.type === 'МАРОДЕР') {
-          // Отображаем мародёра по фактическим слоям первого врага в очереди
-          const src: any = this.enemyQueueItems[0]
-          const skinKey = src?.sprite?.texture?.key
-          const shirtKey = src?.shirt?.texture?.key
-          const pantsKey = src?.pants?.texture?.key
-          const footwearKey = src?.footwear?.texture?.key
-          const hairKey = src?.hair?.texture?.key
-          if (skinKey) {
-            ensureCharacterAnimations(this, skinKey)
-            this.personPreviewSprite.setTexture(skinKey)
-            this.personPreviewSprite.anims.play(`${skinKey}_idle`, true)
-            this.personPreviewSprite.setVisible(true)
-          }
-          const setPiece = (sprite: Phaser.GameObjects.Sprite | undefined, key?: string) => {
-            if (!sprite) return
-            if (!key) { sprite.setVisible(false); return }
-            ensureCharacterAnimations(this, key)
-            sprite.setTexture(key)
-            sprite.anims.play(`${key}_idle`, true)
-            sprite.setVisible(true)
-          }
-          setPiece(this.personPreviewShirt!, shirtKey)
-          setPiece(this.personPreviewPants!, pantsKey)
-          setPiece(this.personPreviewFootwear!, footwearKey)
-          setPiece(this.personPreviewHair!, hairKey)
-          this.personPreview.setFillStyle(0x000000, 0)
+          // Убираем отображение спрайтов для мародеров - показываем красный прямоугольник
+          const hide = (s?: Phaser.GameObjects.Sprite) => { if (!s) return; s.setVisible(false); }
+          hide(this.personPreviewShirt)
+          hide(this.personPreviewPants)
+          hide(this.personPreviewFootwear)
+          hide(this.personPreviewHair)
+          hide(this.personPreviewSprite)
+          // Скрываем рамку для мародеров
+          this.personPreview.setVisible(false)
         } else {
           // Для зомби/мутанта — показать их спрайт в превью; для прочих без спрайтов — красный блок
           const e0: any = e
@@ -1608,42 +1717,42 @@ export class GameScene extends Phaser.Scene {
           const isMutant = e0?.type === 'МУТАНТ' && !!e0.sprite && !!e0.mutantKind
           const isSoldier = e0?.type === 'СОЛДАТ' && !!e0.sprite
           const hide = (s?: Phaser.GameObjects.Sprite) => { if (!s) return; s.setVisible(false); }
-          if ((isZombie || isMutant || isSoldier) && this.personPreviewSprite) {
-            // Используем единый спрайт превью как отображение зомби
-            this.personPreviewShirt?.setVisible(false)
-            this.personPreviewPants?.setVisible(false)
-            this.personPreviewFootwear?.setVisible(false)
-            this.personPreviewHair?.setVisible(false)
-            if (isZombie) {
-              const kind = e0.zombieKind
-              const texKey = kind === 'wild' ? 'zombie_wild_idle' : kind === 'man' ? 'zombie_man_idle' : 'zombie_woman_idle'
-              this.personPreviewSprite.setTexture(texKey)
-              try {
-                if (kind === 'wild') this.personPreviewSprite.anims.play('z_wild_idle', true)
-                else if (kind === 'man') this.personPreviewSprite.anims.play('z_man_idle', true)
-                else this.personPreviewSprite.anims.play('z_woman_idle', true)
-              } catch {}
-            } else if (isMutant) {
-              const k = e0.mutantKind
-              const texKey = `mutant${k}_idle`
-              this.personPreviewSprite.setTexture(texKey)
-              try { this.personPreviewSprite.anims.play(`m${k}_idle`, true) } catch {}
-            } else if (isSoldier) {
-              // Солдат
-              this.ensureSoldierAnimations()
-              this.personPreviewSprite.setTexture('soldier_idle')
-              try { this.personPreviewSprite.anims.play('sold_idle', true) } catch {}
-            }
-            this.personPreviewSprite.setVisible(true)
-            this.personPreview.setFillStyle(0x000000, 0)
-          } else {
+                      if ((isZombie || isMutant || isSoldier) && this.personPreviewSprite) {
+              // Используем единый спрайт превью как отображение зомби
+          this.personPreviewShirt?.setVisible(false)
+          this.personPreviewPants?.setVisible(false)
+          this.personPreviewFootwear?.setVisible(false)
+          this.personPreviewHair?.setVisible(false)
+              if (isZombie) {
+                const kind = e0.zombieKind
+                const texKey = kind === 'wild' ? 'zombie_wild_idle' : kind === 'man' ? 'zombie_man_idle' : 'zombie_woman_idle'
+                this.personPreviewSprite.setTexture(texKey)
+                try {
+                  if (kind === 'wild') this.personPreviewSprite.anims.play('z_wild_idle', true)
+                  else if (kind === 'man') this.personPreviewSprite.anims.play('z_man_idle', true)
+                  else this.personPreviewSprite.anims.play('z_woman_idle', true)
+                } catch {}
+              } else if (isMutant) {
+                const k = e0.mutantKind
+                const texKey = `mutant${k}_idle`
+                this.personPreviewSprite.setTexture(texKey)
+                try { this.personPreviewSprite.anims.play(`m${k}_idle`, true) } catch {}
+              } else if (isSoldier) {
+                // Солдат
+                this.ensureSoldierAnimations()
+                this.personPreviewSprite.setTexture('soldier_idle')
+                try { this.personPreviewSprite.anims.play('sold_idle', true) } catch {}
+              }
+              this.personPreviewSprite.setVisible(true)
+              this.personPreview.setFillStyle(0x000000, 0)
+            } else {
             // Показать красный прямоугольник, спрятать все слои превью
             hide(this.personPreviewShirt)
             hide(this.personPreviewPants)
             hide(this.personPreviewFootwear)
             hide(this.personPreviewHair)
             hide(this.personPreviewSprite)
-            this.personPreview.setFillStyle(0xb71c1c, 0.9)
+          this.personPreview.setFillStyle(0xb71c1c, 0.9)
           }
         }
       }
@@ -1732,63 +1841,75 @@ export class GameScene extends Phaser.Scene {
       const col = firstSkill && typeof firstSkill.positive === 'boolean' ? (firstSkill.positive ? '#81c784' : '#e57373') : THEME.colors.text
       this.personSkillText.setColor(col)
     }
-    // Обновим превью (цвет рамки в зависимости от навыка)
-    if (this.personPreview) {
-      this.personPreview.setVisible(true)
-    }
-    // Спрайт превью (тело): выбираем по полу
-    if (this.personPreviewSprite) {
-      const skinKey = pickSkinForGender(data.gender, first.id)
-      ensureCharacterAnimations(this, skinKey)
-      this.personPreviewSprite.setTexture(skinKey)
-      this.personPreviewSprite.anims.play(`${skinKey}_idle`)
+    // Проверяем специализацию и отображаем соответствующий спрайт или рамку
+    const profession = data.profession.toLowerCase()
+    const specialistSpriteKey = getSpecialistSpriteKey(profession)
+    
+    if (specialistSpriteKey && this.personPreviewSprite) {
+      // Отображаем спрайт специализации
+      console.log('[DEBUG] Показываем спрайт специализации для жителя:', profession, specialistSpriteKey)
+      ensureSpecialistAnimations(this, profession)
+      this.personPreviewSprite.setTexture(specialistSpriteKey)
+      this.personPreviewSprite.anims.play(`${profession}_idle`)
       this.personPreviewSprite.setVisible(true)
       this.personPreviewSprite.setAlpha(1)
+      
+      // Масштабируем спрайт 128x128 под размер рамки (56x72)
+      const scaleX = 56 / 128
+      const scaleY = 72 / 128
+      this.personPreviewSprite.setScale(scaleX, scaleY)
+      
+      // Скрываем рамку когда показываем спрайт
+      if (this.personPreview) this.personPreview.setVisible(false)
+      
+      // Скрываем слои одежды для специализации
+      if (this.personPreviewShirt) this.personPreviewShirt.setVisible(false)
+      if (this.personPreviewPants) this.personPreviewPants.setVisible(false) 
+      if (this.personPreviewFootwear) this.personPreviewFootwear.setVisible(false)
+      if (this.personPreviewHair) this.personPreviewHair.setVisible(false)
+    } else {
+            // Скрываем рамку для остальных профессий
+    if (this.personPreview) {
+        this.personPreview.setVisible(false)
     }
-    // Одежда превью
-    const clothes = pickClothingSetForGender(data.gender, first.id)
-    const setPiece = (sprite: Phaser.GameObjects.Sprite | undefined, key: string | undefined) => {
-      if (!sprite) return
-      if (!key) { sprite.setVisible(false); return }
-      ensureCharacterAnimations(this, key)
-      sprite.setTexture(key)
-      sprite.anims.play(`${key}_idle`)
-      sprite.setVisible(true)
+      // Убираем отображение спрайтов для посетителей - показываем только рамку
+    if (this.personPreviewSprite) {
+        this.personPreviewSprite.setVisible(false)
+      }
+      // Скрываем все слои одежды
+      if (this.personPreviewShirt) this.personPreviewShirt.setVisible(false)
+      if (this.personPreviewPants) this.personPreviewPants.setVisible(false) 
+      if (this.personPreviewFootwear) this.personPreviewFootwear.setVisible(false)
+      if (this.personPreviewHair) this.personPreviewHair.setVisible(false)
     }
-    setPiece(this.personPreviewShirt!, clothes.shirt)
-    setPiece(this.personPreviewPants!, clothes.pants)
-    setPiece(this.personPreviewFootwear!, clothes.footwear)
-    // Волосы превью
-    const hairKey = pickHairForGender(data.gender, first.id)
-    setPiece(this.personPreviewHair!, hairKey)
-    // Гарантируем альфу и видимость у включённых слоёв
-    ;[this.personPreviewShirt, this.personPreviewPants, this.personPreviewFootwear, this.personPreviewHair].forEach(s => { if (s && s.visible) s.setAlpha(1) })
     this.updateUIVisibility()
     if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
-    // Вход анимацией слева: соберём текущие слои превью в массив и заедем в целевую позицию
-    if (this.personPreviewSprite && this.personPreview) {
-      const sr = this.lastPersonRect!
-      const toX = this.personPreviewSprite.x
-      const toY = this.personPreviewSprite.y
-      const targets: any[] = [this.personPreviewSprite]
-      if (this.personPreviewShirt?.visible) targets.push(this.personPreviewShirt)
-      if (this.personPreviewPants?.visible) targets.push(this.personPreviewPants)
-      if (this.personPreviewFootwear?.visible) targets.push(this.personPreviewFootwear)
-      if (this.personPreviewHair?.visible) targets.push(this.personPreviewHair)
-      // Проигрываем walk при заходе
-      try { this.personPreviewSprite.anims.play(`${this.personPreviewSprite.texture.key}_walk`, true) } catch {}
-      try { this.personPreviewShirt?.anims?.play(`${this.personPreviewShirt.texture.key}_walk`, true) } catch {}
-      try { this.personPreviewPants?.anims?.play(`${this.personPreviewPants.texture.key}_walk`, true) } catch {}
-      try { this.personPreviewFootwear?.anims?.play(`${this.personPreviewFootwear.texture.key}_walk`, true) } catch {}
-      try { this.personPreviewHair?.anims?.play(`${this.personPreviewHair.texture.key}_walk`, true) } catch {}
-      slideInFromLeft(targets, toX, toY, () => {
-        // Вернем idle после входа
-        try { this.personPreviewSprite?.anims?.play(`${this.personPreviewSprite.texture.key}_idle`, true) } catch {}
-        try { this.personPreviewShirt?.anims?.play(`${this.personPreviewShirt.texture.key}_idle`, true) } catch {}
-        try { this.personPreviewPants?.anims?.play(`${this.personPreviewPants.texture.key}_idle`, true) } catch {}
-        try { this.personPreviewFootwear?.anims?.play(`${this.personPreviewFootwear.texture.key}_idle`, true) } catch {}
-        try { this.personPreviewHair?.anims?.play(`${this.personPreviewHair.texture.key}_idle`, true) } catch {}
-      })
+    // Анимация входа для превью жителя (спрайт или рамка)
+    if (this.lastPersonRect) {
+      if (specialistSpriteKey && this.personPreviewSprite && this.personPreviewSprite.visible) {
+        // Анимация входа для спрайта специализации
+        const sr = this.lastPersonRect
+        const toX = this.personPreviewSprite.x
+        const toY = this.personPreviewSprite.y
+        // Начинаем слева за границей экрана
+        this.personPreviewSprite.setPosition(-60, toY)
+        // Поворачиваем лицом в сторону движения (вправо)
+        this.personPreviewSprite.setFlipX(false)
+        // Проигрываем анимацию ходьбы при входе
+        this.personPreviewSprite.anims.play(`${profession}_walk`)
+        // Анимируем въезд спрайта слева
+        this.tweens.add({
+          targets: this.personPreviewSprite,
+          x: toX,
+          duration: 900,
+          ease: 'Sine.easeOut',
+          onComplete: () => {
+            // Переключаемся на idle после входа
+            this.personPreviewSprite?.anims.play(`${profession}_idle`)
+          }
+        })
+      }
+      // Рамка скрыта, анимация не нужна
     }
   }
 
@@ -1823,7 +1944,7 @@ export class GameScene extends Phaser.Scene {
     const genders = ['М', 'Ж']
     const maleNames = ['Алексей', 'Иван', 'Сергей', 'Дмитрий', 'Максим', 'Никита', 'Павел', 'Егор', 'Олег', 'Антон']
     const femaleNames = ['Анна', 'Екатерина', 'Мария', 'Алина', 'Ольга', 'Наталья', 'София', 'Виктория', 'Дарья', 'Юлия']
-    const professions = ['доктор','повар','сантехник','ученый','инженер','химик','разведчик','охотник','безработный','актер','солдат']
+    const professions = ['доктор','повар','сантехник','ученый','инженер','химик','разведчик','охотник','безработный','бездомный','солдат']
     const skillsPos = ['трудолюбивый','гений','лидер','везунчик','крепкий иммунитет','герой']
     const skillsNeg = ['лентяй','выгоревший','слепой','группа инвалидности','шпион','страдает бессоницей','сова','неудачник','зараженный','неизлечимая болезнь','трус']
 
@@ -2406,6 +2527,7 @@ export class GameScene extends Phaser.Scene {
     if (this.lastHourTick !== hh) {
       ;(this.simpleBunker as any)?.onHourTick?.(hh, isDayHour)
       this.lastHourTick = hh
+      this.processEnemyDefenseDamage(hh)
     }
   }
 
@@ -2476,24 +2598,24 @@ export class GameScene extends Phaser.Scene {
       if (self._notifQueue.length === 0) { self._notifBusy = false; return }
       const msg: string = self._notifQueue.shift()
       self._notifBusy = true
-      const s = uiScale(this)
+    const s = uiScale(this)
       const yBase = Math.round(80 * s)
       const container = this.add.container(this.scale.width / 2, yBase)
       container.setDepth(2000)
       const bgPadding = 8
       const label = this.add.text(0, 0, msg, {
-        fontFamily: THEME.fonts.heading,
-        fontSize: fs(this, 18),
+      fontFamily: THEME.fonts.heading,
+      fontSize: fs(this, 18),
         color: '#ffffff'
-      }).setOrigin(0.5)
+    }).setOrigin(0.5)
       const bg = this.add.rectangle(0, 0, Math.ceil(label.width + bgPadding * 2), Math.ceil(label.height + bgPadding * 2), 0x000000, 0.4).setOrigin(0.5)
       container.add([bg, label])
       container.setAlpha(0)
       this.tweens.add({ targets: container, alpha: 1, y: yBase + 10, duration: 400, ease: 'Sine.easeOut', onComplete: () => {
         this.time.delayedCall(1400, () => {
           this.tweens.add({ targets: container, alpha: 0, y: yBase + 20, duration: 500, ease: 'Sine.easeIn', onComplete: () => { container.destroy(); runNext() } })
-        })
-      } })
+      })
+    } })
     }
     runNext()
   }

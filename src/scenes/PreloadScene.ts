@@ -35,11 +35,91 @@ export class PreloadScene extends Phaser.Scene {
     this.load.image('room_lab', 'src/sprites/rooms/lab_room.png')
     this.load.image('room_storage', 'src/sprites/rooms/storage_room.png')
     this.load.image('room_tech', 'src/sprites/rooms/tech_room.png')
+    this.load.image('room_station', 'src/sprites/rooms/station.png')
 
     // Персонажи (спрайтшиты)
     registerCharacterSheets(this)
     registerClothingSheets(this)
     registerHairSheets(this)
+    
+    // Специализации персонажей (128x128)
+    // Безработный
+    this.load.spritesheet('unemployed_attack', 'src/sprites/characters/specialist/unemployed/Attack_1.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('unemployed_dead', 'src/sprites/characters/specialist/unemployed/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('unemployed_hurt', 'src/sprites/characters/specialist/unemployed/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('unemployed_idle2', 'src/sprites/characters/specialist/unemployed/Idle_2.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('unemployed_idle', 'src/sprites/characters/specialist/unemployed/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('unemployed_walk', 'src/sprites/characters/specialist/unemployed/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Повар
+    this.load.spritesheet('chef_attack', 'src/sprites/characters/specialist/chef/Attack.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('chef_dead', 'src/sprites/characters/specialist/chef/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('chef_hurt', 'src/sprites/characters/specialist/chef/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('chef_idle', 'src/sprites/characters/specialist/chef/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('chef_walk', 'src/sprites/characters/specialist/chef/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Химик
+    this.load.spritesheet('chemist_attack', 'src/sprites/characters/specialist/chemic/Attack.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('chemist_idle', 'src/sprites/characters/specialist/chemic/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('chemist_protection', 'src/sprites/characters/specialist/chemic/Protection.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('chemist_walk', 'src/sprites/characters/specialist/chemic/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Доктор
+    this.load.spritesheet('doctor_attack', 'src/sprites/characters/specialist/doctor/Attack.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('doctor_dead', 'src/sprites/characters/specialist/doctor/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('doctor_hurt', 'src/sprites/characters/specialist/doctor/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('doctor_idle', 'src/sprites/characters/specialist/doctor/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('doctor_walk', 'src/sprites/characters/specialist/doctor/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Инженер
+    this.load.spritesheet('engineer_attack', 'src/sprites/characters/specialist/engineer/Attack_2.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('engineer_dead', 'src/sprites/characters/specialist/engineer/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('engineer_hurt', 'src/sprites/characters/specialist/engineer/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('engineer_idle', 'src/sprites/characters/specialist/engineer/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('engineer_walk', 'src/sprites/characters/specialist/engineer/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Бездомный
+    this.load.spritesheet('homeless_attack', 'src/sprites/characters/specialist/homeless/Attack_1.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('homeless_dead', 'src/sprites/characters/specialist/homeless/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('homeless_hurt', 'src/sprites/characters/specialist/homeless/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('homeless_idle', 'src/sprites/characters/specialist/homeless/Idle_2.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('homeless_special', 'src/sprites/characters/specialist/homeless/Special.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('homeless_walk', 'src/sprites/characters/specialist/homeless/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Охотник
+    this.load.spritesheet('hunter_attack', 'src/sprites/characters/specialist/hunter/Attack_1.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('hunter_dead', 'src/sprites/characters/specialist/hunter/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('hunter_hurt', 'src/sprites/characters/specialist/hunter/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('hunter_idle', 'src/sprites/characters/specialist/hunter/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('hunter_walk', 'src/sprites/characters/specialist/hunter/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Сантехник
+    this.load.spritesheet('plumber_attack', 'src/sprites/characters/specialist/plumber/Attack_3.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('plumber_dead', 'src/sprites/characters/specialist/plumber/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('plumber_hurt', 'src/sprites/characters/specialist/plumber/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('plumber_idle', 'src/sprites/characters/specialist/plumber/Idle_2.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('plumber_walk', 'src/sprites/characters/specialist/plumber/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Ученый
+    this.load.spritesheet('scientist_attack', 'src/sprites/characters/specialist/scientist/Attack.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scientist_dead', 'src/sprites/characters/specialist/scientist/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scientist_hurt', 'src/sprites/characters/specialist/scientist/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scientist_idle', 'src/sprites/characters/specialist/scientist/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scientist_walk', 'src/sprites/characters/specialist/scientist/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Разведчик
+    this.load.spritesheet('scout_attack', 'src/sprites/characters/specialist/scout/Attack_2.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scout_dead', 'src/sprites/characters/specialist/scout/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scout_hurt', 'src/sprites/characters/specialist/scout/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scout_idle', 'src/sprites/characters/specialist/scout/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('scout_walk', 'src/sprites/characters/specialist/scout/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    
+    // Солдат
+    this.load.spritesheet('soldier_attack', 'src/sprites/characters/specialist/soldier/Shot_1.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('soldier_dead', 'src/sprites/characters/specialist/soldier/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('soldier_hurt', 'src/sprites/characters/specialist/soldier/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('soldier_idle', 'src/sprites/characters/specialist/soldier/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('soldier_walk', 'src/sprites/characters/specialist/soldier/Walk.png', { frameWidth: 128, frameHeight: 128 })
 
     // Оружие: пистолет (кадры 64x32)
     this.load.image('pistol_f00', 'src/sprites/weapon/pistol/frame_00_delay-0.3s.png')

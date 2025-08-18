@@ -209,4 +209,662 @@ export function pickHairForGender(gender: string, seed: number): string | undefi
   return choice === 'none' ? undefined : choice
 }
 
+// Функция для создания анимаций специализаций
+export function ensureSpecialistAnimations(scene: Phaser.Scene, profession: string): void {
+  const key = profession.toLowerCase()
+  
+  if (key === 'безработный') {
+    // Создаем анимации для безработного
+    const anims = scene.anims
+    
+    // Attack (10 кадров)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('unemployed_attack', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (4 кадра)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('unemployed_dead', { frames: [0, 1, 2, 3] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (3 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('unemployed_hurt', { frames: [0, 1, 2] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle_2 (9 кадров)
+    if (!anims.exists(`${key}_idle2`)) {
+      anims.create({
+        key: `${key}_idle2`,
+        frames: anims.generateFrameNumbers('unemployed_idle2', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Idle (7 кадров) - основная анимация покоя
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('unemployed_idle', { frames: [0, 1, 2, 3, 4, 5, 6] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (8 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('unemployed_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'повар') {
+    // Создаем анимации для повара
+    const anims = scene.anims
+    
+    // Attack (5 кадров)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('chef_attack', { frames: [0, 1, 2, 3, 4] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (4 кадра)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('chef_dead', { frames: [0, 1, 2, 3] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (3 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('chef_hurt', { frames: [0, 1, 2] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (6 кадров) - основная анимация покоя
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('chef_idle', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (10 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('chef_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'химик') {
+    // Создаем анимации для химика
+    const anims = scene.anims
+    
+    // Attack (8 кадров)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('chemist_attack', { frames: [0, 1, 2, 3, 4, 5, 6, 7] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Protection (4 кадра) - вместо dead и hurt
+    if (!anims.exists(`${key}_protection`)) {
+      anims.create({
+        key: `${key}_protection`,
+        frames: anims.generateFrameNumbers('chemist_protection', { frames: [0, 1, 2, 3] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Dead как алиас для protection (для совместимости с системой)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('chemist_protection', { frames: [0, 1, 2, 3] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt как алиас для protection (для совместимости с системой)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('chemist_protection', { frames: [0, 1] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (9 кадров) - основная анимация покоя
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('chemist_idle', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (12 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('chemist_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'доктор') {
+    // Создаем анимации для доктора
+    const anims = scene.anims
+    
+    // Attack (4 кадра)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('doctor_attack', { frames: [0, 1, 2, 3] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (5 кадров)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('doctor_dead', { frames: [0, 1, 2, 3, 4] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (3 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('doctor_hurt', { frames: [0, 1, 2] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (6 кадров) - основная анимация покоя
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('doctor_idle', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (10 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('doctor_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'инженер') {
+    // Создаем анимации для инженера
+    const anims = scene.anims
+    
+    // Attack (7 кадров)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('engineer_attack', { frames: [0, 1, 2, 3, 4, 5, 6] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (3 кадра)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('engineer_dead', { frames: [0, 1, 2] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (4 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('engineer_hurt', { frames: [0, 1, 2, 3] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (6 кадров) - основная анимация покоя
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('engineer_idle', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (12 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('engineer_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'бездомный') {
+    // Создаем анимации для бездомного
+    const anims = scene.anims
+    
+    // Attack (3 кадра)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('homeless_attack', { frames: [0, 1, 2] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (4 кадра)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('homeless_dead', { frames: [0, 1, 2, 3] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (3 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('homeless_hurt', { frames: [0, 1, 2] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle_2 (11 кадров)
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('homeless_idle', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (8 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('homeless_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'охотник') {
+    // Создаем анимации для охотника
+    const anims = scene.anims
+    
+    // Attack (6 кадров)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('hunter_attack', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (3 кадра)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('hunter_dead', { frames: [0, 1, 2] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (4 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('hunter_hurt', { frames: [0, 1, 2, 3] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (6 кадров)
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('hunter_idle', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (12 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('hunter_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'сантехник') {
+    // Создаем анимации для сантехника
+    const anims = scene.anims
+    
+    // Attack (6 кадров)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('plumber_attack', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (5 кадров)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('plumber_dead', { frames: [0, 1, 2, 3, 4] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (4 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('plumber_hurt', { frames: [0, 1, 2, 3] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (13 кадров) - используем Idle_2
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('plumber_idle', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (10 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('plumber_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'ученый' || key === 'учёный') {
+    // Создаем анимации для ученого
+    const anims = scene.anims
+    
+    // Attack (5 кадров)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('scientist_attack', { frames: [0, 1, 2, 3, 4] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (5 кадров)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('scientist_dead', { frames: [0, 1, 2, 3, 4] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (4 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('scientist_hurt', { frames: [0, 1, 2, 3] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (6 кадров)
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('scientist_idle', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (10 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('scientist_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'разведчик') {
+    // Создаем анимации для разведчика
+    const anims = scene.anims
+    
+    // Attack (4 кадра)
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('scout_attack', { frames: [0, 1, 2, 3] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (4 кадра)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('scout_dead', { frames: [0, 1, 2, 3] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (4 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('scout_hurt', { frames: [0, 1, 2, 3] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (6 кадров)
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('scout_idle', { frames: [0, 1, 2, 3, 4, 5] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (12 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('scout_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  } else if (key === 'солдат') {
+    // Создаем анимации для солдата
+    const anims = scene.anims
+    
+    // Attack (4 кадра) - используем Shot_1
+    if (!anims.exists(`${key}_attack`)) {
+      anims.create({
+        key: `${key}_attack`,
+        frames: anims.generateFrameNumbers('soldier_attack', { frames: [0, 1, 2, 3] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+    
+    // Dead (4 кадра)
+    if (!anims.exists(`${key}_dead`)) {
+      anims.create({
+        key: `${key}_dead`,
+        frames: anims.generateFrameNumbers('soldier_dead', { frames: [0, 1, 2, 3] }),
+        frameRate: 8,
+        repeat: 0
+      })
+    }
+    
+    // Hurt (3 кадра)
+    if (!anims.exists(`${key}_hurt`)) {
+      anims.create({
+        key: `${key}_hurt`,
+        frames: anims.generateFrameNumbers('soldier_hurt', { frames: [0, 1, 2] }),
+        frameRate: 10,
+        repeat: 0
+      })
+    }
+    
+    // Idle (7 кадров)
+    if (!anims.exists(`${key}_idle`)) {
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('soldier_idle', { frames: [0, 1, 2, 3, 4, 5, 6] }),
+        frameRate: 8,
+        repeat: -1
+      })
+    }
+    
+    // Walk (7 кадров)
+    if (!anims.exists(`${key}_walk`)) {
+      anims.create({
+        key: `${key}_walk`,
+        frames: anims.generateFrameNumbers('soldier_walk', { frames: [0, 1, 2, 3, 4, 5, 6] }),
+        frameRate: 12,
+        repeat: -1
+      })
+    }
+  }
+}
+
+// Функция для получения ключа спрайта по специализации
+export function getSpecialistSpriteKey(profession: string): string | null {
+  const key = profession.toLowerCase()
+  if (key === 'безработный') {
+    return 'unemployed_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'повар') {
+    return 'chef_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'химик') {
+    return 'chemist_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'доктор' || key === 'врач') {
+    return 'doctor_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'инженер') {
+    return 'engineer_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'бездомный') {
+    return 'homeless_idle' // Используем idle_2 для бездомного
+  }
+  if (key === 'охотник') {
+    return 'hunter_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'сантехник') {
+    return 'plumber_idle' // Возвращаем базовый спрайт для создания (Idle_2)
+  }
+  if (key === 'ученый' || key === 'учёный') {
+    return 'scientist_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'разведчик') {
+    return 'scout_idle' // Возвращаем базовый спрайт для создания
+  }
+  if (key === 'солдат') {
+    return 'soldier_idle' // Возвращаем базовый спрайт для создания
+  }
+  return null
+}
+
+// Функция для проверки является ли текстура спрайтом специализации
+export function isSpecialistSprite(textureKey: string): boolean {
+  const specialistTextures = [
+    'unemployed_idle', 'chef_idle', 'chemist_idle', 'doctor_idle', 'engineer_idle',
+    'homeless_idle', 'hunter_idle', 'plumber_idle', 'scientist_idle', 'scout_idle', 'soldier_idle'
+  ]
+  return specialistTextures.includes(textureKey)
+}
+
 

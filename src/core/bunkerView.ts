@@ -1,5 +1,27 @@
 import Phaser from 'phaser'
-import { ensureCharacterAnimations, pickSkinForGender, pickClothingSetForGender, pickHairForGender } from './characters'
+import { ensureCharacterAnimations, pickSkinForGender, pickClothingSetForGender, pickHairForGender, ensureSpecialistAnimations, getSpecialistSpriteKey, isSpecialistSprite } from './characters'
+
+// Интерфейс для состояний комнаты
+export interface RoomState {
+  // Флаг доступности (по умолчанию true, нельзя изменить для "Вход")
+  accessible: boolean
+  // Флаг возможности разрушения (по умолчанию true кроме "Вход", нельзя изменить для "Вход")
+  destructible: boolean
+  // Флаг энергии (по умолчанию true, нельзя изменить для "Вход")
+  powered: boolean
+  // Флаг света (по умолчанию true, нельзя изменить для "Вход")
+  lit: boolean
+  // Флаг пожара для особых событий (по умолчанию false, нельзя изменить для "Вход")
+  onFire: boolean
+  // Флаг потопа для особых событий (по умолчанию false, нельзя изменить для "Вход")
+  flooded: boolean
+  // Флаг опасности (по умолчанию false, можно изменить для всех)
+  dangerous: boolean
+  // Флаг возможности работы (по умолчанию true, нельзя изменить для "Вход", зависит от других флагов)
+  workable: boolean
+  // Состояния событий (по умолчанию пустое, нельзя изменить для "Вход")
+  eventStates: Set<string>
+}
 
 export class SimpleBunkerView {
   private scene: Phaser.Scene
@@ -7,6 +29,7 @@ export class SimpleBunkerView {
   private root: Phaser.GameObjects.Container
   private content: Phaser.GameObjects.Container
   private overlay: Phaser.GameObjects.Container
+  private darknessContainer: Phaser.GameObjects.Container
   private panel: Phaser.GameObjects.Graphics
   private labels: Phaser.GameObjects.Text[] = []
   private detailsPanels: Map<number, Phaser.GameObjects.Container> = new Map()
@@ -14,6 +37,8 @@ export class SimpleBunkerView {
   private viewport: Phaser.Geom.Rectangle = new Phaser.Geom.Rectangle(0, 0, 1, 1)
   private roomRects: Phaser.Geom.Rectangle[] = []
   private roomNames: string[] = []
+  private roomStates: Map<number, RoomState> = new Map()
+  private roomDarknessOverlays: Map<number, Phaser.GameObjects.Rectangle> = new Map()
   private elevatorRect: Phaser.Geom.Rectangle = new Phaser.Geom.Rectangle(0, 0, 1, 1)
   private extraElevators: Phaser.Geom.Rectangle[] = []
   private mode: 'overview' | 'focus' = 'overview'
@@ -31,7 +56,7 @@ export class SimpleBunkerView {
   private availableRoomTypes = [
     // Базовые типы со старта
     'Вход',
-    'Комната отдыха',
+    'Спальня',
     'Столовая',
     'Туалет',
     // Новые типы
@@ -40,6 +65,7 @@ export class SimpleBunkerView {
     'Госпиталь',
     'Склад',
     'Лаборатория',
+    'Станция',
     // Служебный тип
     'Лифт'
   ]
@@ -98,6 +124,7 @@ export class SimpleBunkerView {
     this.parent = parent
     this.root = scene.add.container(0, 0)
     this.content = scene.add.container(0, 0)
+    this.darknessContainer = scene.add.container(0, 0)
     this.panel = scene.add.graphics()
     this.overlay = scene.add.container(0, 0)
     const label = scene.add.text(0, 0, 'Entrance', {
@@ -107,10 +134,12 @@ export class SimpleBunkerView {
     }).setOrigin(0, 0)
     this.labels = [label]
     this.content.add([this.panel])
-    this.root.add([this.content, this.overlay])
+    this.root.add([this.content, this.darknessContainer, this.overlay])
     this.parent.add(this.root)
     this.root.setDepth(1)
-    this.overlay.setDepth(100)
+    this.content.setDepth(10)        // персонажи и фон комнат
+    this.darknessContainer.setDepth(50)  // затемнение поверх персонажей
+    this.overlay.setDepth(100)       // UI элементы поверх всего
     
     // Создаём случайную структуру бункера
     this.generateRandomBunkerLayout()
@@ -133,6 +162,8 @@ export class SimpleBunkerView {
       const newX = this.contentStart.x + dx
       const newY = this.contentStart.y + dy
       this.content.setPosition(newX, newY)
+      // Синхронизируем затемнение при панорамировании
+      this.darknessContainer.setPosition(newX, newY)
       // Перерисуем overlay, чтобы шапки/кнопки следовали за комнатами при панорамировании
       this.updateLabels()
     })
@@ -186,15 +217,15 @@ export class SimpleBunkerView {
 
   // Вызывается раз в игровой час из сцены
   public onHourTick(hour: number, isDay: boolean): void {
-    // Расписание: только для профессий ученый, химик, безработный, актер
-    const isSleepRoom = (idx: number) => this.roomNames[idx] === 'Комната отдыха'
+    // Расписание: только для профессий ученый, химик, безработный, бездомный
+    const isSleepRoom = (idx: number) => this.roomNames[idx] === 'Спальня'
     const findRoomIndex = (name: string): number | null => {
       for (let i = 0; i < this.roomNames.length; i++) if (this.roomNames[i] === name) return i
       return null
     }
     for (const agent of this.residentAgents) {
       const prof = (agent.profession || '').toLowerCase()
-      if (!['ученый', 'химик', 'безработный', 'актер', 'актёр', 'сантехник', 'повар', 'инженер', 'солдат', 'доктор', 'врач', 'охотник', 'разведчик'].includes(prof)) continue
+      if (!['ученый', 'химик', 'безработный', 'бездомный', 'сантехник', 'повар', 'инженер', 'солдат', 'доктор', 'врач', 'охотник', 'разведчик'].includes(prof)) continue
       const type = agent.schedType || 'normal'
       let desired: 'sleep' | 'work' | 'rest' = 'rest'
       const workerProf = ['ученый','химик','сантехник','повар','инженер','солдат','доктор','врач','охотник','разведчик'].includes(prof)
@@ -223,7 +254,7 @@ export class SimpleBunkerView {
         this.releaseRoomAssignment(agent)
         // Выбираем ближайшую комнату отдыха с доступным слотом (максимум 4 на комнату)
         const restIdxs: number[] = []
-        for (let i = 0; i < this.roomNames.length; i++) if (this.roomNames[i] === 'Комната отдыха') restIdxs.push(i)
+        for (let i = 0; i < this.roomNames.length; i++) if (this.roomNames[i] === 'Спальня') restIdxs.push(i)
         restIdxs.sort((a, b) => {
           const ra = this.roomRects[a], rb = this.roomRects[b]
           const dax = (ra.x + ra.width / 2) - agent.rect.x
@@ -303,13 +334,23 @@ export class SimpleBunkerView {
 
   private generateRandomBunkerLayout(): void {
     // Определяем 4 комнаты
-    this.roomNames = ['Вход', 'Комната отдыха', 'Столовая', 'Туалет']
+    this.roomNames = ['Вход', 'Спальня', 'Столовая', 'Туалет']
     
     // Создаём прямоугольники для комнат
     this.roomRects = this.roomNames.map(() => new Phaser.Geom.Rectangle(0, 0, 1, 1))
     
+    // Инициализируем состояния для всех комнат
+    this.roomNames.forEach((roomName, index) => {
+      this.roomStates.set(index, this.createDefaultRoomState(roomName, index))
+      // Инициализируем визуальные эффекты для комнаты
+      this.updateRoomVisuals(index)
+    })
+    
+    // Пересчитываем распределение энергии после инициализации
+    this.updatePowerDistribution()
+    
     // Создаём массив для случайного порядка комнат (кроме входа, который всегда слева)
-    const roomOrder = ['Вход', ...this.shuffleArray(['Комната отдыха', 'Столовая', 'Туалет'])]
+    const roomOrder = ['Вход', ...this.shuffleArray(['Спальня', 'Столовая', 'Туалет'])]
     
     // Генерируем случайную структуру
     this.generateRoomPositions(roomOrder)
@@ -502,17 +543,27 @@ export class SimpleBunkerView {
       const sFocus = getFocusScale(fr)
       const rcx = fr.x + fr.width / 2
       const rcy = fr.y + fr.height / 2
+      const posX = Math.round(availW / 2 - rcx * sFocus)
+      const posY = Math.round(availH / 2 - rcy * sFocus)
       this.content.setScale(sFocus)
-      this.content.setPosition(Math.round(availW / 2 - rcx * sFocus), Math.round(availH / 2 - rcy * sFocus))
+      this.content.setPosition(posX, posY)
+      // Синхронизируем затемнение с основным контентом
+      this.darknessContainer.setScale(sFocus)
+      this.darknessContainer.setPosition(posX, posY)
     } else {
       // Обзор: масштаб не больше половины фокусного и не больше масштаба, умещающего всё
       const baseFocusRect = this.roomRects[this.focusedIndex ?? 0] ?? this.roomRects[0]
       const sFocusBase = baseFocusRect ? getFocusScale(baseFocusRect) : 1
       const sOverview = Math.min(sFocusBase * 0.5, fitAllScale)
-      this.content.setScale(sOverview)
       const centerX = minX + totalWidth / 2
       const centerY = minY + totalHeight / 2
-      this.content.setPosition(Math.round(availW / 2 - centerX * sOverview), Math.round(availH / 2 - centerY * sOverview))
+      const posX = Math.round(availW / 2 - centerX * sOverview)
+      const posY = Math.round(availH / 2 - centerY * sOverview)
+      this.content.setScale(sOverview)
+      this.content.setPosition(posX, posY)
+      // Синхронизируем затемнение с основным контентом
+      this.darknessContainer.setScale(sOverview)
+      this.darknessContainer.setPosition(posX, posY)
     }
 
     // После трансформа — гарантируем, что жители остаются в content и на верхних слоях
@@ -525,14 +576,30 @@ export class SimpleBunkerView {
       if (a.hair && a.hair.scene && a.hair.parentContainer !== this.content) this.content.add(a.hair)
       if (a.rect.scene && a.rect.parentContainer !== this.content) this.content.add(a.rect)
     }
-    for (const a of this.residentAgents) {
-      if (a.sprite) this.content.bringToTop(a.sprite) // 1 кожа
-      if (a.shirt) this.content.bringToTop(a.shirt)   // 2 верх
-      if (a.hair) this.content.bringToTop(a.hair)     // 3 волосы
-      if (a.footwear) this.content.bringToTop(a.footwear) // 4 ботинки
-      if (a.pants) this.content.bringToTop(a.pants)   // 5 низ
-      this.content.bringToTop(a.rect)
+    // Устанавливаем фиксированные значения depth для правильного порядка отрисовки
+    console.log(`[Depth] Обновляем depth для ${this.residentAgents.length} персонажей`)
+    for (let i = 0; i < this.residentAgents.length; i++) {
+      const a = this.residentAgents[i]
+      if (a.sprite) {
+        a.sprite.setDepth(100)
+        const sameContainer = a.sprite.parentContainer === this.content
+        console.log(`[Depth] Персонаж ${i}: sprite depth=${a.sprite.depth}, в content=${sameContainer}, container=${a.sprite.parentContainer?.name || 'none'}`)
+      }
+      if (a.shirt) a.shirt.setDepth(200)
+      if (a.hair) a.hair.setDepth(300)
+      if (a.footwear) a.footwear.setDepth(400)
+      if (a.pants) a.pants.setDepth(500)
+      a.rect.setDepth(50)
     }
+    
+    // Затемнение находится в отдельном контейнере поверх персонажей
+    console.log(`[Darkness] Проверяем затемнение (в отдельном контейнере) для ${this.roomDarknessOverlays.size} эффектов`)
+    this.roomDarknessOverlays.forEach((overlay, roomIndex) => {
+      if (overlay && overlay.scene) {
+        // Затемнение уже в правильном контейнере (darknessContainer), просто проверяем
+        console.log(`[Darkness] Комната ${roomIndex}: depth=${overlay.depth}, в darknessContainer=${overlay.parentContainer === this.darknessContainer}`)
+      }
+    })
 
     // После применения трансформа к контенту — рендерим оверлейные лейблы/кнопки в экранных координатах
     // Если фокус сменился — закрыть все панели деталей
@@ -541,23 +608,32 @@ export class SimpleBunkerView {
       this.lastFocusedIndex = this.focusedIndex
     }
     this.updateLabels()
+    
+    // Обновляем прозрачность затемнения при смене режима/фокуса
+    this.updateAllDarknessTransparency()
   }
 
   // Убираем рескейл прямоугольников. Комнаты и лифт хранятся в базовых единицах (120x90),
   // отображение масштабируется через content.setScale в двух фиксированных режимах.
 
   private drawBunker(): void {
+    console.log(`[Darkness] drawBunker вызван`)
     this.panel.clear()
     
-    // Сначала чистим старые images (если есть), оставляем panel (границы) и панели деталей
+    // Сначала чистим старые images (если есть), оставляем panel (границы), панели деталей и прямоугольники затемнения
     const toRemove: Phaser.GameObjects.GameObject[] = []
+    let darknessFound = 0
     for (const obj of this.content.list) {
       const n = (obj as any).name
-      // Не удаляем панели деталей и жителей
-      if (obj !== this.panel && n !== 'detailsPanel' && n !== 'resident' && n !== 'dbg') {
+      if (n === 'darkness') {
+        darknessFound++
+      }
+      // Не удаляем панели деталей, жителей и прямоугольники затемнения
+      if (obj !== this.panel && n !== 'detailsPanel' && n !== 'resident' && n !== 'dbg' && n !== 'darkness') {
         toRemove.push(obj)
       }
     }
+    console.log(`[Darkness] При очистке найдено прямоугольников затемнения: ${darknessFound}, к удалению объектов: ${toRemove.length}`)
     toRemove.forEach(o => o.destroy())
     
     // Рендер комнат как изображений (жители и их слои не трогаем)
@@ -584,6 +660,10 @@ export class SimpleBunkerView {
     drawLift(this.elevatorRect)
     for (const lift of this.extraElevators) drawLift(lift)
     
+    // Очищаем старые эффекты затемнения и пересоздаем их
+    this.clearAllDarknessEffects()
+    this.refreshAllDarknessEffects()
+    
     // Обводка для наглядности
     this.panel.lineStyle(1, 0x4fc3f7, 0.6)
     for (const roomRect of this.roomRects) this.panel.strokeRect(roomRect.x, roomRect.y, roomRect.width, roomRect.height)
@@ -604,13 +684,14 @@ export class SimpleBunkerView {
   private roomTextureKey(name: string): string | null {
     switch (name) {
       case 'Туалет': return 'room_bathroom'
-      case 'Комната отдыха': return 'room_bedroom'
+      case 'Спальня': return 'room_bedroom'
       case 'Столовая': return 'room_dining'
       case 'Серверная': return 'room_computer'
       case 'Госпиталь': return 'room_hospital'
       case 'Склад': return 'room_storage'
       case 'Лаборатория': return 'room_lab'
       case 'Техническая': return 'room_tech'
+      case 'Станция': return 'room_station'
       case 'Вход': return 'room_entrance_in'
       default: return null
     }
@@ -734,7 +815,14 @@ export class SimpleBunkerView {
       )
       this.overlay.add(bg)
 
-      const label = this.scene.add.text(0, 0, roomName, {
+      // Получаем состояние комнаты и генерируем иконки
+      const roomState = this.roomStates.get(i) || this.createDefaultRoomState(roomName)
+      const statusIcons = this.generateRoomStatusIcons(roomState)
+      
+      // Создаем текст с названием комнаты и иконками состояния
+      const roomText = `${roomName} ${statusIcons}`
+      
+      const label = this.scene.add.text(0, 0, roomText, {
         fontFamily: '"Press Start 2P", system-ui, sans-serif',
         fontSize: `${roomsFontPx}px`,
         color: '#e0e0e0',
@@ -1371,6 +1459,13 @@ export class SimpleBunkerView {
       const newRect = new Phaser.Geom.Rectangle(pos.x, pos.y, pos.roomWidth, pos.roomHeight)
       this.roomRects.push(newRect)
       this.roomNames.push(roomType)
+      
+      // Инициализируем состояние для новой комнаты
+      const roomIndex = this.roomRects.length - 1
+      this.roomStates.set(roomIndex, this.createDefaultRoomState(roomType, roomIndex))
+      
+      // Пересчитываем распределение энергии после добавления комнаты
+      this.updatePowerDistribution()
     }
     
     // Отключаем режим добавления
@@ -1424,7 +1519,7 @@ export class SimpleBunkerView {
     bg.setStrokeStyle(2, 0x263238, 1)
     const border = this.scene.add.rectangle(0, 0, panelW - 4, panelH - 4, 0x000000, 0).setOrigin(0)
     border.setStrokeStyle(1, 0x4fc3f7, 0.9)
-    const baseInfo = `Комната: ${this.roomNames[index]}\nСостояние: OK\nМощность: 100%\nWIP`
+    const baseInfo = this.generateRoomDetailsText(index)
     // Подбираем компактный размер шрифта под размеры панели
     let infoFont = Math.min(10, Math.floor(panelH * 0.22))
     const minInfoFont = 6
@@ -1450,44 +1545,591 @@ export class SimpleBunkerView {
     this.detailsPanels.forEach((c) => { if (c.scene) c.destroy() })
     this.detailsPanels.clear()
   }
+  
+  /**
+   * Очищает все эффекты затемнения
+   */
+  private clearAllDarknessEffects(): void {
+    const count = this.roomDarknessOverlays.size
+    console.log(`[Darkness] Очистка всех эффектов затемнения, было: ${count}`)
+    
+    this.roomDarknessOverlays.forEach((overlay, roomIndex) => {
+      if (overlay && overlay.scene) {
+        console.log(`[Darkness] Удаляем эффект затемнения для комнаты ${roomIndex}`)
+        overlay.destroy()
+      }
+    })
+    this.roomDarknessOverlays.clear()
+    
+    console.log(`[Darkness] Очистка завершена`)
+  }
+
+  // === Room States API ===
+  
+  /**
+   * Создает дефолтное состояние для комнаты
+   */
+  private createDefaultRoomState(roomName: string, roomIndex?: number): RoomState {
+    const isEntrance = roomName === 'Вход'
+    const isStarter = roomIndex !== undefined ? this.isStarterRoom(roomIndex) : false
+    const isPowerStation = roomName === 'Станция'
+    
+    // Определяем должна ли комната иметь питание по умолчанию
+    // Только стартовые комнаты имеют питание изначально
+    // Станции получат питание после пересчета системы
+    const shouldHavePower = isStarter
+    
+    const state = {
+      accessible: true,
+      destructible: !isEntrance, // Вход нельзя разрушить
+      powered: shouldHavePower,   // Только стартовые комнаты имеют питание изначально
+      lit: shouldHavePower,       // Только стартовые комнаты имеют свет изначально
+      onFire: false,
+      flooded: false,
+      dangerous: false,
+      workable: true, // Будет пересчитан ниже
+      eventStates: new Set<string>()
+    }
+    // Вычисляем workable на основе других флагов
+    state.workable = this.calculateWorkableState(state, roomName)
+    return state
+  }
+  
+  /**
+   * Вычисляет возможность работы в комнате на основе состояний
+   */
+  private calculateWorkableState(state: RoomState, roomName: string): boolean {
+    const isEntrance = roomName === 'Вход'
+    
+    // Для входа всегда можно работать (особая логика)
+    if (isEntrance) {
+      return true
+    }
+    
+    // Проверяем все условия, при которых работа невозможна
+    if (!state.accessible) return false  // Нет доступа
+    if (!state.lit) return false         // Нет света
+    if (!state.powered) return false     // Нет энергии
+    if (state.onFire) return false       // Пожар
+    if (state.flooded) return false      // Потоп
+    if (state.dangerous) return false    // Опасность
+    
+    return true // Можно работать
+  }
+  
+  /**
+   * Проверяет, является ли комната стартовой (не требует электростанцию)
+   * Стартовыми считаются только первые 4 комнаты по индексу (0, 1, 2, 3)
+   */
+  private isStarterRoom(roomIndex: number): boolean {
+    return roomIndex < 4
+  }
+  
+  /**
+   * Подсчитывает количество электростанций в бункере
+   */
+  private countPowerStations(): number {
+    return this.roomNames.filter(name => name === 'Станция').length
+  }
+  
+  /**
+   * Подсчитывает количество новых комнат (не стартовых)
+   */
+  private countNewRooms(): number {
+    return this.roomNames.filter((name, index) => !this.isStarterRoom(index) && name !== 'Станция').length
+  }
+  
+  /**
+   * Вычисляет максимальное количество комнат, которые могут иметь питание
+   */
+  private calculateMaxPoweredRooms(): number {
+    const powerStations = this.countPowerStations()
+    // Каждая электростанция питает себя + 3 новые комнаты
+    return powerStations * 4
+  }
+  
+  /**
+   * Определяет должна ли комната иметь энергию и свет на основе системы электростанций
+   */
+  private shouldRoomHavePower(roomIndex: number): boolean {
+    const roomName = this.roomNames[roomIndex]
+    
+    // Стартовые комнаты всегда имеют питание
+    if (this.isStarterRoom(roomIndex)) {
+      return true
+    }
+    
+    // Электростанции всегда питают себя
+    if (roomName === 'Станция') {
+      return true
+    }
+    
+    // Для новых комнат проверяем доступность мощности
+    const powerStations = this.countPowerStations()
+    const maxPoweredRooms = powerStations * 4 // станции + 3 новые комнаты каждая
+    
+    // Получаем список всех новых комнат и электростанций (исключая стартовые)
+    const newRoomsAndStations: number[] = []
+    for (let i = 0; i < this.roomNames.length; i++) {
+      if (!this.isStarterRoom(i)) {
+        newRoomsAndStations.push(i)
+      }
+    }
+    
+    // Сортируем по индексу (порядок строительства) - сначала построенные получают питание
+    newRoomsAndStations.sort((a, b) => a - b)
+    
+    // Проверяем попадает ли текущая комната в лимит питания
+    const indexInNewRooms = newRoomsAndStations.indexOf(roomIndex)
+    return indexInNewRooms !== -1 && indexInNewRooms < maxPoweredRooms
+  }
+  
+  /**
+   * Обновляет энергию и свет всех комнат на основе системы электростанций
+   */
+  private updatePowerDistribution(): void {
+    console.log('[Power System] Пересчет распределения энергии...')
+    
+    const powerStations = this.countPowerStations()
+    const newRooms = this.countNewRooms()
+    const maxPoweredRooms = this.calculateMaxPoweredRooms()
+    
+    console.log(`[Power System] Электростанций: ${powerStations}, Новых комнат: ${newRooms}, Макс. питаемых: ${maxPoweredRooms}`)
+    console.log(`[Power System] Комнаты в бункере:`, this.roomNames)
+    
+    // Проходим по всем комнатам и обновляем их энергию/свет
+    for (let i = 0; i < this.roomNames.length; i++) {
+      const roomName = this.roomNames[i]
+      const currentState = this.roomStates.get(i) || this.createDefaultRoomState(roomName, i)
+      
+      // Определяем должна ли комната иметь питание
+      const shouldHavePower = this.shouldRoomHavePower(i)
+      
+      console.log(`[Power System] Комната "${roomName}" (${i}): стартовая=${this.isStarterRoom(i)}, станция=${roomName === 'Станция'}, должна_иметь_питание=${shouldHavePower}, текущее=${currentState.powered}`)
+      
+      // Обновляем состояние только если оно изменилось
+      if (currentState.powered !== shouldHavePower || currentState.lit !== shouldHavePower) {
+        console.log(`[Power System] ИЗМЕНЕНИЕ: Комната "${roomName}" (${i}): питание ${currentState.powered} -> ${shouldHavePower}`)
+        
+        // Обновляем состояние (через API чтобы сработали все механизмы)
+        this.setRoomState(i, { 
+          powered: shouldHavePower, 
+          lit: shouldHavePower 
+        })
+      }
+    }
+    
+    console.log('[Power System] Пересчет завершен')
+  }
+  
+  /**
+   * Получает состояние комнаты по индексу
+   */
+  public getRoomState(roomIndex: number): RoomState | null {
+    return this.roomStates.get(roomIndex) || null
+  }
+  
+  /**
+   * Устанавливает состояние комнаты с проверкой ограничений
+   */
+  public setRoomState(roomIndex: number, state: Partial<RoomState>): boolean {
+    if (roomIndex < 0 || roomIndex >= this.roomNames.length) {
+      return false
+    }
+    
+    const roomName = this.roomNames[roomIndex]
+    const isEntrance = roomName === 'Вход'
+    const currentState = this.roomStates.get(roomIndex) || this.createDefaultRoomState(roomName, roomIndex)
+    
+    // Проверяем ограничения для комнаты "Вход"
+    if (isEntrance) {
+      // Для входа можно изменить dangerous, и энергию/свет через систему электростанций
+      const newState: RoomState = {
+        accessible: currentState.accessible, // Нельзя изменить
+        destructible: currentState.destructible, // Нельзя изменить  
+        powered: state.powered !== undefined ? state.powered : currentState.powered, // Можно изменить для системы электростанций
+        lit: state.lit !== undefined ? state.lit : currentState.lit, // Можно изменить для системы электростанций
+        onFire: currentState.onFire, // Нельзя изменить
+        flooded: currentState.flooded, // Нельзя изменить
+        dangerous: state.dangerous !== undefined ? state.dangerous : currentState.dangerous, // Можно изменить
+        workable: true, // Будет пересчитан ниже
+        eventStates: currentState.eventStates // Нельзя изменить
+      }
+      // Пересчитываем workable для входа (всегда true)
+      newState.workable = this.calculateWorkableState(newState, roomName)
+      this.roomStates.set(roomIndex, newState)
+    } else {
+      // Для остальных комнат можно изменять все флаги (кроме workable - он вычисляется)
+      const newState: RoomState = {
+        accessible: state.accessible !== undefined ? state.accessible : currentState.accessible,
+        destructible: state.destructible !== undefined ? state.destructible : currentState.destructible,
+        powered: state.powered !== undefined ? state.powered : currentState.powered,
+        lit: state.lit !== undefined ? state.lit : currentState.lit,
+        onFire: state.onFire !== undefined ? state.onFire : currentState.onFire,
+        flooded: state.flooded !== undefined ? state.flooded : currentState.flooded,
+        dangerous: state.dangerous !== undefined ? state.dangerous : currentState.dangerous,
+        workable: true, // Будет пересчитан ниже
+        eventStates: state.eventStates !== undefined ? new Set(state.eventStates) : currentState.eventStates
+      }
+      // Пересчитываем workable на основе других флагов
+      newState.workable = this.calculateWorkableState(newState, roomName)
+      this.roomStates.set(roomIndex, newState)
+    }
+    
+    // Можно добавить визуальные эффекты в зависимости от состояния
+    this.updateRoomVisuals(roomIndex)
+    
+    return true
+  }
+  
+  /**
+   * Добавляет состояние события к комнате
+   */
+  public addRoomEventState(roomIndex: number, eventKey: string): boolean {
+    const roomName = this.roomNames[roomIndex]
+    if (roomName === 'Вход') {
+      return false // Нельзя добавлять события к входу
+    }
+    
+    const state = this.roomStates.get(roomIndex) || this.createDefaultRoomState(roomName)
+    state.eventStates.add(eventKey)
+    this.roomStates.set(roomIndex, state)
+    this.updateRoomVisuals(roomIndex)
+    return true
+  }
+  
+  /**
+   * Удаляет состояние события из комнаты
+   */
+  public removeRoomEventState(roomIndex: number, eventKey: string): boolean {
+    const state = this.roomStates.get(roomIndex)
+    if (!state) return false
+    
+    const result = state.eventStates.delete(eventKey)
+    if (result) {
+      this.updateRoomVisuals(roomIndex)
+    }
+    return result
+  }
+  
+  /**
+   * Проверяет есть ли состояние события у комнаты
+   */
+  public hasRoomEventState(roomIndex: number, eventKey: string): boolean {
+    const state = this.roomStates.get(roomIndex)
+    return state ? state.eventStates.has(eventKey) : false
+  }
+  
+  /**
+   * Получает индекс комнаты по имени
+   */
+  public getRoomIndexByName(roomName: string): number {
+    return this.roomNames.indexOf(roomName)
+  }
+  
+  /**
+   * Получает состояние комнаты по имени
+   */
+  public getRoomStateByName(roomName: string): RoomState | null {
+    const index = this.getRoomIndexByName(roomName)
+    return index >= 0 ? this.getRoomState(index) : null
+  }
+  
+  /**
+   * Устанавливает состояние комнаты по имени
+   */
+  public setRoomStateByName(roomName: string, state: Partial<RoomState>): boolean {
+    const index = this.getRoomIndexByName(roomName)
+    return index >= 0 ? this.setRoomState(index, state) : false
+  }
+  
+  /**
+   * Добавляет состояние события к комнате по имени
+   */
+  public addRoomEventStateByName(roomName: string, eventKey: string): boolean {
+    const index = this.getRoomIndexByName(roomName)
+    return index >= 0 ? this.addRoomEventState(index, eventKey) : false
+  }
+  
+  /**
+   * Удаляет состояние события из комнаты по имени
+   */
+  public removeRoomEventStateByName(roomName: string, eventKey: string): boolean {
+    const index = this.getRoomIndexByName(roomName)
+    return index >= 0 ? this.removeRoomEventState(index, eventKey) : false
+  }
+  
+  /**
+   * Проверяет есть ли состояние события у комнаты по имени
+   */
+  public hasRoomEventStateByName(roomName: string, eventKey: string): boolean {
+    const index = this.getRoomIndexByName(roomName)
+    return index >= 0 ? this.hasRoomEventState(index, eventKey) : false
+  }
+  
+  /**
+   * Генерирует текст с детальной информацией о комнате
+   */
+  private generateRoomDetailsText(roomIndex: number): string {
+    const roomName = this.roomNames[roomIndex] || 'Неизвестно'
+    const state = this.roomStates.get(roomIndex)
+    
+    if (!state) {
+      return `Комната: ${roomName}\nИнформация недоступна`
+    }
+    
+    let info = `Комната: ${roomName}\n`
+    
+    // Основные состояния
+    info += `\n=== СОСТОЯНИЕ ===\n`
+    info += `Доступ: ${state.accessible ? '✓ Есть' : '✗ Нет'}\n`
+    info += `Энергия: ${state.powered ? '✓ Есть' : '✗ Нет'}\n`
+    info += `Свет: ${state.lit ? '✓ Есть' : '✗ Нет'}\n`
+    info += `Работоспособна: ${state.workable ? '✓ Да' : '✗ Нет'}\n`
+    info += `Разрушаемая: ${state.destructible ? '✓ Да' : '✗ Нет'}\n`
+    
+    // Чрезвычайные ситуации
+    const hasEmergency = state.onFire || state.flooded || state.dangerous
+    if (hasEmergency) {
+      info += `\n=== ОПАСНОСТЬ ===\n`
+      if (state.onFire) info += `🔥 ПОЖАР!\n`
+      if (state.flooded) info += `💧 ПОТОП!\n`
+      if (state.dangerous) info += `⚠️ ОПАСНО!\n`
+    }
+    
+    // События
+    if (state.eventStates.size > 0) {
+      info += `\n=== СОБЫТИЯ ===\n`
+      const events = Array.from(state.eventStates)
+      events.forEach(event => {
+        info += `• ${event}\n`
+      })
+    }
+    
+    // Общее состояние
+    const overallStatus = this.getRoomOverallStatus(state)
+    info += `\n=== ИТОГ ===\n`
+    info += `Статус: ${overallStatus}`
+    
+    return info
+  }
+  
+  /**
+   * Определяет общий статус комнаты на основе состояний
+   */
+  private getRoomOverallStatus(state: RoomState): string {
+    if (state.onFire) return '🔥 КРИТИЧНО'
+    if (state.flooded) return '💧 КРИТИЧНО'
+    if (state.dangerous) return '⚠️ ОПАСНО'
+    if (!state.accessible) return '🚫 НЕДОСТУПНА'
+    if (!state.workable) return '🚧 НЕ РАБОТАЕТ'
+    if (!state.powered) return '⚡ БЕЗ ЭНЕРГИИ'
+    if (!state.lit) return '🌑 БЕЗ СВЕТА'
+    if (state.eventStates.size > 0) return '📋 СОБЫТИЯ'
+    return '✅ В НОРМЕ'
+  }
+  
+  /**
+   * Генерирует строку иконок для состояния комнаты
+   */
+  private generateRoomStatusIcons(state: RoomState): string {
+    let icons = ''
+    
+    // Доступность
+    icons += state.accessible ? '🚪' : '🚫'
+    
+    // Работоспособность
+    icons += state.workable ? '⚙️' : '🚧'
+    
+    // Свет
+    icons += state.lit ? '💡' : '🌑'
+    
+    // Энергия
+    icons += state.powered ? '⚡' : '🔌'
+    
+    // Опасность
+    icons += state.dangerous ? '⚠️' : '✅'
+    
+    return icons
+  }
+
+  /**
+   * Обновляет визуальные эффекты комнаты в зависимости от состояния
+   */
+  private updateRoomVisuals(roomIndex: number): void {
+    const state = this.roomStates.get(roomIndex)
+    if (!state || roomIndex >= this.roomRects.length) return
+    
+    // Обновляем панель деталей если она открыта для этой комнаты
+    this.updateRoomDetailsPanel(roomIndex)
+    
+    // Обновляем эффект затемнения
+    this.updateRoomDarknessEffect(roomIndex, state)
+    
+    // Обновляем лейблы комнат с иконками состояния
+    this.updateLabels()
+    
+    // Логирование изменений состояния
+    console.log(`[Room ${roomIndex} (${this.roomNames[roomIndex]})] State updated:`, {
+      accessible: state.accessible,
+      destructible: state.destructible,
+      powered: state.powered,
+      lit: state.lit,
+      onFire: state.onFire,
+      flooded: state.flooded,
+      dangerous: state.dangerous,
+      workable: state.workable,
+      events: Array.from(state.eventStates)
+    })
+  }
+  
+  /**
+   * Обновляет эффект затемнения комнаты
+   */
+  private updateRoomDarknessEffect(roomIndex: number, state: RoomState): void {
+    const rect = this.roomRects[roomIndex]
+    if (!rect) return
+    
+    const shouldBeDark = !state.lit
+    const existingOverlay = this.roomDarknessOverlays.get(roomIndex)
+    
+    console.log(`[Darkness] Комната ${this.roomNames[roomIndex]} (${roomIndex}): lit=${state.lit}, shouldBeDark=${shouldBeDark}, hasOverlay=${!!existingOverlay}`)
+    
+    if (shouldBeDark) {
+      if (!existingOverlay || !existingOverlay.scene) {
+        // Создаем новый прямоугольник затемнения
+        const overlay = this.scene.add.rectangle(
+          rect.x, rect.y, rect.width, rect.height, 0x000000, 1.0
+        ).setOrigin(0)
+        
+        // Устанавливаем специальное имя чтобы не удалялся при перерисовке
+        ;(overlay as any).name = 'darkness'
+        
+        // Устанавливаем прозрачность в зависимости от режима просмотра
+        const isFocused = this.mode === 'focus' && this.focusedIndex === roomIndex
+        overlay.setAlpha(isFocused ? 0.6 : 1.0) // Полупрозрачный в фокусе, непрозрачный в обзоре
+        
+        // Добавляем в отдельный контейнер для затемнения (поверх персонажей)
+        this.darknessContainer.add(overlay)
+        
+        // Высокий z-index чтобы перекрыть персонажей
+        overlay.setDepth(1000)
+        
+        // Сохраняем ссылку
+        this.roomDarknessOverlays.set(roomIndex, overlay)
+        
+        console.log(`[Darkness] СОЗДАН эффект затемнения для комнаты ${roomIndex}, depth=${overlay.depth}, в darknessContainer=${overlay.parentContainer === this.darknessContainer}, alpha=${overlay.alpha}`)
+      } else {
+        // Обновляем позицию, размер и прозрачность существующего оверлея
+        existingOverlay.setPosition(rect.x, rect.y)
+        existingOverlay.setDisplaySize(rect.width, rect.height)
+        existingOverlay.setDepth(1000)  // Принудительно обновляем depth
+        
+        const isFocused = this.mode === 'focus' && this.focusedIndex === roomIndex
+        existingOverlay.setAlpha(isFocused ? 0.6 : 1.0)
+        
+        console.log(`[Darkness] ОБНОВЛЕН эффект затемнения для комнаты ${roomIndex}, depth=${existingOverlay.depth}, в darknessContainer=${existingOverlay.parentContainer === this.darknessContainer}, alpha=${existingOverlay.alpha}`)
+      }
+    } else {
+      if (existingOverlay && existingOverlay.scene) {
+        // Удаляем эффект затемнения
+        existingOverlay.destroy()
+        this.roomDarknessOverlays.delete(roomIndex)
+        console.log(`[Darkness] Удален эффект затемнения для комнаты ${roomIndex}`)
+      }
+    }
+  }
+  
+  /**
+   * Обновляет текст в панели деталей комнаты если она открыта
+   */
+  private updateRoomDetailsPanel(roomIndex: number): void {
+    const panel = this.detailsPanels.get(roomIndex)
+    if (!panel || !panel.scene) return
+    
+    // Ищем текстовый объект в панели деталей
+    const textObj = panel.list.find(child => child instanceof Phaser.GameObjects.Text) as Phaser.GameObjects.Text
+    if (textObj) {
+      const newInfo = this.generateRoomDetailsText(roomIndex)
+      textObj.setText(newInfo)
+    }
+  }
+  
+  /**
+   * Обновляет прозрачность всех эффектов затемнения
+   */
+  private updateAllDarknessTransparency(): void {
+    console.log(`[Darkness] Обновление прозрачности, режим: ${this.mode}, фокус: ${this.focusedIndex}, оверлеев: ${this.roomDarknessOverlays.size}`)
+    this.roomDarknessOverlays.forEach((overlay, roomIndex) => {
+      if (overlay && overlay.scene) {
+        const isFocused = this.mode === 'focus' && this.focusedIndex === roomIndex
+        const newAlpha = isFocused ? 0.6 : 1.0
+        console.log(`[Darkness] Комната ${roomIndex}: фокус=${isFocused}, alpha=${newAlpha}`)
+        overlay.setAlpha(newAlpha)
+      } else {
+        console.log(`[Darkness] Комната ${roomIndex}: оверлей отсутствует или удален`)
+      }
+    })
+  }
+  
+  /**
+   * Пересоздает все эффекты затемнения после перерисовки
+   */
+  private refreshAllDarknessEffects(): void {
+    console.log(`[Darkness] Пересоздание всех эффектов затемнения, комнат: ${this.roomNames.length}`)
+    
+    // Проходим по всем комнатам и обновляем затемнение
+    for (let i = 0; i < this.roomNames.length; i++) {
+      const state = this.roomStates.get(i)
+      if (state) {
+        console.log(`[Darkness] Обрабатываем комнату ${i} (${this.roomNames[i]}): lit=${state.lit}`)
+        this.updateRoomDarknessEffect(i, state)
+      }
+    }
+    
+    console.log(`[Darkness] Итого активных эффектов затемнения: ${this.roomDarknessOverlays.size}`)
+  }
 
   // === Residents API ===
   public syncResidents(expectedCount: number): void {
     while (this.residentAgents.length < expectedCount) {
       const rect = this.scene.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0.5, 1)
-      rect.setStrokeStyle(1, 0x263238, 0.0)
-      rect.setVisible(false)
+      rect.setStrokeStyle(2, 0x00ff00, 1.0)
+      rect.setVisible(true)
+      rect.setDepth(50)  // рамка отладки под спрайтами
       ;(rect as any).name = 'resident'
       this.content.add(rect)
-      // Выбираем кожу по данным жителя из GameScene
+      // Создаем спрайт по специализации или оставляем рамку
       const game: any = this.scene
       const idx = this.residentAgents.length
       const res = game.bunkerResidents?.[idx]
       const gender = res?.gender ?? (Math.random() < 0.5 ? 'М' : 'Ж')
       const skinKey = pickSkinForGender(gender, res?.id ?? idx + 1)
-      ensureCharacterAnimations(this.scene, skinKey)
-      const sprite = this.scene.add.sprite(0, 0, skinKey, 0).setOrigin(0.5, 1)
+      const profession = res?.profession?.toLowerCase() ?? ''
+      const specialistSpriteKey = getSpecialistSpriteKey(profession)
+      
+      let sprite = undefined
+      let shirt = undefined
+      let pants = undefined
+      let footwear = undefined
+      let hair = undefined
+      
+      if (specialistSpriteKey) {
+        // Создаем спрайт для специализации
+        ensureSpecialistAnimations(this.scene, profession)
+        sprite = this.scene.add.sprite(0, 0, specialistSpriteKey, 0).setOrigin(0.5, 1)
       ;(sprite as any).name = 'resident'
-      sprite.setScale((28 / 80) * 2.25, (36 / 64) * 2.25)
-      sprite.anims.play(`${skinKey}_idle`)
+        // Устанавливаем правильный depth для спрайта специалиста
+        sprite.setDepth(100)  // кожа
+        // Масштабируем спрайт 128x128 под размер рамки (28x36)
+        const scaleX = (28 / 128) * 2.25  // 2.25 - это масштаб который был для старых спрайтов
+        const scaleY = (36 / 128) * 2.25
+        sprite.setScale(scaleX, scaleY)
+        sprite.anims.play(`${profession}_idle`)
       this.content.add(sprite)
-      // Одежда
-      const cs = pickClothingSetForGender(gender, res?.id ?? idx + 1)
-      const mk = (key?: string): Phaser.GameObjects.Sprite | undefined => {
-        if (!key) return undefined
-        ensureCharacterAnimations(this.scene, key)
-        const s = this.scene.add.sprite(0, 0, key, 0).setOrigin(0.5, 1)
-        ;(s as any).name = 'resident'
-        s.setScale((28 / 80) * 2.25, (36 / 64) * 2.25)
-        s.anims.play(`${key}_idle`)
-        this.content.add(s)
-        return s
+        // Скрываем рамку когда показываем спрайт
+        rect.setVisible(false)
       }
-      const shirt = mk(cs.shirt)
-      const pants = mk(cs.pants)
-      const footwear = mk(cs.footwear)
-      // Волосы
-      const hair = mk(pickHairForGender(gender, res?.id ?? idx + 1))
       const resident = (this.scene as any).bunkerResidents?.[idx]
       const agent = {
         id: resident?.id,
@@ -1496,7 +2138,7 @@ export class SimpleBunkerView {
         skills: resident?.skills ?? [],
         workAtNight: (resident?.skills ?? []).some((s: any) => s.text === 'сова')
       } as {
-        id?: number; rect: Phaser.GameObjects.Rectangle; sprite: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite; skinKey: string;
+        id?: number; rect: Phaser.GameObjects.Rectangle; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite; skinKey: string;
         profession?: string; skills?: Array<{ text: string; positive: boolean }>; workAtNight?: boolean; isLazyToday?: boolean; working?: boolean; away?: boolean; target?: Phaser.Math.Vector2; roomIndex?: number; sleeping?: boolean; path?: Phaser.Math.Vector2[]; dwellUntil?: number; goingToRest?: boolean; stayInRoomName?: string; settled?: boolean; assignedRoomIndex?: number; assignedSlotIndex?: number; assignedRole?: 'chemist' | 'scientist'; schedType?: 'normal' | 'owl' | 'insomnia'; insomniaOffsetHour?: number; scheduleState?: 'sleep' | 'work' | 'rest'
       }
       // Этап 1: химик сразу стремится в лабораторию и стоит там
@@ -1521,19 +2163,19 @@ export class SimpleBunkerView {
     while (this.residentAgents.length > expectedCount) {
       const a = this.residentAgents.pop()!
       a.rect.destroy()
+      // Уничтожаем спрайт специализации если есть
       a.sprite?.destroy()
-      a.shirt?.destroy()
-      a.pants?.destroy()
-      a.footwear?.destroy()
-      a.hair?.destroy()
     }
     this.residentAgents.forEach(a => {
-      if (a.sprite) this.content.bringToTop(a.sprite) // 1 кожа
-      if (a.shirt) this.content.bringToTop(a.shirt)   // 2 верх
-      if (a.hair) this.content.bringToTop(a.hair)     // 3 волосы
-      if (a.footwear) this.content.bringToTop(a.footwear) // 4 ботинки
-      if (a.pants) this.content.bringToTop(a.pants)   // 5 низ
-      this.content.bringToTop(a.rect)
+      // Устанавливаем правильный depth для новых персонажей
+      if (a.sprite) {
+        a.sprite.setDepth(100)  // кожа
+      }
+      if (a.shirt) a.shirt.setDepth(200)      // верх
+      if (a.hair) a.hair.setDepth(300)        // волосы
+      if (a.footwear) a.footwear.setDepth(400) // ботинки
+      if (a.pants) a.pants.setDepth(500)      // низ
+      a.rect.setDepth(50)                     // рамка отладки
     })
   }
 
@@ -1549,11 +2191,8 @@ export class SimpleBunkerView {
     const ty = r.y + r.height - margin
     agent.target = new Phaser.Math.Vector2(tx, ty)
     agent.rect.setPosition(tx, ty)
+    // Позиционируем спрайт если есть
     agent.sprite?.setPosition(tx, ty)
-    agent.shirt?.setPosition(tx, ty)
-    agent.pants?.setPosition(tx, ty)
-    agent.footwear?.setPosition(tx, ty)
-    agent.hair?.setPosition(tx, ty)
     agent.path = []
     agent.dwellUntil = undefined
   }
@@ -1788,14 +2427,7 @@ export class SimpleBunkerView {
 
     agent.path = pathPoints
     agent.target = agent.path.shift() || dstPoint
-    if (agent.sprite && agent.target) {
-      const faceRight = agent.target.x > agent.rect.x
-      agent.sprite.setFlipX(faceRight)
-      agent.shirt?.setFlipX(faceRight)
-      agent.pants?.setFlipX(faceRight)
-      agent.footwear?.setFlipX(faceRight)
-      agent.hair?.setFlipX(faceRight)
-    }
+    // Спрайты не создаются, убираем флип анимации
   }
 
   private updateResidents(_time: number, delta: number): void {
@@ -1809,18 +2441,7 @@ export class SimpleBunkerView {
       return false
     }
     const ensureIdle = (agent: any) => {
-      if (agent.sprite && agent.skinKey) {
-        const k = `${agent.skinKey}_idle`
-        if (agent.sprite.anims.currentAnim?.key !== k) {
-          try { ensureCharacterAnimations(this.scene, agent.skinKey); agent.sprite.anims.play(k, true) } catch {}
-        }
-      }
-      const setIdle = (piece?: Phaser.GameObjects.Sprite) => {
-        if (!piece) return
-        const k = `${piece.texture.key}_idle`
-        if (piece.anims.currentAnim?.key !== k) { try { piece.anims.play(k, true) } catch {} }
-      }
-      setIdle(agent.shirt); setIdle(agent.pants); setIdle(agent.footwear); setIdle(agent.hair)
+      // Спрайты не создаются, убираем анимации
     }
     const isInsideRoom = (idx: number, x: number, y: number) => {
       const rr = this.roomRects[idx]
@@ -1954,9 +2575,9 @@ export class SimpleBunkerView {
           if (!ok) { ensureIdle(agent) }
         }
       }
-      // 2) Безработные/актеры: бродят
+      // 2) Безработные/бездомные: бродят
       const profession = (agent.profession ?? '').toLowerCase()
-      const isWanderer = (!profession || ['актер', 'актёр', 'безработный', 'бездельник'].includes(profession)) || agent.scheduleState === 'rest'
+      const isWanderer = (!profession || ['бездомный', 'безработный', 'бездельник'].includes(profession)) || agent.scheduleState === 'rest'
       if (isWanderer && !agent.target && (!agent.path || agent.path.length === 0)) {
         // иногда стоим, иногда идём в случайную комнату (не лифт)
         if (!agent.dwellUntil || this.scene.time.now > agent.dwellUntil) {
@@ -2004,20 +2625,18 @@ export class SimpleBunkerView {
       }
         }
         moving = Math.abs(agent.rect.x - nx) > 0.1 || Math.abs(agent.rect.y - ny) > 0.1
-      if (agent.sprite && Math.abs(agent.rect.x - nx) > 0.1) {
-        const faceRight = nx > agent.rect.x
-        agent.sprite.setFlipX(faceRight)
-        agent.shirt?.setFlipX(faceRight)
-        agent.pants?.setFlipX(faceRight)
-        agent.footwear?.setFlipX(faceRight)
-        agent.hair?.setFlipX(faceRight)
-      }
+      // Устанавливаем позицию для рамки и спрайта
       agent.rect.setPosition(nx, ny)
       agent.sprite?.setPosition(nx, ny)
-      agent.shirt?.setPosition(nx, ny)
-      agent.pants?.setPosition(nx, ny)
-      agent.footwear?.setPosition(nx, ny)
-      agent.hair?.setPosition(nx, ny)
+      
+      // Отзеркаливание в направлении движения
+      if (agent.sprite && Math.abs(dx) > 0.1) {
+        const profession = (agent as any).profession
+        if (profession && getSpecialistSpriteKey(profession.toLowerCase())) {
+          // Спрайты специализаций: false = вправо, true = влево
+          agent.sprite.setFlipX(dx < 0)
+        }
+      }
       }
       // Машина состояний анимаций: work=attack, sleep/elevator/stand=idle, move(outside elevator)=walk
       const inLiftNow = isXInAnyElevator(agent.rect.x)
@@ -2033,7 +2652,7 @@ export class SimpleBunkerView {
           agent.rect.y >= r.y - tol && agent.rect.y <= r.y + r.height + tol
         )
       }
-      const inRestByPos = atNameNow === 'Комната отдыха'
+      const inRestByPos = atNameNow === 'Спальня'
       const inAssignedRest = nearInRect((agent as any).sleepAssignedRoomIndex as number | undefined)
       const isInRestRoom = inRestByPos || inAssignedRest
       // Для рабочих комнат учитываем профессию
@@ -2062,18 +2681,19 @@ export class SimpleBunkerView {
       const sleepingNow = agent.scheduleState === 'sleep' && isInRestRoom && hasArrived
 
       const playAll = (suffix: 'attack' | 'sleep' | 'walk' | 'idle') => {
-        const playIfDiff = (piece: Phaser.GameObjects.Sprite | undefined, keyPrefix: string) => {
-          if (!piece || !keyPrefix) return
-          const k = `${keyPrefix}_${suffix}`
-          if (piece.anims.currentAnim?.key !== k) {
-            try { ensureCharacterAnimations(this.scene, keyPrefix); piece.anims.play(k, true) } catch {}
+        // Проигрываем анимацию для спрайта специализации если есть
+        if (agent.sprite && agent.profession) {
+          const profession = agent.profession.toLowerCase()
+          const specialistSpriteKey = getSpecialistSpriteKey(profession)
+          if (specialistSpriteKey) {
+            try {
+              // Для специализаций используем наши анимации
+              agent.sprite.anims.play(`${profession}_${suffix}`, true)
+            } catch (e) {
+              console.warn(`[playAll] Не удалось воспроизвести анимацию ${profession}_${suffix}:`, e)
+            }
           }
         }
-        playIfDiff(agent.sprite, agent.skinKey || '')
-        playIfDiff(agent.shirt, agent.shirt?.texture.key || '')
-        playIfDiff(agent.pants, agent.pants?.texture.key || '')
-        playIfDiff(agent.footwear, agent.footwear?.texture.key || '')
-        playIfDiff(agent.hair, agent.hair?.texture.key || '')
       }
 
       const followingPath = !!agent.target
@@ -2084,20 +2704,7 @@ export class SimpleBunkerView {
       } else if (workingNow) {
         agent.animLock = 'work'
         playAll('attack')
-        // Доп. форс через небольшой интервал — как для химика/учёного
-        const baseKey = `${agent.skinKey}_attack`
-        if (agent.sprite && agent.sprite.anims?.currentAnim?.key !== baseKey) {
-          this.scene.time.delayedCall(100, () => {
-            try {
-              ensureCharacterAnimations(this.scene, agent.skinKey || '')
-              agent.sprite?.anims?.play(baseKey, true)
-              agent.shirt?.anims?.play(`${agent.shirt?.texture.key}_attack`, true)
-              agent.pants?.anims?.play(`${agent.pants?.texture.key}_attack`, true)
-              agent.footwear?.anims?.play(`${agent.footwear?.texture.key}_attack`, true)
-              agent.hair?.anims?.play(`${agent.hair?.texture.key}_attack`, true)
-            } catch {}
-          })
-        }
+        // Принудительная анимация атаки для работающих персонажей
         // Рабочее состояние: стоим на месте в назначенном слоте (включая солдат)
         if (agent.assignedRoomIndex != null) {
           const rr = this.roomRects[agent.assignedRoomIndex]
@@ -2111,11 +2718,8 @@ export class SimpleBunkerView {
             const cy = rr.y + rr.height - margin
             if (Math.abs(agent.rect.x - cx) > 0.1 || Math.abs(agent.rect.y - cy) > 0.1) {
               agent.rect.setPosition(cx, cy)
+              // Позиционируем спрайт если есть
               agent.sprite?.setPosition(cx, cy)
-              agent.shirt?.setPosition(cx, cy)
-              agent.pants?.setPosition(cx, cy)
-              agent.footwear?.setPosition(cx, cy)
-              agent.hair?.setPosition(cx, cy)
             }
           }
         }
@@ -2133,6 +2737,7 @@ export class SimpleBunkerView {
         if ((agent as any).away) {
           agent.rect.setVisible(false)
           agent.sprite?.setVisible(false)
+          // Старые слои (не используются для специализаций)
           agent.shirt?.setVisible(false)
           agent.pants?.setVisible(false)
           agent.footwear?.setVisible(false)
@@ -2165,14 +2770,12 @@ export class SimpleBunkerView {
             const entranceIdx = this.roomNames.indexOf('Вход')
             const atIdx = findRoomIndexAt(agent.rect.x, agent.rect.y)
             if (entranceIdx >= 0 && atIdx === entranceIdx) {
-              // Спрятать слои
-              agent.rect.setVisible(false)
-              agent.sprite?.setVisible(false)
-              agent.shirt?.setVisible(false)
-              agent.pants?.setVisible(false)
-              agent.footwear?.setVisible(false)
-              agent.hair?.setVisible(false)
-              ;(agent as any).away = true
+                          // Спрятать рамку и спрайт при уходе на поверхность
+            agent.rect.setVisible(false)
+            if (agent.sprite) {
+              agent.sprite.setVisible(false)
+            }
+            ;(agent as any).away = true
               ;(agent as any)._surfacePending = false
               try { (this.scene as any).announce?.(`${agent.profession} ушел на поверхность`) } catch {}
             }
@@ -2190,18 +2793,16 @@ export class SimpleBunkerView {
           const margin = 4
           const cx = r.x + r.width / 2
           const cy = r.y + r.height - margin
-          agent.rect.setVisible(true)
-          agent.sprite?.setVisible(true)
-          agent.shirt?.setVisible(true)
-          agent.pants?.setVisible(true)
-          agent.footwear?.setVisible(true)
-          agent.hair?.setVisible(true)
-          agent.rect.setPosition(cx, cy)
-          agent.sprite?.setPosition(cx, cy)
-          agent.shirt?.setPosition(cx, cy)
-          agent.pants?.setPosition(cx, cy)
-          agent.footwear?.setPosition(cx, cy)
-          agent.hair?.setPosition(cx, cy)
+          // Показываем спрайт если есть, иначе показываем рамку
+          if (agent.sprite) {
+            agent.sprite.setVisible(true)
+            agent.sprite.setPosition(cx, cy)
+            // Скрываем рамку когда показываем спрайт
+            agent.rect.setVisible(false)
+          } else {
+            agent.rect.setVisible(true)
+            agent.rect.setPosition(cx, cy)
+          }
           ;(agent as any).away = false
           try { (this.scene as any).announce?.(`${agent.profession} вернулся`) } catch {}
         }
@@ -2213,7 +2814,7 @@ export class SimpleBunkerView {
     // Соберём индексы комнат отдыха
     const restIndices: number[] = []
     for (let i = 0; i < this.roomNames.length; i++) {
-      if (this.roomNames[i] === 'Комната отдыха') restIndices.push(i)
+      if (this.roomNames[i] === 'Спальня') restIndices.push(i)
     }
     if (restIndices.length === 0) return
     // Распределим по 4 человека на комнату
@@ -2427,7 +3028,7 @@ export class SimpleBunkerView {
     const prof = (agent.profession || '').toLowerCase()
     const isLabWorker = prof === 'химик' || prof === 'ученый' || prof === 'учёный'
     // Сон приоритетен
-    if (agent.scheduleState === 'sleep' || (agent.sleeping && atName === 'Комната отдыха')) {
+    if (agent.scheduleState === 'sleep' || (agent.sleeping && atName === 'Спальня')) {
       status = 'спит'
     } else if (agent.scheduleState === 'work') {
       // Работа: берём закреплённую или ожидаемую комнату
