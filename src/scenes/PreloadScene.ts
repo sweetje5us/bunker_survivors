@@ -136,6 +136,27 @@ export class PreloadScene extends Phaser.Scene {
     this.load.image('pistol_f11', 'src/sprites/weapon/pistol/frame_11_delay-0.05s.png')
 
     // Враги: зомби (спрайтшиты 96x96, 1 слой, смотрят вправо)
+    // Враги: мародеры 128x128
+    // Мародер 1
+    this.load.spritesheet('raider1_attack', 'src/sprites/enemies/bandits/Raider_1/Shot.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider1_walk', 'src/sprites/enemies/bandits/Raider_1/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider1_idle', 'src/sprites/enemies/bandits/Raider_1/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider1_hurt', 'src/sprites/enemies/bandits/Raider_1/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider1_dead', 'src/sprites/enemies/bandits/Raider_1/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    // Мародер 2
+    this.load.spritesheet('raider2_attack', 'src/sprites/enemies/bandits/Raider_2/Shot_1.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider2_walk', 'src/sprites/enemies/bandits/Raider_2/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider2_idle', 'src/sprites/enemies/bandits/Raider_2/Idle.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider2_hurt', 'src/sprites/enemies/bandits/Raider_2/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider2_dead', 'src/sprites/enemies/bandits/Raider_2/Dead.png', { frameWidth: 128, frameHeight: 128 })
+    // Мародер 3
+    this.load.spritesheet('raider3_attack', 'src/sprites/enemies/bandits/Raider_3/Attack_1.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider3_walk', 'src/sprites/enemies/bandits/Raider_3/Walk.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider3_idle', 'src/sprites/enemies/bandits/Raider_3/Idle_2.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider3_hurt', 'src/sprites/enemies/bandits/Raider_3/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+    this.load.spritesheet('raider3_dead', 'src/sprites/enemies/bandits/Raider_3/Dead.png', { frameWidth: 128, frameHeight: 128 })
+
+    // Враги: зомби 96x96
     // Дикий зомби
     this.load.spritesheet('zombie_wild_walk', 'src/sprites/enemies/Zombie/Wild Zombie/Walk.png', { frameWidth: 96, frameHeight: 96 })
     this.load.spritesheet('zombie_wild_idle', 'src/sprites/enemies/Zombie/Wild Zombie/Idle.png', { frameWidth: 96, frameHeight: 96 })
