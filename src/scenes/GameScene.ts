@@ -104,6 +104,30 @@ export class GameScene extends Phaser.Scene {
     patient?: boolean
   }> = []
   
+  // Враги в бункере (отдельная система)
+  private bunkerEnemies: Array<{
+    id: number
+    name: string
+    gender: string
+    age: number
+    profession: string
+    skills: Array<{ text: string; positive: boolean }>
+    itemsText: string
+    admittedAt: number
+    status?: string
+    currentRoom: string
+    intent: string
+    hunger?: number
+    thirst?: number
+    energy?: number
+    health?: number
+    isEnemy: boolean
+    enemyType: string
+    marauderKind?: number
+    zombieKind?: string
+    mutantKind?: number
+  }> = []
+  
   private mobileActive: MobilePanel = 'info'
   private mobileTabs?: Phaser.GameObjects.Container
   
@@ -212,7 +236,7 @@ export class GameScene extends Phaser.Scene {
     mkOnce('r3_dead', 'raider3_dead', 4, 8)        // Dead.png - 4 кадра
   }
 
-  private ensureZombieAnimations(): void {
+  public ensureZombieAnimations(): void {
     const A = this.anims
     const mk = (key: string, sheet: string, frames: number, frameRate: number) => {
       if (!A.exists(key)) A.create({ key, frames: A.generateFrameNumbers(sheet, { start: 0, end: frames - 1 }), frameRate, repeat: -1 })
@@ -237,7 +261,7 @@ export class GameScene extends Phaser.Scene {
     if (!A.exists('z_woman_attack')) A.create({ key: 'z_woman_attack', frames: A.generateFrameNumbers('zombie_woman_attack1', { start: 0, end: 3 }), frameRate: 10, repeat: 0 })
   }
 
-  private ensureMutantAnimations(): void {
+  public ensureMutantAnimations(): void {
     const A = this.anims
     const mkLoop = (key: string, sheet: string, end: number, rate: number) => { if (!A.exists(key)) A.create({ key, frames: A.generateFrameNumbers(sheet, { start: 0, end }), frameRate: rate, repeat: -1 }) }
     const mkOnce = (key: string, sheet: string, end: number, rate: number) => { if (!A.exists(key)) A.create({ key, frames: A.generateFrameNumbers(sheet, { start: 0, end }), frameRate: rate, repeat: 0 }) }
@@ -255,15 +279,15 @@ export class GameScene extends Phaser.Scene {
     mkOnce('m4_dead', 'mutant4_dead', 4, 8); mkOnce('m4_hurt', 'mutant4_hurt', 3, 10); mkOnce('m4_attack', 'mutant4_attack', 4, 10)
   }
 
-  private ensureSoldierAnimations(): void {
+  public ensureSoldierAnimations(): void {
     const A = this.anims
     const mkLoop = (key: string, sheet: string, end: number, rate: number) => { if (!A.exists(key)) A.create({ key, frames: A.generateFrameNumbers(sheet, { start: 0, end }), frameRate: rate, repeat: -1 }) }
     const mkOnce = (key: string, sheet: string, end: number, rate: number) => { if (!A.exists(key)) A.create({ key, frames: A.generateFrameNumbers(sheet, { start: 0, end }), frameRate: rate, repeat: 0 }) }
-    mkLoop('sold_walk', 'soldier_walk', 7, 10)
-    mkLoop('sold_idle', 'soldier_idle', 6, 6)
-    mkOnce('sold_dead', 'soldier_dead', 4, 8)
-    mkOnce('sold_hurt', 'soldier_hurt', 3, 10)
-    mkOnce('sold_attack', 'soldier_attack', 3, 10) // Shot_1.png - 4 кадра (0-3)
+    mkLoop('sold_walk', 'soldier_walk', 6, 10)    // Walk (7 кадров: 0-6)
+    mkLoop('sold_idle', 'soldier_idle', 6, 6)     // Idle (7 кадров: 0-6) 
+    mkOnce('sold_dead', 'soldier_dead', 3, 8)     // Dead (4 кадра: 0-3)
+    mkOnce('sold_hurt', 'soldier_hurt', 2, 10)    // Hurt (3 кадра: 0-2)
+    mkOnce('sold_attack', 'soldier_attack', 3, 10) // Shot_1 (4 кадра: 0-3)
   }
 
   private pickEnemyType(): 'МАРОДЕР' | 'ЗОМБИ' | 'МУТАНТ' | 'СОЛДАТ' {
@@ -518,6 +542,13 @@ export class GameScene extends Phaser.Scene {
       const d = damageByType((first as any).type || first.type)
       this.defense = Math.max(0, this.defense - d)
       this.updateResourcesText()
+      
+      // Проверяем: если защита упала до 0, враг заходит в бункер
+      if (this.defense <= 0) {
+        this.enemyEntersBunker(first)
+        return // Прерываем дальнейшую логику, враг ушел в бункер
+      }
+      
       // Атака: проиграть attack в превью и на поверхности, если есть
       try {
         // Превью
@@ -545,6 +576,179 @@ export class GameScene extends Phaser.Scene {
     }
     this.updateResourcesText()
   }
+
+  private enemyEntersBunker(enemy: any): void {
+    // Помечаем врага как входящего в бункер
+    enemy.enteringBunker = true
+    
+    // Проверяем нужно ли показать анимацию превью
+    const wasCurrentEnemy = (this as any)._previewCurrentIsEnemy && (this as any)._previewCurrentId === enemy.id
+    
+    // Анимация в блоке превью: поднятие вверх и исчезновение
+    if (this.personPreviewSprite && wasCurrentEnemy) {
+      ;(this as any)._previewBusy = true
+      this.tweens.add({
+        targets: this.personPreviewSprite,
+        y: "-= 40",
+        alpha: 0,
+        duration: 800,
+        ease: 'Sine.easeIn',
+        onComplete: () => {
+          // Не уничтожаем спрайт превью: просто скрываем и сбрасываем параметры,
+          // чтобы следующий враг мог корректно отрисоваться
+          if (this.personPreviewSprite) {
+            this.personPreviewSprite.setAlpha(1)
+            this.personPreviewSprite.setVisible(false)
+            // Вернем позицию вниз (откат по y), чтобы следующий вход начинался корректно
+            try { this.personPreviewSprite.y += 40 } catch {}
+          }
+          
+          // Сбрасываем флаги превью только ПОСЛЕ уничтожения спрайта
+          ;(this as any)._previewCurrentIsEnemy = false
+          ;(this as any)._previewCurrentId = null
+          ;(this as any)._previewBusy = false
+          
+          // Удаляем врага из очереди только после анимации превью
+          const enemyIndex = this.enemyQueueItems.indexOf(enemy)
+          if (enemyIndex !== -1) {
+            this.enemyQueueItems.splice(enemyIndex, 1)
+          }
+          
+          // Если остались враги, новый первый враг уже достиг позиции
+          if (this.enemyQueueItems.length > 0) {
+            const newFirst = this.enemyQueueItems[0]
+            if (newFirst) {
+              (newFirst as any).arrivedAtPosition = true
+            }
+          }
+          
+          // Сразу обновляем превью для следующего врага
+          this.updatePersonInfoFromQueue()
+        }
+      })
+    } else {
+      // Если превью не отображается, сразу удаляем из очереди
+      const enemyIndex = this.enemyQueueItems.indexOf(enemy)
+      if (enemyIndex !== -1) {
+        this.enemyQueueItems.splice(enemyIndex, 1)
+      }
+      
+      // Сбрасываем флаги превью если это был текущий враг
+      if (wasCurrentEnemy) {
+        ;(this as any)._previewCurrentIsEnemy = false
+        ;(this as any)._previewCurrentId = null
+      }
+    }
+    
+    // Анимация в блоке поверхности: выход за правую границу экрана
+    const enemyAny = enemy as any
+    const surfaceTargets: any[] = [enemy.rect]
+    if (enemyAny.sprite) surfaceTargets.push(enemyAny.sprite)
+    if (enemyAny.shirt) surfaceTargets.push(enemyAny.shirt)
+    if (enemyAny.pants) surfaceTargets.push(enemyAny.pants)
+    if (enemyAny.footwear) surfaceTargets.push(enemyAny.footwear)
+    if (enemyAny.hair) surfaceTargets.push(enemyAny.hair)
+    
+    // Проигрываем walk анимацию во время входа в бункер
+    if (enemyAny.sprite) {
+      try {
+        if (enemy.type === 'МАРОДЕР') {
+          this.ensureMarauderAnimations()
+          const kind = enemyAny.marauderKind || 1
+          enemyAny.sprite.anims.play(`r${kind}_walk`, true)
+        } else if (enemy.type === 'ЗОМБИ') {
+          this.ensureZombieAnimations()
+          const kind = enemyAny.zombieKind || 'wild'
+          enemyAny.sprite.anims.play(`z_${kind}_walk`, true)
+        } else if (enemy.type === 'МУТАНТ') {
+          this.ensureMutantAnimations()
+          const k = enemyAny.mutantKind || 1
+          enemyAny.sprite.anims.play(`m${k}_walk`, true)
+        } else if (enemy.type === 'СОЛДАТ') {
+          this.ensureSoldierAnimations()
+          enemyAny.sprite.anims.play('sold_walk', true)
+        }
+      } catch {}
+    }
+    
+    // Анимация движения вправо за границу экрана
+    const surfaceRect = this.lastSurfaceRect
+    const targetX = surfaceRect ? surfaceRect.width + 60 : 400
+    
+    this.tweens.add({
+      targets: surfaceTargets,
+      x: targetX,
+      duration: 1200,
+      ease: 'Sine.easeIn',
+      onComplete: () => {
+        // Уничтожаем графические объекты врага на поверхности
+        enemy.rect.destroy()
+        enemyAny.sprite?.destroy()
+        enemyAny.shirt?.destroy()
+        enemyAny.pants?.destroy()
+        enemyAny.footwear?.destroy()
+        enemyAny.hair?.destroy()
+        
+        // Добавляем врага в бункер
+        this.spawnEnemyInBunker(enemy)
+        
+        // Обновляем очередь на поверхности
+        if (this.lastSurfaceRect) this.layoutEnemyQueue(this.lastSurfaceRect, true)
+        
+        // Обновляем превью для следующего врага (если превью не было анимировано)
+        if (!wasCurrentEnemy) {
+          this.updatePersonInfoFromQueue()
+        }
+        
+        if (this.enemyQueueItems.length === 0) {
+          this.enemyHpBg?.setVisible(false)
+          this.enemyHpFg?.setVisible(false)
+        }
+      }
+    })
+    
+    // Уведомление о проникновении
+    this.announce(`${enemy.type} проник в бункер!`)
+  }
+
+  private spawnEnemyInBunker(enemy: any): void {
+    // Создаем запись о враге как о "жителе" бункера, но с пометкой что это враг
+    const enemyResident = {
+      id: enemy.id,
+      name: `${enemy.type}_${enemy.id}`, // Уникальное имя врага
+      gender: 'М', // Пока все враги мужского пола
+      age: 25, // Возраст врага не важен
+      profession: enemy.type, // Профессия = тип врага
+      skills: [] as { text: string; positive: boolean; }[], // Враги пока без навыков
+      itemsText: '', // У врагов нет предметов
+      admittedAt: this.dayNumber, // День проникновения
+      status: 'ищет жертву', // Начальный статус врага
+      currentRoom: 'Вход', // Спавним в комнате "Вход"
+      intent: 'hostile', // Пометка что это враг
+      hunger: 100,
+      thirst: 100,
+      energy: 100,
+      health: 100,
+      isEnemy: true, // Флаг что это враг, а не житель
+      enemyType: enemy.type, // Сохраняем тип врага
+      marauderKind: (enemy as any).marauderKind, // Для мародеров
+      zombieKind: (enemy as any).zombieKind, // Для зомби
+      mutantKind: (enemy as any).mutantKind, // Для мутантов
+      // Другие данные врага при необходимости
+    }
+    
+    // Добавляем врага в отдельный список врагов
+    this.bunkerEnemies.push(enemyResident)
+    
+    // Обновляем визуальное отображение бункера (жители + враги)
+    this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
+    
+    // Обновляем счетчик населения
+    this.updateResourcesText()
+    
+    console.log(`[DEBUG] Враг ${enemy.type} (ID: ${enemy.id}) добавлен в бункер в комнате "Вход"`)
+  }
+
   constructor() {
     super('Game')
   }
@@ -819,6 +1023,17 @@ export class GameScene extends Phaser.Scene {
 
   private buildBunkerPlaceholders(): void {
     if (!this.bunkerArea) return
+    
+    // Сохраняем simpleBunker если он уже существует и временно отсоединяем его корневой контейнер,
+    // чтобы не уничтожить при очистке bunkerArea
+    const existingBunker = this.simpleBunker
+    const existingRoot = existingBunker ? (existingBunker as any).getRootContainer?.() : undefined
+    if (existingRoot && existingRoot.parentContainer === this.bunkerArea) {
+      // Отсоединяем без уничтожения
+      this.bunkerArea.remove(existingRoot, false)
+    }
+    
+    // Чистим только вспомогательные элементы области бункера, НЕ уничтожая отсоединенный simpleBunker
     this.bunkerArea.removeAll(true)
     
     // Создаём маску для ограничения содержимого bunkerArea
@@ -830,7 +1045,16 @@ export class GameScene extends Phaser.Scene {
     const label = this.add.text(8, 6, t('bunkerView').toUpperCase(), { fontFamily: THEME.fonts.heading, fontSize: '14px', color: '#b71c1c' })
     label.name = 'bunkerLabel'
     this.bunkerArea.add([label])
-    this.simpleBunker = new SimpleBunkerView(this, this.bunkerArea)
+    
+    // Используем существующий simpleBunker или создаем новый
+    if (existingBunker && existingRoot) {
+      this.simpleBunker = existingBunker
+      // Возвращаем ранее отсоединенный корневой контейнер
+      this.bunkerArea.add(existingRoot)
+    } else {
+      this.simpleBunker = new SimpleBunkerView(this, this.bunkerArea)
+    }
+    
     // В контейнерах Phaser порядок определяется позицией в списке, depth внутри контейнера не влияет.
     // Поднимем заголовок в конец списка, чтобы он был поверх картинок комнат.
     this.bunkerArea.bringToTop(label)
@@ -939,7 +1163,7 @@ export class GameScene extends Phaser.Scene {
       this.layoutContainer(this.bunkerArea!, bunkerRect)
       this.simpleBunker?.layout(new Phaser.Geom.Rectangle(0, 0, Math.max(1, bunkerRect.width - 2), Math.max(1, bunkerRect.height - 2)))
       // Синхронизация количества визуальных жителей
-      this.simpleBunker?.syncResidents(this.bunkerResidents.length)
+      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
     }
 
     // Info
@@ -1882,7 +2106,7 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: outTargets, x: targetX, duration: 600, ease: 'Sine.easeIn', onComplete: () => {
           rect.destroy()
           sprite?.destroy()
-          this.simpleBunker?.syncResidents(this.bunkerResidents.length)
+          this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
         } })
       } else {
         // Покажем плашку "нет мест" и оставим человека в очереди (не выкидываем)
@@ -2019,6 +2243,7 @@ export class GameScene extends Phaser.Scene {
             this.personPreviewSprite.setTexture(texKey)
             try { this.personPreviewSprite.anims.play(`r${kind}_idle`, true) } catch {}
             this.personPreviewSprite.setVisible(true)
+            this.personPreviewSprite.setAlpha(1) // Сбрасываем прозрачность
           this.personPreview.setFillStyle(0x000000, 0)
         } else {
             // Fallback: показать красный прямоугольник, спрятать все слои превью
@@ -2063,6 +2288,7 @@ export class GameScene extends Phaser.Scene {
                 try { this.personPreviewSprite.anims.play('sold_idle', true) } catch {}
               }
               this.personPreviewSprite.setVisible(true)
+              this.personPreviewSprite.setAlpha(1) // Сбрасываем прозрачность
               this.personPreview.setFillStyle(0x000000, 0)
             } else {
             // Показать красный прямоугольник, спрятать все слои превью
@@ -2385,7 +2611,7 @@ export class GameScene extends Phaser.Scene {
       const [r] = this.bunkerResidents.splice(idx, 1)
       // Можно в будущем логировать причину/статистику
       this.updateResourcesText()
-      this.simpleBunker?.syncResidents(this.bunkerResidents.length)
+      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
       if (reason) this.showToast(`${r.name} удалён: ${reason}`)
     }
   }

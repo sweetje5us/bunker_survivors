@@ -855,6 +855,21 @@ export function getSpecialistSpriteKey(profession: string): string | null {
   if (key === 'солдат') {
     return 'soldier_idle' // Возвращаем базовый спрайт для создания
   }
+  
+  // Поддержка врагов в бункере
+  if (key === 'мародер') {
+    return 'raider1_idle' // По умолчанию используем первый тип мародера
+  }
+  if (key === 'зомби') {
+    return 'zombie_wild_idle' // По умолчанию используем дикого зомби
+  }
+  if (key === 'мутант') {
+    return 'mutant1_idle' // По умолчанию используем первый тип мутанта
+  }
+  if (key === 'солдат' && key.includes('enemy')) {
+    return 'soldier_idle' // Враг-солдат тоже использует солдатский спрайт
+  }
+  
   return null
 }
 

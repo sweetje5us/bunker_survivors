@@ -114,10 +114,20 @@ export class SimpleBunkerView {
     debugText?: Phaser.GameObjects.Text;
     lastAnimLock?: 'work' | 'sleep' | null;
     lastDebugTs?: number;
+    // Enemy fields
+    isEnemy?: boolean;
+    enemyType?: string;
+    marauderKind?: number;
+    zombieKind?: string;
+    mutantKind?: number;
   }> = []
 
   private roomOccupancy: Map<number, { chemistId?: number; scientistId?: number; usedSlots: Set<number>; workers?: Record<string, number> }> = new Map()
   private sleepOccupancy: Map<number, Set<number>> = new Map()
+
+  public getRootContainer(): Phaser.GameObjects.Container {
+    return this.root
+  }
 
   constructor(scene: Phaser.Scene, parent: Phaser.GameObjects.Container) {
     this.scene = scene
@@ -628,8 +638,8 @@ export class SimpleBunkerView {
       if (n === 'darkness') {
         darknessFound++
       }
-      // Не удаляем панели деталей, жителей и прямоугольники затемнения
-      if (obj !== this.panel && n !== 'detailsPanel' && n !== 'resident' && n !== 'dbg' && n !== 'darkness') {
+      // Не удаляем панели деталей, жителей, ВРАГОВ и прямоугольники затемнения
+      if (obj !== this.panel && n !== 'detailsPanel' && n !== 'resident' && n !== 'enemy' && n !== 'dbg' && n !== 'darkness') {
         toRemove.push(obj)
       }
     }
@@ -2102,11 +2112,13 @@ export class SimpleBunkerView {
       // Создаем спрайт по специализации или оставляем рамку
       const game: any = this.scene
       const idx = this.residentAgents.length
-      const res = game.bunkerResidents?.[idx]
+      // Получаем агента из объединенного массива жителей и врагов
+      const allUnits = [...(game.bunkerResidents || []), ...(game.bunkerEnemies || [])]
+      const res = allUnits[idx]
+      console.log(`[bunkerView] syncResidents: idx=${idx}, totalResidents=${game.bunkerResidents?.length || 0}, totalEnemies=${game.bunkerEnemies?.length || 0}, allUnits=${allUnits.length}, res?.isEnemy=${res?.isEnemy}`)
       const gender = res?.gender ?? (Math.random() < 0.5 ? 'М' : 'Ж')
       const skinKey = pickSkinForGender(gender, res?.id ?? idx + 1)
       const profession = res?.profession?.toLowerCase() ?? ''
-      const specialistSpriteKey = getSpecialistSpriteKey(profession)
       
       let sprite = undefined
       let shirt = undefined
@@ -2114,21 +2126,100 @@ export class SimpleBunkerView {
       let footwear = undefined
       let hair = undefined
       
-      if (specialistSpriteKey) {
-        // Создаем спрайт для специализации
-        ensureSpecialistAnimations(this.scene, profession)
-        sprite = this.scene.add.sprite(0, 0, specialistSpriteKey, 0).setOrigin(0.5, 1)
+      // Специальная логика для врагов
+      if (res?.isEnemy) {
+        console.log(`[bunkerView] Создаем агента-врага: тип=${res.enemyType}, marauderKind=${res.marauderKind}, zombieKind=${res.zombieKind}, mutantKind=${res.mutantKind}`)
+        let enemySpriteKey = null
+        let animationKey = null
+        
+        if (res.enemyType === 'МАРОДЕР') {
+          const kind = res.marauderKind || 1
+          enemySpriteKey = `raider${kind}_idle`
+          animationKey = `r${kind}_idle`
+          console.log(`[bunkerView] Мародер: kind=${kind}, enemySpriteKey=${enemySpriteKey}, animationKey=${animationKey}`)
+          // Убеждаемся что анимации мародеров созданы
+          const gameScene = this.scene as any
+          if (gameScene.ensureMarauderAnimations) {
+            gameScene.ensureMarauderAnimations()
+          }
+        } else if (res.enemyType === 'ЗОМБИ') {
+          const kind = res.zombieKind || 'wild'
+          enemySpriteKey = `zombie_${kind}_idle`
+          animationKey = `z_${kind}_idle`
+          console.log(`[bunkerView] Зомби: kind=${kind}, enemySpriteKey=${enemySpriteKey}, animationKey=${animationKey}`)
+          // Убеждаемся что анимации зомби созданы
+          const gameScene = this.scene as any
+          if (gameScene.ensureZombieAnimations) {
+            gameScene.ensureZombieAnimations()
+          }
+        } else if (res.enemyType === 'МУТАНТ') {
+          const k = res.mutantKind || 1
+          enemySpriteKey = `mutant${k}_idle`
+          animationKey = `m${k}_idle`
+          // Убеждаемся что анимации мутантов созданы
+          const gameScene = this.scene as any
+          if (gameScene.ensureMutantAnimations) {
+            gameScene.ensureMutantAnimations()
+          }
+        } else if (res.enemyType === 'СОЛДАТ') {
+          enemySpriteKey = 'soldier_idle'
+          animationKey = 'sold_idle'
+          // Убеждаемся что анимации солдат созданы
+          const gameScene = this.scene as any
+          if (gameScene.ensureSoldierAnimations) {
+            gameScene.ensureSoldierAnimations()
+          }
+        }
+        
+        if (enemySpriteKey && animationKey) {
+          // Проверяем что текстура существует
+          if (this.scene.textures.exists(enemySpriteKey)) {
+            sprite = this.scene.add.sprite(0, 0, enemySpriteKey, 0).setOrigin(0.5, 1)
+            ;(sprite as any).name = 'enemy'
+            sprite.setDepth(100)
+            // Масштабируем спрайт врага
+            const scaleX = (28 / 128) * 2.25
+            const scaleY = (36 / 128) * 2.25
+            sprite.setScale(scaleX, scaleY)
+            try {
+              sprite.anims.play(animationKey)
+            } catch (e) {
+              console.warn(`[bunkerView] Не удалось воспроизвести анимацию ${animationKey} для врага:`, e)
+            }
+            this.content.add(sprite)
+            console.log(`[bunkerView] Спрайт врага добавлен в content: тип=${res.enemyType}, в контейнере=${this.content.list.includes(sprite)}`)
+            // Скрываем рамку когда показываем спрайт врага
+            rect.setVisible(false)
+          } else {
+            console.warn(`[bunkerView] Текстура ${enemySpriteKey} не найдена для врага ${res.enemyType}`)
+            // Показываем рамку если нет спрайта
+            rect.setVisible(true)
+          }
+        } else {
+          console.warn(`[bunkerView] Не удалось определить спрайт для врага ${res.enemyType}`)
+          // Показываем рамку если нет спрайта
+          rect.setVisible(true)
+        }
+      } else {
+        // Обычная логика для жителей
+        const specialistSpriteKey = getSpecialistSpriteKey(profession)
+        
+        if (specialistSpriteKey) {
+          // Создаем спрайт для специализации
+          ensureSpecialistAnimations(this.scene, profession)
+          sprite = this.scene.add.sprite(0, 0, specialistSpriteKey, 0).setOrigin(0.5, 1)
       ;(sprite as any).name = 'resident'
-        // Устанавливаем правильный depth для спрайта специалиста
-        sprite.setDepth(100)  // кожа
-        // Масштабируем спрайт 128x128 под размер рамки (28x36)
-        const scaleX = (28 / 128) * 2.25  // 2.25 - это масштаб который был для старых спрайтов
-        const scaleY = (36 / 128) * 2.25
-        sprite.setScale(scaleX, scaleY)
-        sprite.anims.play(`${profession}_idle`)
+          // Устанавливаем правильный depth для спрайта специалиста
+          sprite.setDepth(100)  // кожа
+          // Масштабируем спрайт 128x128 под размер рамки (28x36)
+          const scaleX = (28 / 128) * 2.25  // 2.25 - это масштаб который был для старых спрайтов
+          const scaleY = (36 / 128) * 2.25
+          sprite.setScale(scaleX, scaleY)
+          sprite.anims.play(`${profession}_idle`)
       this.content.add(sprite)
-        // Скрываем рамку когда показываем спрайт
-        rect.setVisible(false)
+          // Скрываем рамку когда показываем спрайт
+          rect.setVisible(false)
+        }
       }
       const resident = (this.scene as any).bunkerResidents?.[idx]
       const agent = {
@@ -2136,10 +2227,16 @@ export class SimpleBunkerView {
         rect, sprite, shirt, pants, footwear, hair, skinKey,
         profession: resident?.profession,
         skills: resident?.skills ?? [],
-        workAtNight: (resident?.skills ?? []).some((s: any) => s.text === 'сова')
+        workAtNight: (resident?.skills ?? []).some((s: any) => s.text === 'сова'),
+        isEnemy: resident?.isEnemy,
+        enemyType: resident?.enemyType,
+        marauderKind: resident?.marauderKind,
+        zombieKind: resident?.zombieKind,
+        mutantKind: resident?.mutantKind
       } as {
         id?: number; rect: Phaser.GameObjects.Rectangle; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite; skinKey: string;
-        profession?: string; skills?: Array<{ text: string; positive: boolean }>; workAtNight?: boolean; isLazyToday?: boolean; working?: boolean; away?: boolean; target?: Phaser.Math.Vector2; roomIndex?: number; sleeping?: boolean; path?: Phaser.Math.Vector2[]; dwellUntil?: number; goingToRest?: boolean; stayInRoomName?: string; settled?: boolean; assignedRoomIndex?: number; assignedSlotIndex?: number; assignedRole?: 'chemist' | 'scientist'; schedType?: 'normal' | 'owl' | 'insomnia'; insomniaOffsetHour?: number; scheduleState?: 'sleep' | 'work' | 'rest'
+        profession?: string; skills?: Array<{ text: string; positive: boolean }>; workAtNight?: boolean; isLazyToday?: boolean; working?: boolean; away?: boolean; target?: Phaser.Math.Vector2; roomIndex?: number; sleeping?: boolean; path?: Phaser.Math.Vector2[]; dwellUntil?: number; goingToRest?: boolean; stayInRoomName?: string; settled?: boolean; assignedRoomIndex?: number; assignedSlotIndex?: number; assignedRole?: 'chemist' | 'scientist'; schedType?: 'normal' | 'owl' | 'insomnia'; insomniaOffsetHour?: number; scheduleState?: 'sleep' | 'work' | 'rest';
+        isEnemy?: boolean; enemyType?: string; marauderKind?: number; zombieKind?: string; mutantKind?: number
       }
       // Этап 1: химик сразу стремится в лабораторию и стоит там
       if (agent.profession === 'химик') {
@@ -2156,6 +2253,10 @@ export class SimpleBunkerView {
       agent.schedType = hasInsomnia ? 'insomnia' : (hasOwl ? 'owl' : 'normal')
       if (agent.schedType === 'insomnia') agent.insomniaOffsetHour = Phaser.Math.Between(0, 23)
       this.residentAgents.push(agent)
+      // Проверяем состояние спрайта после создания агента
+      if (agent.sprite && agent.isEnemy) {
+        console.log(`[bunkerView] Агент врага создан: idx=${idx}, спрайт в content=${this.content.list.includes(agent.sprite)}, parentContainer=${agent.sprite.parentContainer?.name || 'none'}`)
+      }
       this.assignRandomPosition(agent)
       // Если есть целевая комната для стояния (химик) — сразу сбросим цель, чтобы начать движение
       if (agent.stayInRoomName) { agent.target = undefined; agent.path = [] }
@@ -2681,16 +2782,42 @@ export class SimpleBunkerView {
       const sleepingNow = agent.scheduleState === 'sleep' && isInRestRoom && hasArrived
 
       const playAll = (suffix: 'attack' | 'sleep' | 'walk' | 'idle') => {
-        // Проигрываем анимацию для спрайта специализации если есть
-        if (agent.sprite && agent.profession) {
-          const profession = agent.profession.toLowerCase()
-          const specialistSpriteKey = getSpecialistSpriteKey(profession)
-          if (specialistSpriteKey) {
-            try {
-              // Для специализаций используем наши анимации
-              agent.sprite.anims.play(`${profession}_${suffix}`, true)
-            } catch (e) {
-              console.warn(`[playAll] Не удалось воспроизвести анимацию ${profession}_${suffix}:`, e)
+        if (agent.sprite) {
+          if (agent.isEnemy) {
+            // Логика для врагов - используем правильные ключи анимаций
+            let animationKey = null
+            
+            if (agent.enemyType === 'МАРОДЕР') {
+              const kind = agent.marauderKind || 1
+              animationKey = `r${kind}_${suffix}`
+            } else if (agent.enemyType === 'ЗОМБИ') {
+              const kind = agent.zombieKind || 'wild'
+              animationKey = `z_${kind}_${suffix}`
+            } else if (agent.enemyType === 'МУТАНТ') {
+              const k = agent.mutantKind || 1
+              animationKey = `m${k}_${suffix}`
+            } else if (agent.enemyType === 'СОЛДАТ') {
+              animationKey = `sold_${suffix}`
+            }
+            
+            if (animationKey) {
+              try {
+                agent.sprite.anims.play(animationKey, true)
+              } catch (e) {
+                console.warn(`[playAll] Не удалось воспроизвести анимацию ${animationKey}:`, e)
+              }
+            }
+          } else if (agent.profession) {
+            // Логика для жителей - используем профессии
+            const profession = agent.profession.toLowerCase()
+            const specialistSpriteKey = getSpecialistSpriteKey(profession)
+            if (specialistSpriteKey) {
+              try {
+                // Для специализаций используем наши анимации
+                agent.sprite.anims.play(`${profession}_${suffix}`, true)
+              } catch (e) {
+                console.warn(`[playAll] Не удалось воспроизвести анимацию ${profession}_${suffix}:`, e)
+              }
             }
           }
         }
