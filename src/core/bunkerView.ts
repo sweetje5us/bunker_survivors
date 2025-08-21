@@ -344,8 +344,14 @@ export class SimpleBunkerView {
       this.pushAgentStatus(agent)
     }
     
+    // Дополнительная проверка: жители должны замечать врагов даже после смены режима
+    this.checkResidentsCombatAwareness()
+    
     // Каждый час проверяем боевой режим для жителей и врагов
     this.checkCombatStatus()
+    
+    // Дополнительная проверка: жители должны замечать врагов даже после смены режима
+    this.checkResidentsCombatAwareness()
   }
   
   /**
@@ -436,9 +442,49 @@ export class SimpleBunkerView {
             agent.target = undefined // Очищаем прямой target, чтобы враг использовал path
           }
         } else {
-          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) не может найти живых целей`)
-          // Враг остается в текущей комнате
-          agent.animLock = 'idle'
+          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) не может найти живых целей, ищем выход из комнаты`)
+          
+          // Определяем текущую комнату врага
+          let currentRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], agent.rect.x, agent.rect.y)) {
+              currentRoomIndex = i
+              break
+            }
+          }
+          
+          if (currentRoomIndex >= 0 && currentRoomIndex !== 0) { // Не выходим из входа
+            // Ищем ближайшую комнату для выхода (обычно вход или соседняя комната)
+            let exitRoomIndex = 0 // По умолчанию идем к входу
+            let bestDistance = Number.POSITIVE_INFINITY
+            
+            for (let i = 0; i < this.roomRects.length; i++) {
+              if (i !== currentRoomIndex) {
+                const room = this.roomRects[i]
+                const roomCenterX = room.x + room.width / 2
+                const roomCenterY = room.y + room.height - 4
+                const distance = Math.hypot(agent.rect.x - roomCenterX, agent.rect.y - roomCenterY)
+                
+                if (distance < bestDistance) {
+                  bestDistance = distance
+                  exitRoomIndex = i
+                }
+              }
+            }
+            
+            // Строим путь к выходу
+            const exitRoom = this.roomRects[exitRoomIndex]
+            const exitX = exitRoom.x + exitRoom.width / 2
+            const exitY = exitRoom.y + exitRoom.height - 4
+            
+            this.buildPathTo(agent, exitRoomIndex, new Phaser.Math.Vector2(exitX, exitY), false)
+            agent.animLock = 'walk'
+            agent.target = undefined
+            console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) идет к выходу в комнату ${exitRoomIndex}`)
+          } else {
+            // Враг остается в текущей комнате
+            agent.animLock = 'idle'
+          }
         }
       } else {
         // Проверяем, не мертва ли текущая цель
@@ -500,6 +546,104 @@ export class SimpleBunkerView {
             agent.animLock = 'walk'
             agent.target = undefined // Очищаем прямой target, чтобы враг использовал path
             console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) получил новую цель и идет к ней`)
+          }
+        } else {
+          // Нет живых целей - ищем выход из комнаты
+          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) не может найти живых целей, ищем выход из комнаты`)
+          
+          // Определяем текущую комнату врага
+          let currentRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], agent.rect.x, agent.rect.y)) {
+              currentRoomIndex = i
+              break
+            }
+          }
+          
+          if (currentRoomIndex >= 0 && currentRoomIndex !== 0) { // Не выходим из входа
+            // Ищем ближайшую комнату для выхода (обычно вход или соседняя комната)
+            let exitRoomIndex = 0 // По умолчанию идем к входу
+            let bestDistance = Number.POSITIVE_INFINITY
+            
+            for (let i = 0; i < this.roomRects.length; i++) {
+              if (i !== currentRoomIndex) {
+                const room = this.roomRects[i]
+                const roomCenterX = room.x + room.width / 2
+                const roomCenterY = room.y + room.height - 4
+                const distance = Math.hypot(agent.rect.x - roomCenterX, agent.rect.y - roomCenterY)
+                
+                if (distance < bestDistance) {
+                  bestDistance = distance
+                  exitRoomIndex = i
+                }
+              }
+            }
+            
+            // Строим путь к выходу
+            const exitRoom = this.roomRects[exitRoomIndex]
+            const exitX = exitRoom.x + exitRoom.width / 2
+            const exitY = exitRoom.y + exitRoom.height - 4
+            
+            this.buildPathTo(agent, exitRoomIndex, new Phaser.Math.Vector2(exitX, exitY), false)
+            agent.animLock = 'walk'
+            agent.target = undefined
+            console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) идет к выходу в комнату ${exitRoomIndex}`)
+          }
+        }
+      }
+    }
+    
+    // Дополнительная проверка: враги, которые застревают в движении
+    for (const agent of this.residentAgents) {
+      if (!agent || !agent.isEnemy) continue
+      
+      // Если враг в режиме ходьбы, но не имеет пути и цели
+      if (agent.animLock === 'walk' && !agent.path && !agent.target) {
+        console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) застрял в движении, восстанавливаем путь`)
+        
+        // Если есть цель, строим путь к ней заново
+        if (agent.enemyTargetId) {
+          const target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
+          if (target && target.rect) {
+            let targetRoomIndex = -1
+            for (let i = 0; i < this.roomRects.length; i++) {
+              if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], target.rect.x, target.rect.y)) {
+                targetRoomIndex = i
+                break
+              }
+            }
+            
+            if (targetRoomIndex >= 0) {
+              this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
+              agent.animLock = 'walk'
+              agent.target = undefined
+              console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) путь восстановлен к цели`)
+            }
+          }
+        } else {
+          // Нет цели - ищем новую
+          const livingResidents = this.residentAgents.filter(a => 
+            a && !a.isEnemy && (a.health || 0) > 0 && !(a as any).away
+          )
+          
+          if (livingResidents.length > 0) {
+            const bestTarget = livingResidents[0]
+            agent.enemyTargetId = bestTarget.id
+            
+            let targetRoomIndex = -1
+            for (let i = 0; i < this.roomRects.length; i++) {
+              if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], bestTarget.rect.x, bestTarget.rect.y)) {
+                targetRoomIndex = i
+                break
+              }
+            }
+            
+            if (targetRoomIndex >= 0) {
+              this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(bestTarget.rect.x, bestTarget.rect.y), false)
+              agent.animLock = 'walk'
+              agent.target = undefined
+              console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) получил новую цель и восстановил путь`)
+            }
           }
         }
       }
@@ -763,13 +907,13 @@ export class SimpleBunkerView {
       if (a.rect.scene && a.rect.parentContainer !== this.content) this.content.add(a.rect)
     }
     // Устанавливаем фиксированные значения depth для правильного порядка отрисовки
-    console.log(`[Depth] Обновляем depth для ${this.residentAgents.length} персонажей`)
+    // console.log(`[Depth] Обновляем depth для ${this.residentAgents.length} персонажей`)
     for (let i = 0; i < this.residentAgents.length; i++) {
       const a = this.residentAgents[i]
       if (a.sprite) {
         a.sprite.setDepth(100)
         const sameContainer = a.sprite.parentContainer === this.content
-        console.log(`[Depth] Персонаж ${i}: sprite depth=${a.sprite.depth}, в content=${sameContainer}, container=${a.sprite.parentContainer?.name || 'none'}`)
+        // console.log(`[Depth] Персонаж ${i}: sprite depth=${a.sprite.depth}, в content=${sameContainer}, container=${a.sprite.parentContainer?.name || 'none'}`)
       }
       if (a.shirt) a.shirt.setDepth(200)
       if (a.hair) a.hair.setDepth(300)
@@ -2400,7 +2544,7 @@ export class SimpleBunkerView {
       if (!res.isEnemy) {
         const existingAgent = this.residentAgents.find(a => a && !a.isEnemy && a.id === res.id)
         if (existingAgent) {
-          console.log(`[bunkerView] Агент для жителя ${res.profession} (ID: ${res.id}) уже существует, пропускаем`)
+          // console.log(`[bunkerView] Агент для жителя ${res.profession} (ID: ${res.id}) уже существует, пропускаем`)
           continue
         }
       } else {
@@ -2409,7 +2553,7 @@ export class SimpleBunkerView {
           a && a.isEnemy && a.id === res.id
         )
         if (existingEnemyAgent) {
-          console.log(`[bunkerView] Агент для врага ${res.enemyType} (ID: ${res.id}) уже существует, пропускаем`)
+          // console.log(`[bunkerView] Агент для врага ${res.enemyType} (ID: ${res.id}) уже существует, пропускаем`)
           continue
         }
         
@@ -2734,7 +2878,7 @@ export class SimpleBunkerView {
     
     // Проверяем состояние спрайтов врагов
     this.residentAgents.filter(a => a && a.isEnemy).forEach(enemy => {
-      console.log(`[DEBUG] Враг ${enemy.enemyType} (ID: ${enemy.id}) после syncResidents: sprite=${!!enemy.sprite}, sprite.anims=${!!enemy.sprite?.anims}`)
+      // console.log(`[DEBUG] Враг ${enemy.enemyType} (ID: ${enemy.id}) после syncResidents: sprite=${!!enemy.sprite}, sprite.anims=${!!enemy.sprite?.anims}`)
     })
   }
 
@@ -3047,6 +3191,11 @@ export class SimpleBunkerView {
         continue
       }
       
+      // Автоматическое обнаружение врагов при входе в комнату (для жителей, кроме трусов)
+      if (!agent.isEnemy && !(agent as any).isCoward && !(agent as any).away) {
+        this.checkEnemyDetectionInRoom(agent)
+      }
+      
       // Определяем followingPath в начале цикла для каждого агента
       const followingPath = !!agent.target
       
@@ -3057,6 +3206,32 @@ export class SimpleBunkerView {
       // if (agent.isEnemy) console.log(`[DEBUG] Обрабатываем врага ${agent.enemyType} (ID: ${agent.id}) в updateResidents`)
       // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}): followingPath=${followingPath}, moving=${moving}, animLock=${agent.animLock}, target=`, agent.target)
       if (agent.isEnemy) {
+        // Дополнительная проверка: если враг застрял в движении, восстанавливаем путь
+        if (agent.animLock === 'walk' && !agent.path && !agent.target) {
+          console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) застрял в движении, восстанавливаем путь`)
+          
+          // Если есть цель, строим путь к ней заново
+          if (agent.enemyTargetId) {
+            const target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
+            if (target && target.rect) {
+              let targetRoomIndex = -1
+              for (let i = 0; i < this.roomRects.length; i++) {
+                if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], target.rect.x, target.rect.y)) {
+                  targetRoomIndex = i
+                  break
+                }
+              }
+              
+              if (targetRoomIndex >= 0) {
+                this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
+                agent.animLock = 'walk'
+                agent.target = undefined
+                console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) путь восстановлен к цели`)
+              }
+            }
+          }
+        }
+        
         // Логика для врагов
         // ... (оставляем пустым пока)
       } else {
@@ -3310,7 +3485,7 @@ export class SimpleBunkerView {
             if (agent.enemyType === 'МАРОДЕР') {
               const kind = agent.marauderKind || 1
               animationKey = `r${kind}_${suffix}`
-              console.log(`[DEBUG] Мародер: enemyType=${agent.enemyType}, marauderKind=${agent.marauderKind}, kind=${kind}, suffix=${suffix}, animationKey=${animationKey}`)
+              // console.log(`[DEBUG] Мародер: enemyType=${agent.enemyType}, marauderKind=${agent.marauderKind}, kind=${kind}, suffix=${suffix}, animationKey=${animationKey}`)
 
               // Убеждаемся, что анимации мародеров созданы
               const gameScene = this.scene as any
@@ -3323,7 +3498,7 @@ export class SimpleBunkerView {
               else if (kind === 'man') animationKey = `z_man_${suffix}`
               else if (kind === 'woman') animationKey = `z_woman_${suffix}`
               else animationKey = `z_wild_${suffix}` // fallback
-              console.log(`[DEBUG] Зомби: enemyType=${agent.enemyType}, zombieKind=${agent.zombieKind}, kind=${kind}, suffix=${suffix}, animationKey=${animationKey}`)
+              // console.log(`[DEBUG] Зомби: enemyType=${agent.enemyType}, zombieKind=${agent.zombieKind}, kind=${kind}, suffix=${suffix}, animationKey=${animationKey}`)
 
               // Убеждаемся, что анимации зомби созданы
               const gameScene = this.scene as any
@@ -3333,20 +3508,20 @@ export class SimpleBunkerView {
             } else if (agent.enemyType === 'МУТАНТ') {
               const k = agent.mutantKind || 1
               animationKey = `m${k}_${suffix}`
-              console.log(`[DEBUG] Мутант: enemyType=${agent.enemyType}, mutantKind=${agent.mutantKind}, k=${k}, suffix=${suffix}, animationKey=${animationKey}`)
+              // console.log(`[DEBUG] Мутант: enemyType=${agent.enemyType}, mutantKind=${agent.mutantKind}, k=${k}, suffix=${suffix}, animationKey=${animationKey}`)
 
               // Убеждаемся, что анимации мутантов созданы
               const gameScene = this.scene as any
               if (gameScene.ensureMutantAnimations) {
-                console.log(`[DEBUG] Вызываем ensureMutantAnimations для мутанта ${agent.enemyType} (ID: ${agent.id})`)
+                // console.log(`[DEBUG] Вызываем ensureMutantAnimations для мутанта ${agent.enemyType} (ID: ${agent.id})`)
                 gameScene.ensureMutantAnimations()
-                console.log(`[DEBUG] ensureMutantAnimations выполнен для мутанта ${agent.enemyType} (ID: ${agent.id})`)
+                // console.log(`[DEBUG] ensureMutantAnimations выполнен для мутанта ${agent.enemyType} (ID: ${agent.id})`)
               } else {
                 console.warn(`[DEBUG] ensureMutantAnimations не найден в gameScene`)
               }
             } else if (agent.enemyType === 'СОЛДАТ') {
               animationKey = `sold_${suffix}`
-              console.log(`[DEBUG] Солдат: enemyType=${agent.enemyType}, suffix=${suffix}, animationKey=${animationKey}`)
+              // console.log(`[DEBUG] Солдат: enemyType=${agent.enemyType}, suffix=${suffix}, animationKey=${animationKey}`)
 
               // Убеждаемся, что анимации солдат созданы
                 const gameScene = this.scene as any
@@ -3775,7 +3950,40 @@ export class SimpleBunkerView {
           const dy = target.rect.y - agent.rect.y
           const dist = Math.hypot(dx, dy)
           if (agent.sprite) agent.sprite.setFlipX(dx < 0)
-                            if (dist > range) {
+          
+          // Дополнительная проверка: если враг застрял в движении, принудительно выводим его
+          if (agent.animLock === 'walk' && !agent.path && !agent.target) {
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) застрял в движении, принудительно выводим`)
+            
+            // Определяем текущую комнату врага
+            let currentRoomIndex = -1
+            for (let i = 0; i < this.roomRects.length; i++) {
+              if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], agent.rect.x, agent.rect.y)) {
+                currentRoomIndex = i
+                break
+              }
+            }
+            
+            if (currentRoomIndex >= 0) {
+              // Строим путь к цели заново
+              let targetRoomIndex = -1
+              for (let i = 0; i < this.roomRects.length; i++) {
+                if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], target.rect.x, target.rect.y)) {
+                  targetRoomIndex = i
+                  break
+                }
+              }
+              
+              if (targetRoomIndex >= 0) {
+                this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
+                agent.animLock = 'walk'
+                agent.target = undefined
+                console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) путь восстановлен к комнате ${targetRoomIndex}`)
+              }
+            }
+          }
+          
+          if (dist > range) {
             // Враг движется к цели - используем buildPathTo для правильной навигации через комнаты
             // Находим индекс комнаты цели
             let targetRoomIndex = -1
@@ -4118,10 +4326,10 @@ export class SimpleBunkerView {
             if (agent.assignedRole === 'scientist') entry.scientistId = agent.id
             entry.usedSlots.add(agent.assignedSlotIndex)
             // eslint-disable-next-line no-console
-            console.log('[LabArrive]', { id: agent.id, labIdx: agent.assignedRoomIndex, slot: agent.assignedSlotIndex })
+            // console.log('[LabArrive]', { id: agent.id, labIdx: agent.assignedRoomIndex, slot: agent.assignedSlotIndex })
             // Сразу лог текущей анимации
             // eslint-disable-next-line no-console
-            console.log('[LabArriveAnim]', { id: agent.id, anim: agent.sprite?.anims?.currentAnim?.key })
+            // console.log('[LabArriveAnim]', { id: agent.id, anim: agent.sprite?.anims?.currentAnim?.key })
           }
           // Уход на поверхность: по прибытии к входу и наличии флага — исчезаем
           if ((agent as any)._surfacePending) {
@@ -4271,7 +4479,7 @@ export class SimpleBunkerView {
     // Пробуем по очереди найти лабораторию, где свободен слот по роли и есть свободная точка
     for (const idx of labIdxs) {
       // eslint-disable-next-line no-console
-      console.log('[LabAssign:check]', { id: agent.id, role, labIdx: idx, roomName: this.roomNames[idx] })
+      // console.log('[LabAssign:check]', { id: agent.id, role, labIdx: idx, roomName: this.roomNames[idx] })
       const entry = this.ensureRoomEntry(idx)
       // Ограничение: в одной лаборатории может быть только 1 учёный и 1 химик
       if (role === 'chemist' && entry.chemistId != null && entry.chemistId !== agent.id) continue
@@ -4300,7 +4508,7 @@ export class SimpleBunkerView {
         if (role === 'scientist') entry.scientistId = agent.id
         entry.usedSlots.add(chosenSlot)
         // eslint-disable-next-line no-console
-        console.log('[LabAssign:start]', { id: agent.id, role, labIdx: idx, slot: chosenSlot, target: { x: dst.x, y: dst.y } })
+        // console.log('[LabAssign:start]', { id: agent.id, role, labIdx: idx, slot: chosenSlot, target: { x: dst.x, y: dst.y } })
         return true
       } else {
         agent.target = before; agent.path = prevPath
@@ -4363,7 +4571,7 @@ export class SimpleBunkerView {
         entry.workers[key] += 1
         if (chosenSlot >= 0) entry.usedSlots.add(chosenSlot)
         // eslint-disable-next-line no-console
-        console.log('[WorkAssign:start]', { id: agent.id, prof, roomIdx: idx, slot: chosenSlot, target: { x: dst.x, y: dst.y } })
+        // console.log('[WorkAssign:start]', { id: agent.id, prof, roomIdx: idx, slot: chosenSlot, target: { x: dst.x, y: dst.y } })
         return true
       } else {
         agent.target = before; agent.path = prevPath
@@ -4628,7 +4836,7 @@ export class SimpleBunkerView {
       const enemies = this.residentAgents.filter(a => a && a.isEnemy)
       console.log(`[DEBUG] updateHealthBar: перед удалением жителя ${agent.profession} (ID: ${agent.id}): найдено врагов=${enemies.length}`)
       enemies.forEach(enemy => {
-        console.log(`[DEBUG] updateHealthBar: враг ${enemy.enemyType} (ID: ${enemy.id}): sprite=${!!enemy.sprite}, sprite.anims=${!!enemy.sprite?.anims}`)
+        // console.log(`[DEBUG] updateHealthBar: враг ${enemy.enemyType} (ID: ${enemy.id}): sprite=${!!enemy.sprite}, sprite.anims=${!!enemy.sprite?.anims}`)
       })
       
         this.removeDeadResident(agent)
@@ -5096,6 +5304,90 @@ export class SimpleBunkerView {
   }
 
   // Функция для обновления боевого поведения жителей
+  
+  /**
+   * Проверяет, что жители замечают врагов даже после смены режима
+   */
+  private checkResidentsCombatAwareness(): void {
+    // Проверяем, есть ли враги в бункере
+    const enemies = this.residentAgents.filter(a => a && a.isEnemy && (a.health || 0) > 0)
+    if (enemies.length === 0) return
+    
+    // Проверяем всех жителей
+    for (const agent of this.residentAgents) {
+      if (!agent || agent.isEnemy || (agent as any).away) continue
+      
+      // Пропускаем жителей, которые уже в боевом режиме
+      if (agent.animLock === 'attack' || (agent as any).combatTarget) continue
+      
+      // Проверяем, есть ли враги в той же комнате
+      const agentRoom = this.findRoomIndexAt(agent.rect.x, agent.rect.y)
+      if (agentRoom === null) continue
+      
+      const enemiesInRoom = enemies.filter(e => {
+        const enemyRoom = this.findRoomIndexAt(e.rect.x, e.rect.y)
+        return enemyRoom === agentRoom
+      })
+      
+      if (enemiesInRoom.length > 0) {
+        // Есть враги в комнате - житель должен вступить в бой
+        const targetEnemy = enemiesInRoom[0]
+        
+        // Инициализируем боевые параметры если нужно
+        if (agent.health === undefined) {
+          this.initializeCombatStats(agent)
+        }
+        
+        // Устанавливаем цель атаки
+        ;(agent as any).combatTarget = targetEnemy.id
+        agent.animLock = 'attack'
+        
+        console.log(`[bunkerView] Житель ${agent.profession} (ID: ${agent.id}) обнаружен враг в комнате, вступает в бой`)
+      }
+    }
+  }
+  
+  /**
+   * Проверяет обнаружение врагов при входе жителя в комнату
+   */
+  private checkEnemyDetectionInRoom(agent: any): void {
+    // Пропускаем жителей, которые уже в боевом режиме
+    if (agent.animLock === 'attack' || (agent as any).combatTarget) return
+    
+    // Пропускаем трусов
+    if ((agent as any).isCoward) return
+    
+    // Определяем текущую комнату жителя
+    const agentRoom = this.findRoomIndexAt(agent.rect.x, agent.rect.y)
+    if (agentRoom === null) return
+    
+    // Ищем врагов в той же комнате
+    const enemiesInRoom = this.residentAgents.filter(a => 
+      a && a.isEnemy && (a.health || 0) > 0 && 
+      this.findRoomIndexAt(a.rect.x, a.rect.y) === agentRoom
+    )
+    
+    if (enemiesInRoom.length > 0) {
+      // Обнаружен враг в комнате - житель должен вступить в бой
+      const targetEnemy = enemiesInRoom[0]
+      
+      // Инициализируем боевые параметры если нужно
+      if (agent.health === undefined) {
+        this.initializeCombatStats(agent)
+      }
+      
+      // Устанавливаем цель атаки
+      ;(agent as any).combatTarget = targetEnemy.id
+      agent.animLock = 'attack'
+      
+      console.log(`[bunkerView] Житель ${agent.profession} (ID: ${agent.id}) автоматически обнаружил врага в комнате ${agentRoom}, вступает в бой`)
+      
+      // Останавливаем текущее движение
+      agent.target = undefined
+      agent.path = []
+      agent.dwellUntil = undefined
+    }
+  }
 }
 
 
