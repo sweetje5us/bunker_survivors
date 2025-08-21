@@ -2122,40 +2122,52 @@ export class SimpleBunkerView {
     // Убираем блокировку создания новых врагов - теперь создаем агентов для всех
     // console.log(`[DEBUG] syncResidents: ожидается ${expectedCount} агентов, текущих=${this.residentAgents.length}`)
     
-    while (this.residentAgents.length < expectedCount) {
+    // Получаем объединенный массив жителей и врагов
+    const game: any = this.scene
+    const allUnits = [...(game.bunkerResidents || []), ...(game.bunkerEnemies || [])]
+    
+    // Фильтруем только живых агентов
+    const livingUnits = allUnits.filter(unit => unit && unit.health > 0)
+    
+    console.log(`[bunkerView] syncResidents: ожидается=${expectedCount}, всего юнитов=${allUnits.length}, живых=${livingUnits.length}, текущих агентов=${this.residentAgents.length}`)
+    
+    // Очищаем существующих агентов, которые больше не нужны
+    for (let i = this.residentAgents.length - 1; i >= 0; i--) {
+      const agent = this.residentAgents[i]
+      if (agent) {
+        // Проверяем, существует ли этот агент в живых юнитах
+        const stillExists = livingUnits.some(unit => unit.id === agent.id)
+        if (!stillExists) {
+          // Агент больше не существует - удаляем его
+          console.log(`[bunkerView] Удаляем несуществующего агента: ID=${agent.id}, тип=${agent.isEnemy ? agent.enemyType : agent.profession}`)
+          this.removeDeadResident(agent)
+          this.residentAgents.splice(i, 1)
+        }
+      }
+    }
+    
+    // Создаем агентов только для живых юнитов
+    for (let i = 0; i < livingUnits.length; i++) {
+      const res = livingUnits[i]
+      
+      // Проверяем, не существует ли уже агент для этого юнита
+      const existingAgent = this.residentAgents.find(a => a && a.id === res.id)
+      if (existingAgent) {
+        console.log(`[bunkerView] Агент для ${res.isEnemy ? 'врага' : 'жителя'} ${res.isEnemy ? res.enemyType : res.profession} (ID: ${res.id}) уже существует, пропускаем`)
+        continue
+      }
+      
+      console.log(`[bunkerView] Создаем агента для ${res.isEnemy ? 'врага' : 'жителя'}: ${res.isEnemy ? res.enemyType : res.profession} (ID: ${res.id})`)
+      
       const rect = this.scene.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0.5, 1)
       rect.setStrokeStyle(2, 0x00ff00, 1.0)
       rect.setVisible(true)
       rect.setDepth(50)  // рамка отладки под спрайтами
       ;(rect as any).name = 'resident'
       this.content.add(rect)
-      // Создаем спрайт по специализации или оставляем рамку
-      const game: any = this.scene
-      const idx = this.residentAgents.length
-      // Получаем агента из объединенного массива жителей и врагов
-      // Важно: сначала жители, потом враги!
-      const allUnits = [...(game.bunkerResidents || []), ...(game.bunkerEnemies || [])]
-      const res = allUnits[idx]
-      console.log(`[bunkerView] syncResidents: idx=${idx}, totalResidents=${game.bunkerResidents?.length || 0}, totalEnemies=${game.bunkerEnemies?.length || 0}, allUnits=${allUnits.length}, res?.isEnemy=${res?.isEnemy}`)
-      
-      // Если res не определен, пропускаем создание агента
-      if (!res) {
-        console.warn(`[bunkerView] syncResidents: res не определен для idx=${idx}, пропускаем создание агента`)
-        continue
-      }
-      
-      // Если агент мертв, пропускаем создание агента
-      if (res.health <= 0) {
-        if (res.isEnemy) {
-          console.warn(`[bunkerView] syncResidents: враг ${res.enemyType} (ID: ${res.id}) мертв, пропускаем создание агента`)
-        } else {
-        console.warn(`[bunkerView] syncResidents: житель ${res.profession} (ID: ${res.id}) мертв, пропускаем создание агента`)
-        }
-        continue
-      }
       
       const gender = res.gender ?? (Math.random() < 0.5 ? 'М' : 'Ж')
-      const skinKey = pickSkinForGender(gender, res.id ?? idx + 1)
+      const skinKey = pickSkinForGender(gender, res.id ?? i + 1)
       const profession = res.profession?.toLowerCase() ?? ''
       
       let sprite = undefined
@@ -2342,7 +2354,7 @@ export class SimpleBunkerView {
       this.residentAgents.push(agent)
       // Проверяем состояние спрайта после создания агента
       if (agent.sprite && agent.isEnemy) {
-        console.log(`[bunkerView] Агент врага создан: idx=${idx}, спрайт в content=${this.content.list.includes(agent.sprite)}, parentContainer=${agent.sprite.parentContainer?.name || 'none'}`)
+        console.log(`[bunkerView] Агент врага создан: idx=${i}, спрайт в content=${this.content.list.includes(agent.sprite)}, parentContainer=${agent.sprite.parentContainer?.name || 'none'}`)
       }
       this.assignRandomPosition(agent)
       // Если есть целевая комната для стояния (химик) — сразу сбросим цель, чтобы начать движение
