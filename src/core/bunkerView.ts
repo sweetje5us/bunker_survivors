@@ -124,6 +124,7 @@ export class SimpleBunkerView {
     enemyTargetId?: number;
     health?: number;
     lastAttackTime?: number;
+    lastTargetReconsiderTime?: number; // Время последнего пересмотра цели
     healthBar?: Phaser.GameObjects.Container;
     
     // Combat system for residents
@@ -341,6 +342,167 @@ export class SimpleBunkerView {
       }
       // Пушим статус немедленно после смены расписания
       this.pushAgentStatus(agent)
+    }
+    
+    // Каждый час проверяем боевой режим для жителей и врагов
+    this.checkCombatStatus()
+  }
+  
+  /**
+   * Проверяет боевой статус всех агентов каждый час
+   */
+  private checkCombatStatus(): void {
+    console.log(`[bunkerView] Проверка боевого статуса агентов...`)
+    
+    // Проверяем жителей в боевом режиме
+    for (const agent of this.residentAgents) {
+      if (!agent || agent.isEnemy) continue
+      
+      // Если житель в боевом режиме, проверяем, есть ли еще враги
+      if (agent.animLock === 'attack' || (agent as any).combatTarget) {
+        const targetEnemy = this.residentAgents.find(a => 
+          a && a.isEnemy && a.id === (agent as any).combatTarget && (a.health || 0) > 0
+        )
+        
+        if (!targetEnemy) {
+          console.log(`[bunkerView] Житель ${agent.profession} (ID: ${agent.id}) освобожден от боевого режима - враг мертв`)
+          
+          // Очищаем боевой режим
+          ;(agent as any).combatTarget = undefined
+          agent.animLock = 'idle'
+          
+          // Возвращаем к нормальной жизни
+          if (agent.profession === 'солдат' || agent.profession === 'охотник' || agent.profession === 'разведчик') {
+            // Агрессивные профессии идут к входу для патрулирования
+            const entranceIdx = this.roomNames.indexOf('Вход')
+            if (entranceIdx >= 0) {
+              const r = this.roomRects[entranceIdx]
+              const margin = 4
+              const dst = new Phaser.Math.Vector2(r.x + r.width / 2, r.y + r.height - margin)
+              this.buildPathTo(agent, entranceIdx, dst, false)
+              agent.animLock = 'walk'
+              console.log(`[bunkerView] ${agent.profession} (ID: ${agent.id}) идет к входу для патрулирования`)
+            }
+          } else {
+            // Обычные жители возвращаются к нормальной жизни
+            agent.animLock = null
+            this.pickNewTarget(agent)
+          }
+        }
+      }
+    }
+    
+    // Проверяем врагов без целей
+    for (const agent of this.residentAgents) {
+      if (!agent || !agent.isEnemy) continue
+      
+      // Если у врага нет цели или цель мертва, ищем новую
+      if (!agent.enemyTargetId || !agent.target) {
+        const livingResidents = this.residentAgents.filter(a => 
+          a && !a.isEnemy && (a.health || 0) > 0 && !(a as any).away
+        )
+        
+        if (livingResidents.length > 0) {
+          // Выбираем ближайшего жителя как цель
+          let bestTarget = livingResidents[0]
+          let bestDistance = Number.POSITIVE_INFINITY
+          
+          for (const resident of livingResidents) {
+            const distance = Phaser.Math.Distance.Between(
+              agent.rect.x, agent.rect.y,
+              resident.rect.x, resident.rect.y
+            )
+            if (distance < bestDistance) {
+              bestDistance = distance
+              bestTarget = resident
+            }
+          }
+          
+          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) получает новую цель: ${bestTarget.profession} (ID: ${bestTarget.id})`)
+          agent.enemyTargetId = bestTarget.id
+          
+          // Строим путь к цели
+          let targetRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], bestTarget.rect.x, bestTarget.rect.y)) {
+              targetRoomIndex = i
+              break
+            }
+          }
+          
+          if (targetRoomIndex >= 0) {
+            this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(bestTarget.rect.x, bestTarget.rect.y), false)
+            agent.animLock = 'walk'
+            agent.target = undefined // Очищаем прямой target, чтобы враг использовал path
+          }
+        } else {
+          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) не может найти живых целей`)
+          // Враг остается в текущей комнате
+          agent.animLock = 'idle'
+        }
+      } else {
+        // Проверяем, не мертва ли текущая цель
+        const currentTarget = this.residentAgents.find(a => 
+          a && !a.isEnemy && a.id === agent.enemyTargetId && (a.health || 0) > 0
+        )
+        
+        if (!currentTarget) {
+          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) теряет цель - она мертва, ищем новую`)
+          agent.enemyTargetId = undefined
+          agent.target = undefined
+          agent.path = []
+          agent.animLock = 'idle'
+        }
+      }
+    }
+    
+    // Дополнительная проверка: враги, которые застряли в комнатах без движения
+    for (const agent of this.residentAgents) {
+      if (!agent || !agent.isEnemy) continue
+      
+      // Если враг стоит на месте без цели и анимации
+      if (agent.animLock === 'idle' && !agent.target && !agent.path) {
+        const livingResidents = this.residentAgents.filter(a => 
+          a && !a.isEnemy && (a.health || 0) > 0 && !(a as any).away
+        )
+        
+        if (livingResidents.length > 0) {
+          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) застрял без цели, ищем новую`)
+          
+          // Выбираем ближайшего жителя как цель
+          let bestTarget = livingResidents[0]
+          let bestDistance = Number.POSITIVE_INFINITY
+          
+          for (const resident of livingResidents) {
+            const distance = Phaser.Math.Distance.Between(
+              agent.rect.x, agent.rect.y,
+              resident.rect.x, resident.rect.y
+            )
+            if (distance < bestDistance) {
+              bestDistance = distance
+              bestTarget = resident
+            }
+          }
+          
+          agent.enemyTargetId = bestTarget.id
+          
+          // Строим путь к цели
+          let targetRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], bestTarget.rect.x, bestTarget.rect.y)) {
+              targetRoomIndex = i
+              break
+            }
+          }
+          
+          if (targetRoomIndex >= 0) {
+            this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(bestTarget.rect.x, bestTarget.rect.y), false)
+            agent.animLock = 'walk'
+            agent.target = undefined // Очищаем прямой target, чтобы враг использовал path
+            console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) получил новую цель и идет к ней`)
+          }
+        }
+      }
     }
   }
 
@@ -2138,7 +2300,48 @@ export class SimpleBunkerView {
     
     // Получаем объединенный массив жителей и врагов
     const game: any = this.scene
-    const allUnits = [...(game.bunkerResidents || []), ...(game.bunkerEnemies || [])]
+    
+    // Очищаем мертвых врагов из bunkerEnemies
+    let livingEnemies = []
+    if (game.bunkerEnemies) {
+      const originalEnemyCount = game.bunkerEnemies.length
+      livingEnemies = game.bunkerEnemies.filter((enemy: any) => enemy && (enemy.health || 0) > 0)
+      const removedEnemyCount = originalEnemyCount - livingEnemies.length
+      if (removedEnemyCount > 0) {
+        console.log(`[bunkerView] Очищено ${removedEnemyCount} мертвых врагов из bunkerEnemies`)
+      }
+    }
+    
+    // Дополнительная проверка: удаляем дублирующих врагов из bunkerEnemies
+    if (game.bunkerEnemies && game.bunkerEnemies.length > 0) {
+      const uniqueEnemies = []
+      const seenEnemyKeys = new Set()
+      
+      for (const enemy of game.bunkerEnemies) {
+        if (enemy && (enemy.health || 0) > 0) {
+          // Создаем уникальный ключ для врага
+          const enemyKey = `${enemy.enemyType}_${enemy.marauderKind || 'none'}_${enemy.zombieKind || 'none'}_${enemy.mutantKind || 'none'}`
+          
+          if (!seenEnemyKeys.has(enemyKey)) {
+            seenEnemyKeys.add(enemyKey)
+            uniqueEnemies.push(enemy)
+          } else {
+            console.log(`[bunkerView] Обнаружен дублирующий враг в bunkerEnemies: ${enemy.enemyType}, удаляем`)
+          }
+        }
+      }
+      
+      // Заменяем bunkerEnemies на уникальный список
+      if (uniqueEnemies.length !== game.bunkerEnemies.length) {
+        console.log(`[bunkerView] Удалено ${game.bunkerEnemies.length - uniqueEnemies.length} дублирующих врагов из bunkerEnemies`)
+        game.bunkerEnemies = uniqueEnemies
+      }
+      
+      // Обновляем livingEnemies
+      livingEnemies = uniqueEnemies
+    }
+    
+    const allUnits = [...(game.bunkerResidents || []), ...livingEnemies]
     
     // Фильтруем только живых агентов
     const livingUnits = allUnits.filter(unit => unit && unit.health > 0)
@@ -2153,7 +2356,15 @@ export class SimpleBunkerView {
           // Для врагов: удаляем только если они мертвы
           if ((agent.health || 0) <= 0) {
             console.log(`[bunkerView] Удаляем мертвого врага: ID=${agent.id}, тип=${agent.enemyType}`)
-            this.removeDeadResident(agent)
+            // Очищаем графические объекты напрямую
+            if (agent.rect) agent.rect.destroy()
+            if (agent.sprite) agent.sprite.destroy()
+            if (agent.healthBar) agent.healthBar.destroy()
+            // Очищаем таймер атаки если есть
+            if ((agent as any).attackTimer) {
+              clearTimeout((agent as any).attackTimer)
+              ;(agent as any).attackTimer = null
+            }
             this.residentAgents.splice(i, 1)
           }
         } else {
@@ -2161,7 +2372,19 @@ export class SimpleBunkerView {
           const stillExists = livingUnits.some(unit => !unit.isEnemy && unit.id === agent.id)
           if (!stillExists) {
             console.log(`[bunkerView] Удаляем несуществующего жителя: ID=${agent.id}, тип=${agent.profession}`)
-            this.removeDeadResident(agent)
+            // Очищаем графические объекты напрямую
+            if (agent.rect) agent.rect.destroy()
+            if (agent.sprite) agent.sprite.destroy()
+            if (agent.shirt) agent.shirt.destroy()
+            if (agent.pants) agent.pants.destroy()
+            if (agent.footwear) agent.footwear.destroy()
+            if (agent.hair) agent.hair.destroy()
+            if (agent.healthBar) agent.healthBar.destroy()
+            // Очищаем таймер атаки если есть
+            if ((agent as any).attackTimer) {
+              clearTimeout((agent as any).attackTimer)
+              ;(agent as any).attackTimer = null
+            }
             this.residentAgents.splice(i, 1)
           }
         }
@@ -2181,16 +2404,24 @@ export class SimpleBunkerView {
           continue
         }
       } else {
-        // Для врагов проверяем, не существует ли уже агент с таким же типом и параметрами
+        // Для врагов проверяем, не существует ли уже агент с таким же ID
         const existingEnemyAgent = this.residentAgents.find(a => 
-          a && a.isEnemy && 
-          a.enemyType === res.enemyType &&
-          a.marauderKind === res.marauderKind &&
-          a.zombieKind === res.zombieKind &&
-          a.mutantKind === res.mutantKind
+          a && a.isEnemy && a.id === res.id
         )
         if (existingEnemyAgent) {
           console.log(`[bunkerView] Агент для врага ${res.enemyType} (ID: ${res.id}) уже существует, пропускаем`)
+          continue
+        }
+        
+        // Дополнительная проверка: не создаем ли мы дублирующего врага
+        const duplicateEnemy = this.residentAgents.find(a => 
+          a && a.isEnemy && a.enemyType === res.enemyType && 
+          a.marauderKind === res.marauderKind && 
+          a.zombieKind === res.zombieKind && 
+          a.mutantKind === res.mutantKind
+        )
+        if (duplicateEnemy && !duplicateEnemy.id) {
+          console.log(`[bunkerView] Обнаружен дублирующий враг ${res.enemyType}, пропускаем создание`)
           continue
         }
       }
@@ -2320,7 +2551,7 @@ export class SimpleBunkerView {
         }
       }
       const agent = {
-        id: res.isEnemy ? this.generateUniqueEnemyId() : res.id,
+        id: res.id, // Всегда используем оригинальный ID для сохранения связи
         rect, sprite, shirt, pants, footwear, hair, skinKey,
         profession: res.profession,
         skills: res.skills ?? [],
@@ -2333,6 +2564,7 @@ export class SimpleBunkerView {
         health: 100, // Базовое здоровье
         enemyTargetId: undefined,
         lastAttackTime: undefined,
+        lastTargetReconsiderTime: undefined, // Время последнего пересмотра цели
         animLock: null,
         scheduleState: 'work' as 'sleep' | 'work' | 'rest',
         assignedRoomIndex: undefined,
@@ -2347,7 +2579,7 @@ export class SimpleBunkerView {
       } as {
         id?: number; rect: Phaser.GameObjects.Rectangle; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite; skinKey: string;
         profession?: string; skills?: Array<{ text: string; positive: boolean }>; workAtNight?: boolean; isLazyToday?: boolean; working?: boolean; away?: boolean; target?: Phaser.Math.Vector2; roomIndex?: number; sleeping?: boolean; path?: Phaser.Math.Vector2[]; dwellUntil?: number; goingToRest?: boolean; stayInRoomName?: string; settled?: boolean; assignedRoomIndex?: number; assignedSlotIndex?: number; assignedRole?: 'chemist' | 'scientist'; schedType?: 'normal' | 'owl' | 'insomnia'; insomniaOffsetHour?: number; scheduleState?: 'sleep' | 'work' | 'rest';
-        isEnemy?: boolean; enemyType?: string; marauderKind?: number; zombieKind?: string; mutantKind?: number; health?: number; lastAttackTime?: number; enemyTargetId?: number; animLock?: 'work' | 'sleep' | 'walk' | 'idle' | 'attack' | 'hurt' | 'dead' | null
+        isEnemy?: boolean; enemyType?: string; marauderKind?: number; zombieKind?: string; mutantKind?: number; health?: number; lastAttackTime?: number; lastTargetReconsiderTime?: number; enemyTargetId?: number; animLock?: 'work' | 'sleep' | 'walk' | 'idle' | 'attack' | 'hurt' | 'dead' | null
       }
       
       // Инициализация здоровья в зависимости от профессии и навыков
@@ -2444,7 +2676,23 @@ export class SimpleBunkerView {
     while (this.residentAgents.length > expectedCount) {
       const a = this.residentAgents.pop()!
       
-      // НЕ удаляем врагов автоматически - они должны жить до своей смерти
+      // Удаляем врагов с высокими ID (1000+) если их слишком много
+      // Это означает, что они были созданы ранее, но больше не нужны
+      if (a.isEnemy && a.id && a.id >= 1000) {
+        console.log(`[DEBUG] Удаляем лишнего врага ${a.enemyType} (ID: ${a.id}) - превышен лимит агентов`)
+        // Очищаем графические объекты
+        if (a.rect) a.rect.destroy()
+        if (a.sprite) a.sprite.destroy()
+        if (a.healthBar) a.healthBar.destroy()
+        // Очищаем таймер атаки если есть
+        if ((a as any).attackTimer) {
+          clearTimeout((a as any).attackTimer)
+          ;(a as any).attackTimer = null
+        }
+        continue // Переходим к следующему агенту
+      }
+      
+      // НЕ удаляем врагов с обычными ID - они должны жить до своей смерти
       if (a.isEnemy) {
         console.warn(`[DEBUG] syncResidents пытается удалить врага ${a.enemyType} (ID: ${a.id}) - это ошибка! Возвращаем обратно`)
         this.residentAgents.push(a) // Возвращаем врага обратно
@@ -3122,11 +3370,11 @@ export class SimpleBunkerView {
                   )
                   
                   if (!isAttackAnim || currentAnimKey !== animationKey) {
-                    console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) переключает анимацию на: ${animationKey} (текущая: ${agent.sprite.anims.currentAnim?.key})`)
+                    // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) переключает анимацию на: ${animationKey} (текущая: ${agent.sprite.anims.currentAnim?.key})`)
                     try {
                       agent.sprite.anims.play(animationKey, false) // Не зацикливаем анимацию атаки
                       // После завершения анимации атаки переключаемся на idle через таймер
-                      const attackDuration = 300 // 300ms - короткая длительность атаки
+                      const attackDuration = 1000 // 300ms - короткая длительность атаки
                       // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) запустил таймер атаки на ${attackDuration}ms`)
                       
                       // Очищаем предыдущий таймер если есть
@@ -3142,7 +3390,7 @@ export class SimpleBunkerView {
                           // Принудительно вызываем playAll для обновления анимации
                           playAll('idle')
                 } else {
-                          console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) animLock уже не attack, а=${agent.animLock}`)
+                          // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) animLock уже не attack, а=${agent.animLock}`)
                         }
                         ;(agent as any).attackTimer = null
                       }, attackDuration)
@@ -3153,7 +3401,7 @@ export class SimpleBunkerView {
                     // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) уже воспроизводит анимацию атаки: ${currentAnimKey}`)
                   }
                 } else if (agent.sprite.anims.currentAnim?.key !== animationKey) {
-                  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) переключает анимацию на: ${animationKey} (текущая: ${agent.sprite.anims.currentAnim?.key})`)
+                  // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) переключает анимацию на: ${animationKey} (текущая: ${agent.sprite.anims.currentAnim?.key})`)
                   try {
                     agent.sprite.anims.play(animationKey, true)
                   } catch (e) {
@@ -3190,7 +3438,7 @@ export class SimpleBunkerView {
                     agent.sprite.anims.play(attackAnimationKey, false) // Не зацикливаем анимацию атаки
                     
                     // После завершения анимации атаки переключаемся на idle через таймер
-                    const attackDuration = 300 // 300ms - короткая длительность атаки
+                    const attackDuration = 1000 // 300ms - короткая длительность атаки
                     // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) запустил таймер атаки на ${attackDuration}ms`)
                     
                     // Очищаем предыдущий таймер если есть
@@ -3206,7 +3454,7 @@ export class SimpleBunkerView {
                         // Принудительно вызываем playAll для обновления анимации
                         playAll('idle')
                       } else {
-                        console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) animLock уже не attack, а=${agent.animLock}`)
+                        // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) animLock уже не attack, а=${agent.animLock}`)
                       }
                       ;(agent as any).attackTimer = null
                     }, attackDuration)
@@ -3228,43 +3476,288 @@ export class SimpleBunkerView {
       if (inLiftNow) {
         // if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок inLiftNow`)
         
-        // Враги проходят через лифт если у них есть путь к цели
-        if (agent.isEnemy && agent.path && agent.path.length > 0) {
-          // Не сбрасываем animLock, позволяем врагу продолжать движение
-          // НЕ вызываем playAll('idle') - это ломает анимацию
-        } else if (agent.isEnemy && agent.target) {
-          // Не сбрасываем animLock, позволяем врагу продолжать движение
-        } else if (agent.isEnemy && agent.enemyTargetId) {
-          // Не сбрасываем animLock, позволяем врагу продолжать поиск цели
+        if (agent.isEnemy) {
+          // Враги проходят через лифт если у них есть путь к цели
+          if (agent.path && agent.path.length > 0) {
+            // Не сбрасываем animLock, позволяем врагу продолжать движение
+            // НЕ вызываем playAll('idle') - это ломает анимацию
+          } else if (agent.target) {
+            // Не сбрасываем animLock, позволяем врагу продолжать движение
+          } else if (agent.enemyTargetId) {
+            // Не сбрасываем animLock, позволяем врагу продолжать поиск цели
+          } else if ((agent as any).goingToLift) {
+            // Враг шел к лифту и теперь в нем - переводим в режим выхода
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) дошел до лифта, переводим в режим выхода`)
+            ;(agent as any).goingToLift = false
+            
+            // Выводим врага в целевую комнату
+            const targetRoomIndex = (agent as any).targetAfterLift || 0
+            const targetRoom = this.roomRects[targetRoomIndex]
+            const exitX = targetRoom.x + targetRoom.width / 2
+            const exitY = targetRoom.y + targetRoom.height - 4
+            
+            agent.target = new Phaser.Math.Vector2(exitX, exitY)
+            agent.animLock = 'walk'
+            agent.path = []
+            
+            // Устанавливаем флаг, что враг выходит из лифта
+            ;(agent as any).exitingLift = true
+            ;(agent as any).exitTargetRoom = targetRoomIndex
+            
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) выходит из лифта в целевую комнату ${targetRoomIndex}`)
+          } else {
+            // Враг застрял в лифте - принудительно выводим его
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) застрял в лифте, принудительно выводим`)
+            
+            // Ищем ближайшую комнату для выхода
+            let bestRoomIndex = 0
+            let bestDistance = Number.POSITIVE_INFINITY
+            
+            for (let i = 0; i < this.roomRects.length; i++) {
+              const room = this.roomRects[i]
+              const roomCenterX = room.x + room.width / 2
+              const roomCenterY = room.y + room.height - 4 // Позиция у двери
+              const distance = Math.hypot(agent.rect.x - roomCenterX, agent.rect.y - roomCenterY)
+              
+              if (distance < bestDistance) {
+                bestDistance = distance
+                bestRoomIndex = i
+              }
+            }
+            
+            // Выводим врага в ближайшую комнату
+            const exitRoom = this.roomRects[bestRoomIndex]
+            const exitX = exitRoom.x + exitRoom.width / 2
+            const exitY = exitRoom.y + exitRoom.height - 4
+            
+            agent.target = new Phaser.Math.Vector2(exitX, exitY)
+            agent.animLock = 'walk'
+            agent.path = []
+            
+            // Устанавливаем флаг, что враг выходит из лифта
+            ;(agent as any).exitingLift = true
+            ;(agent as any).exitTargetRoom = bestRoomIndex
+            
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) выводится из лифта в комнату ${bestRoomIndex}`)
+          }
         } else {
-        agent.animLock = null
-        playAll('idle')
+          // Жители в лифте - оставляем как есть (у них есть триггеры)
+          agent.animLock = null
+          playAll('idle')
         }
       } else if (agent.isEnemy) {
                      // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок логики врагов`)
         // Враги: преследование ближайшего жителя (приоритетнее любой другой логики)
                      // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) в блоке логики врагов: target=`, agent.target, `followingPath=${followingPath}, moving=${moving}`)
+        
+        // Проверяем, не вышел ли враг из лифта и нужно ли продолжить движение к цели
+        if ((agent as any).exitingLift && !inLiftNow) {
+          console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) вышел из лифта, продолжаем движение к цели`)
+          ;(agent as any).exitingLift = false
+          
+          // Если есть цель, строим путь к ней
+          if (agent.enemyTargetId) {
+            const target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
+            if (target && target.rect) {
+              // Находим индекс комнаты цели
+              let targetRoomIndex = -1
+              for (let i = 0; i < this.roomRects.length; i++) {
+                if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], target.rect.x, target.rect.y)) {
+                  targetRoomIndex = i
+                  break
+                }
+              }
+              
+              // Строим путь к цели через комнаты
+              if (targetRoomIndex >= 0) {
+                this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
+                agent.animLock = 'walk'
+                agent.target = undefined // Очищаем прямой target, чтобы враг использовал path
+                console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) строит путь к цели после выхода из лифта: ${targetRoomIndex}`)
+              }
+            }
+          }
+        }
+        
+        // Дополнительная проверка: если враг застрял на выходе из лифта (близко к лифту, но не в нем)
+        if (!inLiftNow && (agent as any).exitTargetRoom !== undefined) {
+          const distanceToLift = Math.abs(agent.rect.x - (this.elevatorRect.x + this.elevatorRect.width / 2))
+          if (distanceToLift < 20) { // Если враг близко к лифту
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) застрял на выходе из лифта, принудительно выводим`)
+            
+            // Принудительно выводим врага в целевую комнату
+            const targetRoomIndex = (agent as any).exitTargetRoom || 0
+            const targetRoom = this.roomRects[targetRoomIndex]
+            const exitX = targetRoom.x + targetRoom.width / 2
+            const exitY = targetRoom.y + targetRoom.height - 4
+            
+            agent.target = new Phaser.Math.Vector2(exitX, exitY)
+            agent.animLock = 'walk'
+            agent.path = []
+            
+            // Очищаем флаг
+            ;(agent as any).exitTargetRoom = undefined
+            
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) принудительно выводится в комнату ${targetRoomIndex}`)
+          }
+        }
+        
+        // Дополнительная проверка: если у врага нет цели или цель мертва, ищем новую
+        if (!agent.enemyTargetId || !agent.target) {
+          const livingResidents = this.residentAgents.filter(a => 
+            a && !a.isEnemy && (a.health || 0) > 0 && !(a as any).away
+          )
+          
+          if (livingResidents.length > 0) {
+            // Выбираем ближайшего жителя как цель
+            let bestTarget = livingResidents[0]
+            let bestDistance = Number.POSITIVE_INFINITY
+            
+            for (const resident of livingResidents) {
+              const distance = Phaser.Math.Distance.Between(
+                agent.rect.x, agent.rect.y,
+                resident.rect.x, resident.rect.y
+              )
+              if (distance < bestDistance) {
+                bestDistance = distance
+                bestTarget = resident
+              }
+            }
+            
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) получает новую цель: ${bestTarget.profession} (ID: ${bestTarget.id})`)
+            agent.enemyTargetId = bestTarget.id
+            
+            // Строим путь к цели
+            let targetRoomIndex = -1
+            for (let i = 0; i < this.roomRects.length; i++) {
+              if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], bestTarget.rect.x, bestTarget.rect.y)) {
+                targetRoomIndex = i
+                break
+              }
+            }
+            
+            if (targetRoomIndex >= 0) {
+              this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(bestTarget.rect.x, bestTarget.rect.y), false)
+              agent.animLock = 'walk'
+              agent.target = undefined // Очищаем прямой target, чтобы враг использовал path
+            }
+          } else {
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) не может найти живых целей`)
+            // Враг остается в текущей комнате
+            agent.animLock = 'idle'
+          }
+        }
+        
         const findNewTarget = () => {
           let bestId: number | undefined
           let bestDist = Number.POSITIVE_INFINITY
+          let bestPriority = 0 // Приоритет: 0=обычный, 1=не в лифте, 2=в той же комнате
+          
+          // Определяем комнату врага
+          let enemyRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], agent.rect.x, agent.rect.y)) {
+              enemyRoomIndex = i
+              break
+            }
+          }
+          
           for (const other of this.residentAgents) {
             if (!other || other === agent) continue
             if ((other as any).isEnemy) continue
             if (!other.rect || !other.rect.scene) continue
                          
-                         // Исключаем охотников и разведчиков которые "на поверхности"
-                         if ((other.profession === 'охотник' || other.profession === 'разведчик') && (other as any).away) {
-                           continue
-                         }
-                         
+            // Исключаем охотников и разведчиков которые "на поверхности"
+            if ((other.profession === 'охотник' || other.profession === 'разведчик') && (other as any).away) {
+              continue
+            }
+            
+            // Проверяем, не в лифте ли житель
+            const isInLift = (() => {
+              if (other.rect.x >= this.elevatorRect.x && other.rect.x <= (this.elevatorRect.x + this.elevatorRect.width)) return true
+              for (const lift of this.extraElevators) {
+                if (other.rect.x >= lift.x && other.rect.x <= (lift.x + lift.width)) return true
+              }
+              return false
+            })()
+            if (isInLift) {
+              continue // Пропускаем жителей в лифтах
+            }
+            
+            // Определяем комнату жителя
+            let residentRoomIndex = -1
+            for (let i = 0; i < this.roomRects.length; i++) {
+              if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], other.rect.x, other.rect.y)) {
+                residentRoomIndex = i
+                break
+              }
+            }
+            
+            // Вычисляем приоритет
+            let priority = 0
+            if (residentRoomIndex === enemyRoomIndex) {
+              priority = 2 // В той же комнате - высший приоритет
+            } else if (!isInLift) {
+              priority = 1 // Не в лифте - средний приоритет
+            }
+            
             const dx = other.rect.x - agent.rect.x
             const dy = other.rect.y - agent.rect.y
             const d2 = dx * dx + dy * dy
-            if (d2 < bestDist) { bestDist = d2; bestId = other.id }
+            
+            // Выбираем цель с лучшим приоритетом или ближайшую при одинаковом приоритете
+            if (priority > bestPriority || (priority === bestPriority && d2 < bestDist)) {
+              bestPriority = priority
+              bestDist = d2
+              bestId = other.id
+            }
           }
+          
+          // Если не нашли цель в той же комнате, ищем любую доступную
+          if (bestId === undefined) {
+            for (const other of this.residentAgents) {
+              if (!other || other === agent) continue
+              if ((other as any).isEnemy) continue
+              if (!other.rect || !other.rect.scene) continue
+              if ((other.profession === 'охотник' || other.profession === 'разведчик') && (other as any).away) continue
+              
+              const dx = other.rect.x - agent.rect.x
+              const dy = other.rect.y - agent.rect.y
+              const d2 = dx * dx + dy * dy
+              if (d2 < bestDist) { 
+                bestDist = d2; 
+                bestId = other.id 
+              }
+            }
+          }
+          
           agent.enemyTargetId = bestId
+          
+          if (bestId !== undefined) {
+            console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) выбрал новую цель: ID=${bestId}, приоритет=${bestPriority}`)
+          }
         }
         let target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
+        
+        // Пересматриваем цель каждый час (3600000 мс) или если цель в лифте
+        const currentTime = Date.now()
+        const lastReconsiderTime = agent.lastTargetReconsiderTime || 0
+        const shouldReconsiderTarget = !lastReconsiderTime || 
+                                     (currentTime - lastReconsiderTime > 3600000) ||
+                                     (agent.enemyTargetId && target && (() => {
+                                       if (target.rect.x >= this.elevatorRect.x && target.rect.x <= (this.elevatorRect.x + this.elevatorRect.width)) return true
+                                       for (const lift of this.extraElevators) {
+                                         if (target.rect.x >= lift.x && target.rect.x <= (lift.x + lift.width)) return true
+                                       }
+                                       return false
+                                     })())
+        
+        if (shouldReconsiderTarget) {
+          console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) пересматривает цель (прошло ${Math.round((currentTime - lastReconsiderTime) / 1000)}с)`)
+          agent.lastTargetReconsiderTime = currentTime
+          findNewTarget()
+          target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
+        }
                     if (!target || !target.rect || !target.rect.scene) {
                       findNewTarget();
                        target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
@@ -3302,17 +3795,88 @@ export class SimpleBunkerView {
               }
             }
             
-            // Если враг и цель в разных комнатах, строим путь через buildPathTo
-            if (targetRoomIndex >= 0 && enemyRoomIndex >= 0 && targetRoomIndex !== enemyRoomIndex) {
-              // Строим путь к цели через комнаты
-              this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
-              agent.animLock = 'walk'
-              // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) строит путь через комнаты: ${enemyRoomIndex} -> ${targetRoomIndex}`)
+            // Проверяем, находится ли враг в лифте
+            const enemyInLift = (() => {
+              if (agent.rect.x >= this.elevatorRect.x && agent.rect.x <= (this.elevatorRect.x + this.elevatorRect.width)) return true
+              for (const lift of this.extraElevators) {
+                if (agent.rect.x >= lift.x && agent.rect.x <= (lift.x + lift.width)) return true
+              }
+              return false
+            })()
+            
+            // Если враг в лифте или в разных комнатах, используем buildPathTo для правильной навигации
+            if (enemyInLift || (targetRoomIndex >= 0 && enemyRoomIndex >= 0 && targetRoomIndex !== enemyRoomIndex)) {
+              // Строим путь к цели через комнаты и лифты
+              const targetRoom = targetRoomIndex >= 0 ? targetRoomIndex : 0
+              
+              // Если враг в лифте, сначала выводим его в ближайшую комнату
+              if (enemyInLift) {
+                // Ищем ближайшую комнату для выхода из лифта
+                let bestRoomIndex = 0
+                let bestDistance = Number.POSITIVE_INFINITY
+                
+                for (let i = 0; i < this.roomRects.length; i++) {
+                  const room = this.roomRects[i]
+                  const roomCenterX = room.x + room.width / 2
+                  const roomCenterY = room.y + room.height - 4 // Позиция у двери
+                  const distance = Math.hypot(agent.rect.x - roomCenterX, agent.rect.y - roomCenterY)
+                  
+                  if (distance < bestDistance) {
+                    bestDistance = distance
+                    bestRoomIndex = i
+                  }
+                }
+                
+                // Сначала выводим врага из лифта в ближайшую комнату
+                const exitRoom = this.roomRects[bestRoomIndex]
+                const exitX = exitRoom.x + exitRoom.width / 2
+                const exitY = exitRoom.y + exitRoom.height - 4
+                
+                agent.target = new Phaser.Math.Vector2(exitX, exitY)
+                agent.animLock = 'walk'
+                agent.path = []
+                
+                // Устанавливаем флаг, что враг выходит из лифта
+                ;(agent as any).exitingLift = true
+                ;(agent as any).exitTargetRoom = bestRoomIndex
+                
+                console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) выводится из лифта в комнату ${bestRoomIndex}`)
+              } else {
+                // Враг не в лифте, но в разных комнатах - строим путь через buildPathTo
+                
+                // Специальная логика для врагов в комнате "Вход" - принудительно ведем к лифту
+                if (enemyRoomIndex === 0 && this.roomNames[0] === 'Вход') {
+                  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) в комнате "Вход", ведем к лифту`)
+                  
+                  // Ведем врага к лифту
+                  const liftX = this.elevatorRect.x + this.elevatorRect.width / 2
+                  const liftY = this.elevatorRect.y + this.elevatorRect.height - 4
+                  
+                  agent.target = new Phaser.Math.Vector2(liftX, liftY)
+                  agent.animLock = 'walk'
+                  agent.path = []
+                  
+                  // Устанавливаем флаг, что враг идет к лифту
+                  ;(agent as any).goingToLift = true
+                  ;(agent as any).targetAfterLift = targetRoom
+                  
+                  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) идет к лифту для перехода в комнату ${targetRoom}`)
+                } else {
+                  // Обычная навигация через buildPathTo
+                  this.buildPathTo(agent, targetRoom, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
+                  agent.animLock = 'walk'
+                  
+                  // Очищаем прямой target, чтобы враг использовал path
+                  agent.target = undefined
+                  
+                  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) строит путь через комнаты: ${enemyRoomIndex} -> ${targetRoom}`)
+                }
+              }
             } else {
-              // Если в той же комнате или не можем определить комнаты, идем напрямую
-            agent.target = new Phaser.Math.Vector2(target.rect.x, target.rect.y)
+              // Если в той же комнате и не в лифте, идем напрямую
+              agent.target = new Phaser.Math.Vector2(target.rect.x, target.rect.y)
               agent.animLock = 'walk'
-              // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) идет напрямую к цели`)
+              console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) идет напрямую к цели в той же комнате`)
             }
           } else {
             // Враг в радиусе атаки - используем attack анимацию и наносим урон
@@ -3400,10 +3964,10 @@ export class SimpleBunkerView {
                   }
                 }
                 const animationSuffix = agent.animLock === 'work' ? 'attack' : (agent.animLock || 'idle')
-                console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) вызываем playAll с animLock=${agent.animLock}, suffix=${animationSuffix}`)
+                // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) вызываем playAll с animLock=${agent.animLock}, suffix=${animationSuffix}`)
                 playAll(animationSuffix) // Гарантируем воспроизведение анимации
       } else if (workingNow) {
-                if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок workingNow`)
+                // if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок workingNow`)
 
         if (agent.isEnemy) {
           // Для врагов используем idle анимацию
@@ -3498,12 +4062,12 @@ export class SimpleBunkerView {
             // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) вызываем playAll('walk')`)
         playAll('walk')
           }  else if (agent.isEnemy && agent.animLock === 'attack') {
-             console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок атаки для врагов`)
+            //  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок атаки для врагов`)
              // Враги в атаке: используем attack анимацию
            // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) в атаке: вызываем playAll('attack')`)
              playAll('attack')
       } else if (agent.isEnemy) {
-             console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок idle для врагов`)
+            //  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок idle для врагов`)
         // Враги: если не движемся и не атакуют - используем idle
             // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) не движется: animLock=${agent.animLock}, followingPath=${followingPath}, moving=${moving}, target=`, agent.target)
              // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попадает в блок idle - это НЕПРАВИЛЬНО!`)
@@ -4411,8 +4975,21 @@ export class SimpleBunkerView {
       
       console.log(`[DEBUG] Агрессивный житель ${agent.profession} (ID: ${agent.id}) возвращается с поверхности для боя`)
       agent.away = false
-      agent.rect.setVisible(true)
-      agent.sprite?.setVisible(true)
+      
+      // Для охотников и разведчиков: показываем спрайт, но скрываем рамку
+      if (agent.profession === 'охотник' || agent.profession === 'разведчик') {
+        if (agent.sprite) {
+          agent.sprite.setVisible(true)
+          agent.rect.setVisible(false) // Скрываем рамку для охотников/разведчиков
+        } else {
+          agent.rect.setVisible(true) // Показываем рамку только если нет спрайта
+        }
+      } else {
+        // Для остальных жителей: показываем и рамку, и спрайт
+        agent.rect.setVisible(true)
+        agent.sprite?.setVisible(true)
+      }
+      
       // Возвращаемся к входу
       const entranceIdx = this.roomNames.indexOf('Вход')
       if (entranceIdx >= 0) {
