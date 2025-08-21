@@ -2727,9 +2727,9 @@ export class SimpleBunkerView {
         // Логика для врагов
         // ... (оставляем пустым пока)
       } else {
-        // 1) Рабочие профессии: добраться до своей комнаты и стоять
+      // 1) Рабочие профессии: добраться до своей комнаты и стоять
         if (agent.scheduleState === 'work' && ((agent.stayInRoomName && !agent.settled) || ['сантехник','повар','инженер','солдат','доктор','врач','охотник','разведчик'].includes((agent.profession||'').toLowerCase()))) {
-          const profWork = (agent.profession || '').toLowerCase()
+        const profWork = (agent.profession || '').toLowerCase()
           
           // Специальная логика для охотников и разведчиков - уход на поверхность
           if (profWork === 'охотник' || profWork === 'разведчик') {
@@ -2755,94 +2755,94 @@ export class SimpleBunkerView {
             }
           }
           
-          // Если уже назначена комната и персонаж фактически внутри и остановился — ничего не делаем (не перестраиваем путь)
+        // Если уже назначена комната и персонаж фактически внутри и остановился — ничего не делаем (не перестраиваем путь)
+        if (agent.assignedRoomIndex != null) {
+          const rr = this.roomRects[agent.assignedRoomIndex]
+          const inside = rr ? Phaser.Geom.Rectangle.Contains(rr, agent.rect.x, agent.rect.y) : false
+          const arrived = (!agent.target && (!agent.path || agent.path.length === 0))
+          if (inside && arrived) {
+            agent.dwellUntil = Number.MAX_SAFE_INTEGER
+            // Для химика/учёного считаем поселённым
+            if (profWork === 'химик' || profWork === 'ученый' || profWork === 'учёный') agent.settled = true
+          }
+        }
+        // уже внутри целевой комнаты?
+        let insideIdx: number | null = null
+        for (let i = 0; i < this.roomRects.length; i++) {
+          if (this.roomNames[i] === agent.stayInRoomName && isInsideRoom(i, agent.rect.x, agent.rect.y)) { insideIdx = i; break }
+        }
+        if (insideIdx !== null) {
+          // Считаем прибытие только если нет активного пути/цели (иначе продолжаем двигаться к центру)
+          if ((!agent.path || agent.path.length === 0) && !agent.target) {
+            agent.settled = true
+            if (agent.scheduleState !== 'work') {
+              ensureIdle(agent)
+            }
+          }
+        } else if ((!agent.path || agent.path.length === 0) && (!agent.target || (Math.abs((agent.target.x ?? 0) - agent.rect.x) < 1 && Math.abs((agent.target.y ?? 0) - agent.rect.y) < 1))) {
+          // построить путь к рабочей комнате по профессии (общее) либо в лабораторию для химика/учёного
+          const prof = (agent.profession || '').toLowerCase()
+          let ok = false
+          // Если уже есть назначенная комната и мы к ней пришли — не переназначаем каждый тик
           if (agent.assignedRoomIndex != null) {
             const rr = this.roomRects[agent.assignedRoomIndex]
-            const inside = rr ? Phaser.Geom.Rectangle.Contains(rr, agent.rect.x, agent.rect.y) : false
-            const arrived = (!agent.target && (!agent.path || agent.path.length === 0))
-            if (inside && arrived) {
-              agent.dwellUntil = Number.MAX_SAFE_INTEGER
-              // Для химика/учёного считаем поселённым
-              if (profWork === 'химик' || profWork === 'ученый' || profWork === 'учёный') agent.settled = true
-            }
+            const arrivedInside = rr ? Phaser.Geom.Rectangle.Contains(rr, agent.rect.x, agent.rect.y) : false
+            if (arrivedInside) ok = true
           }
-          // уже внутри целевой комнаты?
-          let insideIdx: number | null = null
-          for (let i = 0; i < this.roomRects.length; i++) {
-            if (this.roomNames[i] === agent.stayInRoomName && isInsideRoom(i, agent.rect.x, agent.rect.y)) { insideIdx = i; break }
-          }
-          if (insideIdx !== null) {
-            // Считаем прибытие только если нет активного пути/цели (иначе продолжаем двигаться к центру)
-            if ((!agent.path || agent.path.length === 0) && !agent.target) {
-              agent.settled = true
-              if (agent.scheduleState !== 'work') {
-                ensureIdle(agent)
+          if (prof === 'химик' || prof === 'ученый' || prof === 'учёный') {
+            const role: 'chemist' | 'scientist' = (prof === 'химик') ? 'chemist' : 'scientist'
+            ok = this.tryAssignAndPathToLab(agent, role)
+          } else if (['сантехник','повар','инженер','солдат'].includes(prof)) {
+            if (!ok) ok = this.tryAssignAndPathToWorkRoom(agent)
+          } else if (prof === 'доктор' || prof === 'врач') {
+            // Доктор работает в Госпиталь, 1 доктор на комнату
+            const backup = agent.stayInRoomName
+            agent.stayInRoomName = undefined
+            const prevAssigned = agent.assignedRoomIndex
+            // Переиспользуем универсальную логику: как инженер, но для Госпиталь
+            const indices: number[] = []
+            for (let i = 0; i < this.roomNames.length; i++) if (this.roomNames[i] === 'Госпиталь') indices.push(i)
+            indices.sort((a, b) => {
+              const ra = this.roomRects[a], rb = this.roomRects[b]
+              const dax = (ra.x + ra.width / 2) - agent.rect.x
+              const day = (ra.y + ra.height / 2) - agent.rect.y
+              const dbx = (rb.x + rb.width / 2) - agent.rect.x
+              const dby = (rb.y + rb.height / 2) - agent.rect.y
+              return (dax * dax + day * day) - (dbx * dbx + dby * dby)
+            })
+            for (const idx of indices) {
+              const entry = this.ensureRoomEntry(idx)
+              const key = 'доктор'
+              const cur = (entry.workers?.[key] || 0)
+              if (cur >= 1) continue
+              const pts = this.getRoomStopPoints(idx)
+              let chosenSlot = -1
+              for (let s = 0; s < pts.length; s++) { if (!entry.usedSlots.has(s)) { chosenSlot = s; break } }
+              if (chosenSlot === -1) continue
+              const dst = pts[chosenSlot]
+              const before: Phaser.Math.Vector2 | undefined = agent.target ? new Phaser.Math.Vector2(agent.target.x, agent.target.y) : undefined
+              const prevPath = agent.path ? [...agent.path] : []
+              this.buildPathTo(agent, idx, dst, false)
+              const bx = before?.x, by = before?.y
+              const started = (agent.path && agent.path.length > 0) || (!!agent.target && (bx === undefined || agent.target.x !== bx || agent.target.y !== by))
+              if (started) {
+                this.releaseRoomAssignment(agent)
+                agent.assignedRoomIndex = idx
+                agent.assignedSlotIndex = chosenSlot
+                if (!entry.workers) entry.workers = {}
+                if (!entry.workers[key]) entry.workers[key] = 0
+                entry.workers[key] += 1
+                entry.usedSlots.add(chosenSlot)
+                ok = true
+                break
+              } else {
+                agent.target = before; agent.path = prevPath
               }
             }
-          } else if ((!agent.path || agent.path.length === 0) && (!agent.target || (Math.abs((agent.target.x ?? 0) - agent.rect.x) < 1 && Math.abs((agent.target.y ?? 0) - agent.rect.y) < 1))) {
-            // построить путь к рабочей комнате по профессии (общее) либо в лабораторию для химика/учёного
-            const prof = (agent.profession || '').toLowerCase()
-            let ok = false
-            // Если уже есть назначенная комната и мы к ней пришли — не переназначаем каждый тик
-            if (agent.assignedRoomIndex != null) {
-              const rr = this.roomRects[agent.assignedRoomIndex]
-              const arrivedInside = rr ? Phaser.Geom.Rectangle.Contains(rr, agent.rect.x, agent.rect.y) : false
-              if (arrivedInside) ok = true
-            }
-            if (prof === 'химик' || prof === 'ученый' || prof === 'учёный') {
-              const role: 'chemist' | 'scientist' = (prof === 'химик') ? 'chemist' : 'scientist'
-              ok = this.tryAssignAndPathToLab(agent, role)
-            } else if (['сантехник','повар','инженер','солдат'].includes(prof)) {
-              if (!ok) ok = this.tryAssignAndPathToWorkRoom(agent)
-            } else if (prof === 'доктор' || prof === 'врач') {
-              // Доктор работает в Госпиталь, 1 доктор на комнату
-              const backup = agent.stayInRoomName
-              agent.stayInRoomName = undefined
-              const prevAssigned = agent.assignedRoomIndex
-              // Переиспользуем универсальную логику: как инженер, но для Госпиталь
-              const indices: number[] = []
-              for (let i = 0; i < this.roomNames.length; i++) if (this.roomNames[i] === 'Госпиталь') indices.push(i)
-              indices.sort((a, b) => {
-                const ra = this.roomRects[a], rb = this.roomRects[b]
-                const dax = (ra.x + ra.width / 2) - agent.rect.x
-                const day = (ra.y + ra.height / 2) - agent.rect.y
-                const dbx = (rb.x + rb.width / 2) - agent.rect.x
-                const dby = (rb.y + rb.height / 2) - agent.rect.y
-                return (dax * dax + day * day) - (dbx * dbx + dby * dby)
-              })
-              for (const idx of indices) {
-                const entry = this.ensureRoomEntry(idx)
-                const key = 'доктор'
-                const cur = (entry.workers?.[key] || 0)
-                if (cur >= 1) continue
-                const pts = this.getRoomStopPoints(idx)
-                let chosenSlot = -1
-                for (let s = 0; s < pts.length; s++) { if (!entry.usedSlots.has(s)) { chosenSlot = s; break } }
-                if (chosenSlot === -1) continue
-                const dst = pts[chosenSlot]
-                const before: Phaser.Math.Vector2 | undefined = agent.target ? new Phaser.Math.Vector2(agent.target.x, agent.target.y) : undefined
-                const prevPath = agent.path ? [...agent.path] : []
-                this.buildPathTo(agent, idx, dst, false)
-                const bx = before?.x, by = before?.y
-                const started = (agent.path && agent.path.length > 0) || (!!agent.target && (bx === undefined || agent.target.x !== bx || agent.target.y !== by))
-                if (started) {
-                  this.releaseRoomAssignment(agent)
-                  agent.assignedRoomIndex = idx
-                  agent.assignedSlotIndex = chosenSlot
-                  if (!entry.workers) entry.workers = {}
-                  if (!entry.workers[key]) entry.workers[key] = 0
-                  entry.workers[key] += 1
-                  entry.usedSlots.add(chosenSlot)
-                  ok = true
-                  break
-                } else {
-                  agent.target = before; agent.path = prevPath
-                }
-              }
-              agent.stayInRoomName = backup
-              if (!ok && prevAssigned != null) agent.assignedRoomIndex = prevAssigned
-            }
-            if (!ok) { ensureIdle(agent) }
+            agent.stayInRoomName = backup
+            if (!ok && prevAssigned != null) agent.assignedRoomIndex = prevAssigned
+          }
+          if (!ok) { ensureIdle(agent) }
           }
         }
       }
@@ -3089,10 +3089,51 @@ export class SimpleBunkerView {
             const specialistSpriteKey = getSpecialistSpriteKey(profession)
             if (specialistSpriteKey) {
               try {
-                // Для специализаций используем наши анимации
-                agent.sprite.anims.play(`${profession}_${suffix}`, true)
+                if (suffix === 'attack') {
+                  // Для анимации атаки жителей используем специальную логику
+                  const attackAnimationKey = `${profession}_attack`
+                  console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) воспроизводит анимацию атаки: ${attackAnimationKey}`)
+                  
+                  // Проверяем, воспроизводится ли уже анимация атаки
+                  const currentAnimKey = agent.sprite.anims.currentAnim?.key
+                  const isAttackAnim = currentAnimKey && (
+                    currentAnimKey.includes('_attack') || 
+                    currentAnimKey.includes('attack')
+                  )
+                  
+                  if (!isAttackAnim || currentAnimKey !== attackAnimationKey) {
+                    agent.sprite.anims.play(attackAnimationKey, false) // Не зацикливаем анимацию атаки
+                    
+                    // После завершения анимации атаки переключаемся на idle через таймер
+                    const attackDuration = 300 // 300ms - короткая длительность атаки
+                    console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) запустил таймер атаки на ${attackDuration}ms`)
+                    
+                    // Очищаем предыдущий таймер если есть
+                    if ((agent as any).attackTimer) {
+                      clearTimeout((agent as any).attackTimer)
+                    }
+                    
+                    ;(agent as any).attackTimer = setTimeout(() => {
+                      console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) таймер атаки сработал, текущий animLock=${agent.animLock}`)
+                      if (agent.animLock === 'attack') {
+                        agent.animLock = 'idle'
+                        console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) завершил атаку, переключается на idle`)
+                        // Принудительно вызываем playAll для обновления анимации
+                        playAll('idle')
+                      } else {
+                        console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) animLock уже не attack, а=${agent.animLock}`)
+                      }
+                      ;(agent as any).attackTimer = null
+                    }, attackDuration)
+                  } else {
+                    console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) уже воспроизводит анимацию атаки: ${currentAnimKey}`)
+                  }
+                } else {
+                  // Для остальных анимаций используем стандартную логику
+                  agent.sprite.anims.play(`${profession}_${suffix}`, true)
+                }
               } catch (e) {
-                console.warn(`[playAll] Не удалось воспроизвести анимацию ${profession}_${suffix}:`, e)
+                console.warn(`[playAll] Не удалось воспроизвести анимацию для жителя ${agent.profession}:`, e)
               }
             }
           }
@@ -3267,8 +3308,17 @@ export class SimpleBunkerView {
                 playAll(animationSuffix) // Гарантируем воспроизведение анимации
       } else if (workingNow) {
                 if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок workingNow`)
-        agent.animLock = 'work'
-        playAll('attack')
+
+        if (agent.isEnemy) {
+          // Для врагов используем idle анимацию
+          agent.animLock = 'idle'
+          playAll('idle')
+        } else {
+          // Для жителей work = attack анимация
+          agent.animLock = 'attack'
+          playAll('attack') // work использует attack анимацию для жителей
+        }
+
         // Принудительная анимация атаки для работающих персонажей
         // Рабочее состояние: стоим на месте в назначенном слоте (включая солдат)
         if (agent.assignedRoomIndex != null) {
@@ -3383,8 +3433,16 @@ export class SimpleBunkerView {
           agent.footwear?.setVisible(false)
           agent.hair?.setVisible(false)
         }
-        agent.animLock = null
-        playAll('idle')
+        
+        // Проверяем, нужно ли воспроизводить анимацию атаки
+        if (agent.animLock === 'attack') {
+          // Если житель в состоянии атаки, воспроизводим анимацию атаки
+          playAll('attack')
+        } else if (!agent.animLock) {
+          // Если нет блокировки анимации, воспроизводим idle
+          agent.animLock = null
+          playAll('idle')
+        }
       }
       // достижение цели
       if (agent.target && Math.abs(agent.rect.x - agent.target.x) < 1 && Math.abs(agent.rect.y - agent.target.y) < 1) {
