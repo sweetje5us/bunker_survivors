@@ -2623,9 +2623,8 @@ export class GameScene extends Phaser.Scene {
       const [r] = this.bunkerResidents.splice(idx, 1)
       console.log(`[GameScene] Удаляем мертвого жителя ${r.name} (ID: ${r.id}) из bunkerResidents`)
       
-      // Обновляем UI и синхронизируем с bunkerView
+      // Обновляем UI (но НЕ вызываем syncResidents - bunkerView сам управляет агентами)
       this.updateResourcesText()
-      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
       
       // Показываем уведомление о смерти
       this.showToast(`${r.name} погиб в бою с врагами!`)
