@@ -2118,6 +2118,20 @@ export class SimpleBunkerView {
   }
 
   // === Residents API ===
+  
+  // Генерирует уникальный ID для врага, избегая конфликтов с жителями
+  private generateUniqueEnemyId(): number {
+    // Начинаем с большого числа, чтобы избежать конфликтов с ID жителей
+    let newId = 1000
+    
+    // Проверяем, не занят ли ID
+    while (this.residentAgents.some(agent => agent && agent.id === newId)) {
+      newId++
+    }
+    
+    return newId
+  }
+  
   public syncResidents(expectedCount: number): void {
     // Убираем блокировку создания новых врагов - теперь создаем агентов для всех
     // console.log(`[DEBUG] syncResidents: ожидается ${expectedCount} агентов, текущих=${this.residentAgents.length}`)
@@ -2135,13 +2149,21 @@ export class SimpleBunkerView {
     for (let i = this.residentAgents.length - 1; i >= 0; i--) {
       const agent = this.residentAgents[i]
       if (agent) {
-        // Проверяем, существует ли этот агент в живых юнитах
-        const stillExists = livingUnits.some(unit => unit.id === agent.id)
-        if (!stillExists) {
-          // Агент больше не существует - удаляем его
-          console.log(`[bunkerView] Удаляем несуществующего агента: ID=${agent.id}, тип=${agent.isEnemy ? agent.enemyType : agent.profession}`)
-          this.removeDeadResident(agent)
-          this.residentAgents.splice(i, 1)
+        if (agent.isEnemy) {
+          // Для врагов: удаляем только если они мертвы
+          if ((agent.health || 0) <= 0) {
+            console.log(`[bunkerView] Удаляем мертвого врага: ID=${agent.id}, тип=${agent.enemyType}`)
+            this.removeDeadResident(agent)
+            this.residentAgents.splice(i, 1)
+          }
+        } else {
+          // Для жителей: проверяем, существует ли в живых юнитах
+          const stillExists = livingUnits.some(unit => !unit.isEnemy && unit.id === agent.id)
+          if (!stillExists) {
+            console.log(`[bunkerView] Удаляем несуществующего жителя: ID=${agent.id}, тип=${agent.profession}`)
+            this.removeDeadResident(agent)
+            this.residentAgents.splice(i, 1)
+          }
         }
       }
     }
@@ -2150,11 +2172,27 @@ export class SimpleBunkerView {
     for (let i = 0; i < livingUnits.length; i++) {
       const res = livingUnits[i]
       
-      // Проверяем, не существует ли уже агент для этого юнита
-      const existingAgent = this.residentAgents.find(a => a && a.id === res.id)
-      if (existingAgent) {
-        console.log(`[bunkerView] Агент для ${res.isEnemy ? 'врага' : 'жителя'} ${res.isEnemy ? res.enemyType : res.profession} (ID: ${res.id}) уже существует, пропускаем`)
-        continue
+      // Для врагов всегда создаем новых агентов (они могут добавляться заново)
+      // Для жителей проверяем, не существует ли уже агент
+      if (!res.isEnemy) {
+        const existingAgent = this.residentAgents.find(a => a && !a.isEnemy && a.id === res.id)
+        if (existingAgent) {
+          console.log(`[bunkerView] Агент для жителя ${res.profession} (ID: ${res.id}) уже существует, пропускаем`)
+          continue
+        }
+      } else {
+        // Для врагов проверяем, не существует ли уже агент с таким же типом и параметрами
+        const existingEnemyAgent = this.residentAgents.find(a => 
+          a && a.isEnemy && 
+          a.enemyType === res.enemyType &&
+          a.marauderKind === res.marauderKind &&
+          a.zombieKind === res.zombieKind &&
+          a.mutantKind === res.mutantKind
+        )
+        if (existingEnemyAgent) {
+          console.log(`[bunkerView] Агент для врага ${res.enemyType} (ID: ${res.id}) уже существует, пропускаем`)
+          continue
+        }
       }
       
       console.log(`[bunkerView] Создаем агента для ${res.isEnemy ? 'врага' : 'жителя'}: ${res.isEnemy ? res.enemyType : res.profession} (ID: ${res.id})`)
@@ -2282,7 +2320,7 @@ export class SimpleBunkerView {
         }
       }
       const agent = {
-        id: res.id,
+        id: res.isEnemy ? this.generateUniqueEnemyId() : res.id,
         rect, sprite, shirt, pants, footwear, hair, skinKey,
         profession: res.profession,
         skills: res.skills ?? [],
@@ -2356,7 +2394,10 @@ export class SimpleBunkerView {
       if (agent.sprite && agent.isEnemy) {
         console.log(`[bunkerView] Агент врага создан: idx=${i}, спрайт в content=${this.content.list.includes(agent.sprite)}, parentContainer=${agent.sprite.parentContainer?.name || 'none'}`)
       }
+      
+      // Позиционируем агента в комнате "Вход"
       this.assignRandomPosition(agent)
+      
       // Если есть целевая комната для стояния (химик) — сразу сбросим цель, чтобы начать движение
       if (agent.stayInRoomName) { agent.target = undefined; agent.path = [] }
       
@@ -2366,6 +2407,38 @@ export class SimpleBunkerView {
       // Инициализируем боевые параметры для жителей
       if (!agent.isEnemy) {
         this.initializeCombatStats(agent)
+        
+        // Проверяем, есть ли враги в бункере - если да, то новый житель должен перейти в боевой режим
+        const enemies = this.residentAgents.filter(a => a && a.isEnemy && (a.health || 0) > 0)
+        if (enemies.length > 0) {
+          console.log(`[DEBUG] Новый житель ${agent.profession} (ID: ${agent.id}) обнаружен в бункере с врагами - переводим в боевой режим`)
+          
+          // Если житель агрессивный, он сразу ищет врагов
+          if ((agent as any).isAggressive) {
+            // Агрессивные жители ищут врагов по всему бункеру
+            const targetEnemy = enemies[0] // Берем первого врага
+            ;(agent as any).combatTarget = targetEnemy.id
+            console.log(`[DEBUG] Агрессивный житель ${agent.profession} (ID: ${agent.id}) выбрал цель: враг ${targetEnemy.enemyType} (ID: ${targetEnemy.id})`)
+          } else {
+            // Обычные жители проверяют, есть ли враги в той же комнате
+            const agentRoom = this.findRoomIndexAt(agent.rect.x, agent.rect.y)
+            const enemyInRoom = enemies.find(e => {
+              const enemyRoom = this.findRoomIndexAt(e.rect.x, e.rect.y)
+              return agentRoom === enemyRoom
+            })
+            
+            if (enemyInRoom) {
+              ;(agent as any).combatTarget = enemyInRoom.id
+              console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) обнаружен врага в той же комнате - выбирает цель: ${enemyInRoom.enemyType} (ID: ${enemyInRoom.id})`)
+            }
+          }
+          
+          // Если есть цель для атаки, устанавливаем боевое состояние
+          if ((agent as any).combatTarget) {
+            agent.animLock = 'attack'
+            console.log(`[DEBUG] Новый житель ${agent.profession} (ID: ${agent.id}) переведен в боевой режим с целью ${(agent as any).combatTarget}`)
+          }
+        }
       }
     }
     while (this.residentAgents.length > expectedCount) {
@@ -3054,7 +3127,7 @@ export class SimpleBunkerView {
                       agent.sprite.anims.play(animationKey, false) // Не зацикливаем анимацию атаки
                       // После завершения анимации атаки переключаемся на idle через таймер
                       const attackDuration = 300 // 300ms - короткая длительность атаки
-                      console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) запустил таймер атаки на ${attackDuration}ms`)
+                      // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) запустил таймер атаки на ${attackDuration}ms`)
                       
                       // Очищаем предыдущий таймер если есть
                       if ((agent as any).attackTimer) {
@@ -3062,10 +3135,10 @@ export class SimpleBunkerView {
                       }
                       
                       ;(agent as any).attackTimer = setTimeout(() => {
-                        console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) таймер атаки сработал, текущий animLock=${agent.animLock}`)
+                        // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) таймер атаки сработал, текущий animLock=${agent.animLock}`)
                         if (agent.animLock === 'attack') {
                           agent.animLock = 'idle'
-                          console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) завершил атаку, переключается на idle`)
+                          // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) завершил атаку, переключается на idle`)
                           // Принудительно вызываем playAll для обновления анимации
                           playAll('idle')
                 } else {
@@ -3077,7 +3150,7 @@ export class SimpleBunkerView {
                       console.warn(`[playAll] Не удалось воспроизвести анимацию ${animationKey}:`, e)
                     }
                       } else {
-                    console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) уже воспроизводит анимацию атаки: ${currentAnimKey}`)
+                    // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) уже воспроизводит анимацию атаки: ${currentAnimKey}`)
                   }
                 } else if (agent.sprite.anims.currentAnim?.key !== animationKey) {
                   console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) переключает анимацию на: ${animationKey} (текущая: ${agent.sprite.anims.currentAnim?.key})`)
@@ -3104,7 +3177,7 @@ export class SimpleBunkerView {
                 if (suffix === 'attack') {
                   // Для анимации атаки жителей используем специальную логику
                   const attackAnimationKey = `${profession}_attack`
-                  console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) воспроизводит анимацию атаки: ${attackAnimationKey}`)
+                  // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) воспроизводит анимацию атаки: ${attackAnimationKey}`)
                   
                   // Проверяем, воспроизводится ли уже анимация атаки
                   const currentAnimKey = agent.sprite.anims.currentAnim?.key
@@ -3118,7 +3191,7 @@ export class SimpleBunkerView {
                     
                     // После завершения анимации атаки переключаемся на idle через таймер
                     const attackDuration = 300 // 300ms - короткая длительность атаки
-                    console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) запустил таймер атаки на ${attackDuration}ms`)
+                    // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) запустил таймер атаки на ${attackDuration}ms`)
                     
                     // Очищаем предыдущий таймер если есть
                     if ((agent as any).attackTimer) {
@@ -3126,10 +3199,10 @@ export class SimpleBunkerView {
                     }
                     
                     ;(agent as any).attackTimer = setTimeout(() => {
-                      console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) таймер атаки сработал, текущий animLock=${agent.animLock}`)
+                      // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) таймер атаки сработал, текущий animLock=${agent.animLock}`)
                       if (agent.animLock === 'attack') {
                         agent.animLock = 'idle'
-                        console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) завершил атаку, переключается на idle`)
+                        // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) завершил атаку, переключается на idle`)
                         // Принудительно вызываем playAll для обновления анимации
                         playAll('idle')
                       } else {
@@ -3138,7 +3211,7 @@ export class SimpleBunkerView {
                       ;(agent as any).attackTimer = null
                     }, attackDuration)
                   } else {
-                    console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) уже воспроизводит анимацию атаки: ${currentAnimKey}`)
+                    // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) уже воспроизводит анимацию атаки: ${currentAnimKey}`)
                   }
                 } else {
                   // Для остальных анимаций используем стандартную логику
@@ -3275,6 +3348,17 @@ export class SimpleBunkerView {
                 // Проверяем смерть жителя
                           if (target.health <= 0) {
                   console.log(`[bunkerView] Житель ${target.profession} (ID: ${target.id}) убит врагом ${agent.enemyType}!`)
+                            
+                            // Показываем уведомление о убийстве
+                            try {
+                              const gameScene = this.scene as any
+                              if (gameScene.announce) {
+                                gameScene.announce(`${agent.enemyType} убил ${target.profession}`)
+                              }
+                            } catch (e) {
+                              console.warn(`[bunkerView] Не удалось показать уведомление о убийстве:`, e)
+                            }
+                            
                             // Воспроизводим dead анимацию перед уничтожением
                             this.setDeadAnimation(target)
                             // Сбрасываем цель врага, чтобы он нашел новую жертву
@@ -4321,7 +4405,7 @@ export class SimpleBunkerView {
       // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: возвращаемся только если есть враги в бункере
       const enemies = this.residentAgents.filter(a => a && a.isEnemy && (a.health || 0) > 0)
       if (enemies.length === 0) {
-        console.log(`[DEBUG] Агрессивный житель ${agent.profession} (ID: ${agent.id}) остается на поверхности - нет врагов`)
+        // console.log(`[DEBUG] Агрессивный житель ${agent.profession} (ID: ${agent.id}) остается на поверхности - нет врагов`)
         return
       }
       
