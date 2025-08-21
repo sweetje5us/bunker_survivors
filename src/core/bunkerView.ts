@@ -2730,6 +2730,31 @@ export class SimpleBunkerView {
         // 1) Рабочие профессии: добраться до своей комнаты и стоять
         if (agent.scheduleState === 'work' && ((agent.stayInRoomName && !agent.settled) || ['сантехник','повар','инженер','солдат','доктор','врач','охотник','разведчик'].includes((agent.profession||'').toLowerCase()))) {
           const profWork = (agent.profession || '').toLowerCase()
+          
+          // Специальная логика для охотников и разведчиков - уход на поверхность
+          if (profWork === 'охотник' || profWork === 'разведчик') {
+            // Проверяем, не ушли ли уже на поверхность
+            if (!(agent as any).away && !(agent as any)._surfacePending) {
+              // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: не уходим на поверхность если есть враги в бункере
+              const enemies = this.residentAgents.filter(a => a && a.isEnemy && (a.health || 0) > 0)
+              if (enemies.length > 0) {
+                console.log(`[DEBUG] ${agent.profession} (ID: ${agent.id}) НЕ уходит на поверхность - есть враги в бункере`)
+                continue // Переходим к следующему агенту, но НЕ уходим на поверхность
+              }
+              
+              console.log(`[DEBUG] ${agent.profession} (ID: ${agent.id}) уходит на поверхность`)
+              const entranceIdx = this.roomNames.indexOf('Вход')
+              if (entranceIdx >= 0) {
+                const r = this.roomRects[entranceIdx]
+                const margin = 4
+                const dst = new Phaser.Math.Vector2(r.x + r.width / 2, r.y + r.height - margin)
+                this.buildPathTo(agent, entranceIdx, dst, false)
+                ;(agent as any)._surfacePending = true
+                continue // Переходим к следующему агенту
+              }
+            }
+          }
+          
           // Если уже назначена комната и персонаж фактически внутри и остановился — ничего не делаем (не перестраиваем путь)
           if (agent.assignedRoomIndex != null) {
             const rr = this.roomRects[agent.assignedRoomIndex]
@@ -4223,6 +4248,13 @@ export class SimpleBunkerView {
     
     // Если житель агрессивный и на поверхности - возвращаемся
     if (agent.isAggressive && agent.away) {
+      // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: возвращаемся только если есть враги в бункере
+      const enemies = this.residentAgents.filter(a => a && a.isEnemy && (a.health || 0) > 0)
+      if (enemies.length === 0) {
+        console.log(`[DEBUG] Агрессивный житель ${agent.profession} (ID: ${agent.id}) остается на поверхности - нет врагов`)
+        return
+      }
+      
       console.log(`[DEBUG] Агрессивный житель ${agent.profession} (ID: ${agent.id}) возвращается с поверхности для боя`)
       agent.away = false
       agent.rect.setVisible(true)
