@@ -1052,7 +1052,7 @@ export class GameScene extends Phaser.Scene {
       // Возвращаем ранее отсоединенный корневой контейнер
       this.bunkerArea.add(existingRoot)
     } else {
-      this.simpleBunker = new SimpleBunkerView(this, this.bunkerArea)
+    this.simpleBunker = new SimpleBunkerView(this, this.bunkerArea)
     }
     
     // В контейнерах Phaser порядок определяется позицией в списке, depth внутри контейнера не влияет.
@@ -2613,6 +2613,22 @@ export class GameScene extends Phaser.Scene {
       this.updateResourcesText()
       this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
       if (reason) this.showToast(`${r.name} удалён: ${reason}`)
+    }
+  }
+
+  // Функция для удаления мертвого жителя (вызывается из bunkerView)
+  public removeDeadResident(id: number): void {
+    const idx = this.bunkerResidents.findIndex(r => r.id === id)
+    if (idx >= 0) {
+      const [r] = this.bunkerResidents.splice(idx, 1)
+      console.log(`[GameScene] Удаляем мертвого жителя ${r.name} (ID: ${r.id}) из bunkerResidents`)
+      
+      // Обновляем UI и синхронизируем с bunkerView
+      this.updateResourcesText()
+      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
+      
+      // Показываем уведомление о смерти
+      this.showToast(`${r.name} погиб в бою с врагами!`)
     }
   }
 
