@@ -739,14 +739,16 @@ export class GameScene extends Phaser.Scene {
     
     // Добавляем врага в отдельный список врагов
     this.bunkerEnemies.push(enemyResident)
-    
+    console.log(`[GameScene] Враг ${enemy.type} (ID: ${enemy.id}) добавлен в bunkerEnemies, общее количество врагов: ${this.bunkerEnemies.length}, время=${Date.now()}`)
+
     // Обновляем визуальное отображение бункера (жители + враги)
+    console.log(`[GameScene] Вызываем syncResidents для врага ${enemy.type} (ID: ${enemy.id}), время=${Date.now()}`)
     this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
-    
+
     // Обновляем счетчик населения
     this.updateResourcesText()
-    
-    console.log(`[DEBUG] Враг ${enemy.type} (ID: ${enemy.id}) добавлен в бункер в комнате "Вход"`)
+
+    console.log(`[GameScene] Враг ${enemy.type} (ID: ${enemy.id}) полностью обработан, время=${Date.now()}`)
   }
 
   constructor() {
