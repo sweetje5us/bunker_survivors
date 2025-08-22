@@ -19,7 +19,12 @@
   </head>
   <body>
     <div id="game"></div>
+
+    <!-- Game UI Overlay Container -->
+    <div id="game-ui-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: auto; z-index: 10000; pointer-events: none;"></div>
+
     <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/ui/ui-manager.js"></script>
   </body>
   <script>
     // Mobile viewport height fix (fallback for browsers without 100dvh)
@@ -33,7 +38,1885 @@
     // Prevent passive pinch-zoom scroll issues on mobile
     document.addEventListener('gesturestart', function (e) { e.preventDefault() }, { passive: false })
   </script>
-  
+
+  <!-- Global UI functions for HTML overlay -->
+  <script>
+    // Global functions for UI overlay button clicks
+    window.openInventory = function() {
+      // Populate inventory and open modal
+      if (typeof populateInventoryModal === 'function') {
+        populateInventoryModal(null); // Will use sample data
+      }
+      openModal('inventory-modal');
+    };
+
+    window.openAbilities = function() {
+      // Populate abilities and open modal
+      if (typeof populateAbilitiesModal === 'function') {
+        populateAbilitiesModal(null); // Will use sample data
+      }
+      openModal('abilities-modal');
+    };
+
+    window.openRoomSelection = function() {
+      // Populate room selection and open modal
+      if (typeof populateRoomSelectionModal === 'function') {
+        // Получаем GameScene из window.game
+        let gameScene = null;
+        if (window.game && window.game.scene) {
+          console.log('[HTML] Available scenes:', window.game.scene.scenes.map(s => s.scene.key));
+          
+          // Пробуем разные варианты имен сцены
+          gameScene = window.game.scene.getScene('GameScene') || 
+                     window.game.scene.getScene('Game');
+          
+          // Если не нашли по имени, берем первую доступную сцену Game
+          if (!gameScene) {
+            const gameScenes = window.game.scene.scenes.filter(s => s.scene.key === 'Game');
+            if (gameScenes.length > 0) {
+              gameScene = gameScenes[0];
+            }
+          }
+          
+          console.log('[HTML] Found gameScene:', !!gameScene);
+        }
+        populateRoomSelectionModal(gameScene);
+      }
+      openModal('room-selection-modal');
+    };
+
+    window.togglePause = function() {
+      // Open menu modal instead of just pausing
+      openModal('menu-modal');
+    };
+
+    window.openResidents = function() {
+      console.log('=== OPENING RESIDENTS MODAL ===');
+      console.log('window.game exists:', !!window.game);
+      console.log('window.game.scene exists:', !!(window.game && window.game.scene));
+
+      // Get real data from game scene
+      let residents = [];
+      if (window.game && window.game.scene) {
+        try {
+          const gameScene = window.game.scene.getScene('Game');
+          console.log('Game scene found:', !!gameScene);
+
+          if (gameScene) {
+            // Try to use the new method first
+            if (typeof gameScene.getCurrentResidentsData === 'function') {
+              residents = gameScene.getCurrentResidentsData();
+              console.log('Got residents using getCurrentResidentsData method');
+            } else {
+              // Fallback to manual data collection
+              const rawResidents = gameScene.bunkerResidents || [];
+              console.log('Raw residents from game:', rawResidents);
+              console.log('Raw residents count:', rawResidents.length);
+
+              residents = rawResidents.map((resident, index) => ({
+                id: resident.id,
+                index: index,
+                name: resident.name,
+                age: resident.age,
+                gender: resident.gender,
+                profession: resident.profession,
+                status: resident.status || 'Отдыхает',
+                hunger: resident.hunger || 100,
+                thirst: resident.thirst || 100,
+                energy: resident.energy || 100,
+                health: resident.health || 100,
+                skills: resident.skills || [],
+                itemsText: resident.itemsText || 'Нет предметов',
+                admittedAt: resident.admittedAt,
+                patient: resident.patient || false,
+                isEnemy: false
+              }));
+
+              console.log('Formatted residents count:', residents.length);
+            }
+
+            if (residents.length > 0) {
+              console.log('First resident sample:', residents[0]);
+            } else {
+              console.warn('No residents found in bunker');
+            }
+          } else {
+            console.error('Game scene not found!');
+          }
+        } catch (error) {
+          console.error('Error getting residents data:', error);
+        }
+      } else {
+        console.warn('window.game or window.game.scene not available');
+        console.log('Available window properties:', Object.keys(window).filter(k => k.includes('game')));
+      }
+
+      // Store residents data globally for detail view
+      window.currentResidentsData = residents;
+      console.log('Stored residents data count:', residents.length);
+
+      // If no residents found, try to get them from bunkerView
+      if (residents.length === 0 && window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.simpleBunker) {
+          console.log('Trying to get residents from bunkerView...');
+          // Some residents might be managed by bunkerView
+        }
+      }
+
+      // Populate modal with data
+      if (typeof window.populatePopulationModal === 'function') {
+        console.log('Calling populatePopulationModal with', residents.length, 'residents');
+        window.populatePopulationModal(residents);
+      } else {
+        console.error('populatePopulationModal function not found');
+      }
+
+      // Open modal
+      if (typeof window.openModal === 'function') {
+        console.log('Opening population-modal');
+        window.openModal('population-modal');
+      } else {
+        console.error('openModal function not found');
+      }
+
+      console.log('=== RESIDENTS MODAL OPENING COMPLETE ===');
+    };
+
+    window.openResource = function(resource) {
+      console.log('Opening resource modal:', resource);
+
+      // Get resource data from game or use defaults
+      let gameData = {
+        happiness: 50,
+        defense: 50,
+        ammo: 100,
+        comfort: 100,
+        food: 100,
+        water: 100,
+        money: 200,
+        population: 0
+      };
+
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene) {
+          gameData = {
+            happiness: gameScene.happiness || 50,
+            defense: gameScene.defense || 50,
+            ammo: gameScene.ammo || 100,
+            comfort: gameScene.comfort || 100,
+            food: gameScene.food || 100,
+            water: gameScene.water || 100,
+            money: gameScene.money || 200,
+            population: gameScene.bunkerResidents ? gameScene.bunkerResidents.length : 0
+          };
+        }
+      }
+
+      // Populate modal with data
+      if (typeof window.populateResourceModal === 'function') {
+        window.populateResourceModal(resource, gameData);
+      }
+
+      // Open modal
+      if (typeof window.openModal === 'function') {
+        window.openModal('resource-modal');
+      }
+    };
+
+    window.openEnemies = function() {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.showToast) {
+          const enemyCount = gameScene.bunkerEnemies ? gameScene.bunkerEnemies.length : 0;
+          gameScene.showToast(`Enemies: ${enemyCount}`);
+        }
+      }
+    };
+
+    // Modal management functions
+    window.closeModal = function(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.style.display = 'none';
+        
+        // Special handling for abilities modal
+        if (modalId === 'abilities-modal') {
+          clearAbilityTree();
+        }
+      }
+    };
+
+    window.openModal = function(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.style.display = 'block';
+      }
+    };
+
+    // Population modal functions
+    window.populatePopulationModal = function(residents) {
+      const container = document.getElementById('population-list');
+      if (!container) return;
+
+      container.innerHTML = '';
+
+      if (residents && residents.length > 0) {
+        residents.forEach((resident, index) => {
+          const residentDiv = document.createElement('div');
+          residentDiv.className = 'resident-item';
+          residentDiv.onclick = () => openResidentDetail(index);
+          residentDiv.style.cursor = 'pointer';
+          residentDiv.style.transition = 'all 0.2s ease';
+
+          // Add hover effect
+          residentDiv.onmouseover = () => {
+            residentDiv.style.background = '#3a3a3a';
+            residentDiv.style.borderColor = '#D4AF37';
+          };
+          residentDiv.onmouseout = () => {
+            residentDiv.style.background = '#2a2a2a';
+            residentDiv.style.borderColor = '#555555';
+          };
+
+          residentDiv.innerHTML = `
+            <div class="resident-info">
+              <div class="resident-name">${resident.name}</div>
+              <div class="resident-profession">${resident.profession}</div>
+            </div>
+          `;
+
+          container.appendChild(residentDiv);
+        });
+      } else {
+        container.innerHTML = '<p style="text-align: center; color: #888;">В бункере пока нет жителей</p>';
+      }
+    };
+
+    window.openResidentDetail = function(index) {
+      console.log('Opening resident detail for index:', index);
+
+      // Get resident data from stored residents
+      let resident = window.currentResidentsData ? window.currentResidentsData[index] : null;
+
+      if (!resident) {
+        console.error('Resident not found at index:', index);
+        return;
+      }
+
+      // Sync with real-time data from Phaser
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene) {
+          // Try to get fresh data using the new method
+          if (typeof gameScene.getResidentById === 'function') {
+            const freshData = gameScene.getResidentById(resident.id);
+            if (freshData) {
+              console.log('Got fresh data for resident:', freshData.name, 'health:', freshData.health);
+              resident = { ...resident, ...freshData };
+            }
+          } else {
+            // Fallback to manual sync
+            if (gameScene.simpleBunker && gameScene.simpleBunker.residentAgents) {
+              const agent = gameScene.simpleBunker.residentAgents.find(a => a.id === resident.id);
+              if (agent && agent.health !== undefined) {
+                console.log('Syncing health from bunkerView:', agent.health, 'for resident:', resident.name);
+                resident.health = agent.health;
+              }
+            }
+
+            // Also check if resident has updated data in bunkerResidents
+            const updatedResident = gameScene.bunkerResidents.find(r => r.id === resident.id);
+            if (updatedResident) {
+              resident.hunger = updatedResident.hunger || 100;
+              resident.thirst = updatedResident.thirst || 100;
+              resident.energy = updatedResident.energy || 100;
+              resident.health = updatedResident.health || 100;
+              resident.status = updatedResident.status || 'Отдыхает';
+            }
+          }
+        }
+      }
+
+      console.log('Showing details for resident:', resident.name, 'health:', resident.health);
+
+      // Populate resident detail modal
+      if (typeof window.populateResidentDetailModal === 'function') {
+        window.populateResidentDetailModal(resident);
+      }
+
+      // Open resident detail modal
+      if (typeof window.openModal === 'function') {
+        window.openModal('resident-detail-modal');
+      }
+    };
+
+    // Resident detail modal functions
+    window.populateResidentDetailModal = function(resident) {
+      const container = document.getElementById('resident-detail-content');
+      if (!container) return;
+
+      // Format skills
+      const skillsList = resident.skills && resident.skills.length > 0
+        ? resident.skills.map(skill =>
+            `<div class="skill-item ${skill.positive ? 'positive' : 'negative'}">
+              <span class="skill-text">${skill.text}</span>
+              <span class="skill-effect">${skill.positive ? '✓' : '✗'}</span>
+            </div>`
+          ).join('')
+        : '<div class="no-skills">Нет навыков</div>';
+
+      // Create resident detail HTML
+      container.innerHTML = `
+        <div class="resident-details">
+          <div class="detail-section main-info">
+            <h3>Основная информация</h3>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <span class="label">Имя:</span>
+                <span class="value">${resident.name}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Возраст:</span>
+                <span class="value">${resident.age} лет</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Пол:</span>
+                <span class="value">${resident.gender === 'М' ? 'Мужской' : 'Женский'}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Профессия:</span>
+                <span class="value">${resident.profession}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">Статус:</span>
+                <span class="value">${resident.status}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">В бункере с:</span>
+                <span class="value">День ${resident.admittedAt || 1}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-section status-info">
+            <h3>Состояние</h3>
+            <div class="status-meters">
+              <div class="status-meter">
+                <div class="meter-label">Голод</div>
+                <div class="meter-bar">
+                  <div class="meter-fill hunger" style="width: ${resident.hunger}%"></div>
+                </div>
+                <span class="meter-value">${Math.round(resident.hunger)}%</span>
+              </div>
+              <div class="status-meter">
+                <div class="meter-label">Жажда</div>
+                <div class="meter-bar">
+                  <div class="meter-fill thirst" style="width: ${resident.thirst}%"></div>
+                </div>
+                <span class="meter-value">${Math.round(resident.thirst)}%</span>
+              </div>
+              <div class="status-meter">
+                <div class="meter-label">Энергия</div>
+                <div class="meter-bar">
+                  <div class="meter-fill energy" style="width: ${resident.energy}%"></div>
+                </div>
+                <span class="meter-value">${Math.round(resident.energy)}%</span>
+              </div>
+              <div class="status-meter">
+                <div class="meter-label">Здоровье</div>
+                <div class="meter-bar">
+                  <div class="meter-fill health" style="width: ${resident.health}%"></div>
+                </div>
+                <span class="meter-value">${Math.round(resident.health)}%</span>
+              </div>
+            </div>
+          </div>
+
+          ${resident.skills && resident.skills.length > 0 ? `
+            <div class="detail-section skills-info">
+              <h3>Навыки</h3>
+              <div class="skills-grid">
+                ${skillsList}
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="detail-section inventory-info">
+            <h3>Инвентарь</h3>
+            <p>${resident.itemsText}</p>
+          </div>
+        </div>
+      `;
+    };
+
+    // Resource modal functions
+    window.populateResourceModal = function(resourceType, data) {
+      const title = document.getElementById('resource-modal-title');
+      const content = document.getElementById('resource-modal-content');
+
+      if (!title || !content) return;
+
+      title.textContent = resourceType.toUpperCase();
+
+      let details = '';
+
+      switch(resourceType.toLowerCase()) {
+        case 'happiness':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Текущий уровень</span>
+                <span>${data.happiness}%</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>От чего зависит</span>
+                <span>Уровень комфорта, наличие работы, здоровье</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>На что влияет</span>
+                <span>Довольство жителей, возможность ухода, бунты</span>
+              </div>
+              <div class="resource-description">
+                <p>Счастье жителей влияет на их производительность и лояльность. Низкий уровень счастья может привести к бунтам и снижению эффективности работы.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'defense':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Текущий уровень</span>
+                <span>${data.defense}%</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Скорость восстановления</span>
+                <span>5 единиц в день</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>От чего зависит</span>
+                <span>Наличие укреплений, оружия, обученных защитников</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>На что влияет</span>
+                <span>Попадание врагов внутрь бункера</span>
+              </div>
+              <div class="resource-description">
+                <p>Защита бункера включает укрепления стен, вооружение и подготовку жителей к обороне. Высокий уровень защиты снижает риск успешных атак врагов.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'ammo':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество патронов</span>
+                <span>${data.ammo} шт.</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Получение патронов в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-description">
+                <p>Патроны используются для защиты бункера от врагов и охоты. Их запас критически важен для выживания в опасном мире.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'food':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.food} единиц</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Общий расход в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Расход на жителя в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Получение от работы в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-description">
+                <p>Еда является основным ресурсом для поддержания жизни жителей. Недостаток еды приводит к голоду и снижению здоровья.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'water':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.water} единиц</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Общий расход в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Расход на жителя в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Получение от работы в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-description">
+                <p>Вода критически важна для выживания. Её недостаток быстро приводит к обезвоживанию и смерти жителей.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'money':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.money} монет</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Общий расход в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Расход на жителя в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Получение от работы в день</span>
+                <span>Заглушка</span>
+              </div>
+              <div class="resource-description">
+                <p>Деньги используются для покупки ресурсов, найма специалистов и улучшения бункера. Они также нужны для поддержания нормальной жизни.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'comfort':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Текущий уровень</span>
+                <span>${data.comfort}%</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>От чего зависит</span>
+                <span>Качество помещений, наличие удобств, освещение</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>На что влияет</span>
+                <span>Привлечение новых жителей</span>
+              </div>
+              <div class="resource-description">
+                <p>Комфорт влияет на мораль и здоровье жителей. Хорошие условия жизни повышают производительность и снижают риск заболеваний.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        default:
+          details = '<p>Информация о ресурсе недоступна</p>';
+      }
+
+      content.innerHTML = details;
+    };
+
+    // Menu functions
+    window.continueGame = function() {
+      closeModal('menu-modal');
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.showToast) {
+          gameScene.showToast('Продолжаем игру...');
+        }
+      }
+    };
+
+    window.saveGame = function() {
+      closeModal('menu-modal');
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.showToast) {
+          gameScene.showToast('Игра сохранена!');
+        }
+      }
+    };
+
+    window.loadGame = function() {
+      closeModal('menu-modal');
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.showToast) {
+          gameScene.showToast('Загрузка игры... (WIP)');
+        }
+      }
+    };
+
+    window.openSettings = function() {
+      closeModal('menu-modal');
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.showToast) {
+          gameScene.showToast('Настройки (WIP)');
+        }
+      }
+    };
+
+    window.exitToMenu = function() {
+      if (confirm('Вы уверены, что хотите выйти в главное меню?')) {
+        closeModal('menu-modal');
+        if (window.game && window.game.scene) {
+          const gameScene = window.game.scene.getScene('Game');
+          if (gameScene && gameScene.showToast) {
+            gameScene.showToast('Возвращение в главное меню...');
+          }
+        }
+      }
+    };
+
+    // Inventory functions
+    window.populateInventoryModal = function(inventory, inventoryRows = 1) {
+      const grid = document.getElementById('inventory-grid');
+      if (!grid) return;
+
+      // Clear existing slots
+      grid.innerHTML = '';
+
+      // Create inventory slots (6 columns × inventoryRows)
+      const totalSlots = 6 * inventoryRows;
+      for (let i = 0; i < totalSlots; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'inventory-slot';
+        slot.onclick = () => selectInventorySlot(i);
+
+        const item = inventory ? inventory[i] : null;
+        if (item) {
+          slot.classList.add('occupied');
+          slot.innerHTML = `
+            <div class="item">${item.icon || '📦'}</div>
+            <div class="quantity">${item.quantity || 1}</div>
+          `;
+        }
+
+        grid.appendChild(slot);
+      }
+    };
+
+    window.selectInventorySlot = function(index) {
+      console.log('Selected inventory slot:', index);
+      // This will be implemented for item interactions
+    };
+
+    // Abilities system
+    let currentAbilityPoints = 100;
+    let currentCategory = 'resources';
+    let abilitiesData = {};
+    let learnedAbilities = new Set();
+
+    // Initialize abilities data
+    function initializeAbilitiesData() {
+      abilitiesData = {
+        resources: [
+          // Базовые способности (1 уровень)
+          {
+            id: 'res_cooking',
+            name: 'Готовка',
+            description: 'Повара производят на 1 ед. больше еды',
+            cost: 1,
+            maxLevel: 2,
+            currentLevel: 0,
+            position: { x: 50, y: 50 },
+            requirements: [],
+            icon: '🍳'
+          },
+          {
+            id: 'res_plumbing',
+            name: 'Сантехника',
+            description: 'Сантехники производят на 1 ед. больше воды',
+            cost: 1,
+            maxLevel: 2,
+            currentLevel: 0,
+            position: { x: 200, y: 50 },
+            requirements: [],
+            icon: '🔧'
+          },
+          {
+            id: 'res_restaurant',
+            name: 'Ресторан',
+            description: 'В столовой может работать на 1 чел. больше',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 350, y: 50 },
+            requirements: [],
+            icon: '🍽️'
+          },
+          {
+            id: 'res_brigade',
+            name: 'Бригада',
+            description: 'В туалете может работать на 1 чел. больше',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 500, y: 50 },
+            requirements: [],
+            icon: '🚽'
+          },
+          {
+            id: 'res_consultation',
+            name: 'Консилиум',
+            description: 'В госпитале может работать на 1 чел. больше',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 650, y: 50 },
+            requirements: [],
+            icon: '🏥'
+          },
+          
+          // Средние способности (2 уровень)
+          {
+            id: 'res_hunting',
+            name: 'Добыча',
+            description: 'Охотники приносят на 5% больше еды',
+            cost: 2,
+            maxLevel: 10,
+            currentLevel: 0,
+            position: { x: 125, y: 150 },
+            requirements: ['res_cooking'],
+            icon: '🏹'
+          },
+          {
+            id: 'res_scouting',
+            name: 'Разведка',
+            description: 'Разведчики приносят больше добычи на 5%',
+            cost: 2,
+            maxLevel: 10,
+            currentLevel: 0,
+            position: { x: 275, y: 150 },
+            requirements: ['res_plumbing'],
+            icon: '🔍'
+          },
+          {
+            id: 'res_science',
+            name: 'Наука',
+            description: 'Ученые приносят на 1 ед. опыта больше',
+            cost: 3,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 425, y: 150 },
+            requirements: ['res_restaurant'],
+            icon: '🔬'
+          },
+          {
+            id: 'res_chemistry',
+            name: 'Химия',
+            description: 'Химики приносят на 1 ед. опыта больше',
+            cost: 3,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 575, y: 150 },
+            requirements: ['res_brigade'],
+            icon: '🧪'
+          },
+          
+          // Продвинутые способности (3 уровень)
+          {
+            id: 'res_market_economy',
+            name: 'Рыночная экономика',
+            description: 'Продавцы приносят на 1 ед. денег больше',
+            cost: 3,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 200, y: 250 },
+            requirements: ['res_hunting', 'res_scouting'],
+            icon: '💰'
+          },
+          {
+            id: 'res_penicillin',
+            name: 'Пенициллин',
+            description: 'Доктора восстанавливают на 1 ед. здоровья больше',
+            cost: 3,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 500, y: 250 },
+            requirements: ['res_science', 'res_chemistry'],
+            icon: '💊'
+          }
+        ],
+        bunker: [
+          // Базовые способности (1 уровень)
+          {
+            id: 'bunk_demolition',
+            name: 'Демонтаж',
+            description: 'Дает доступ к разрушению комнат',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 50, y: 50 },
+            requirements: [],
+            icon: '💥'
+          },
+          {
+            id: 'bunk_storage',
+            name: 'Хранилище',
+            description: 'Дает доступ к постройке "Склад"',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 200, y: 50 },
+            requirements: [],
+            icon: '📦'
+          },
+          {
+            id: 'bunk_elevator',
+            name: 'Лифт',
+            description: 'Дает доступ к постройке "Лифт"',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 350, y: 50 },
+            requirements: [],
+            icon: '🛗'
+          },
+          {
+            id: 'bunk_armory',
+            name: 'Оружейная',
+            description: 'Дает доступ к постройке "Оружейная"',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 500, y: 50 },
+            requirements: [],
+            icon: '🔫'
+          },
+          {
+            id: 'bunk_server',
+            name: 'Серверная',
+            description: 'Дает доступ к постройке "Серверная"',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 650, y: 50 },
+            requirements: [],
+            icon: '💻'
+          },
+          {
+            id: 'bunk_market',
+            name: 'Рынок',
+            description: 'Дает доступ к постройке "Рынок"',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 800, y: 50 },
+            requirements: [],
+            icon: '🏪'
+          },
+          {
+            id: 'bunk_classroom',
+            name: 'Обучение',
+            description: 'Открывает доступ к постройке "Классная комната"',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 950, y: 50 },
+            requirements: [],
+            icon: '📚'
+          },
+          
+          // Средние способности (2 уровень)
+          {
+            id: 'bunk_fast_building',
+            name: 'Быстрое строительство',
+            description: 'Ускоряет постройку на 5%',
+            cost: 2,
+            maxLevel: 10,
+            currentLevel: 0,
+            position: { x: 125, y: 150 },
+            requirements: ['bunk_demolition'],
+            icon: '🏗️'
+          },
+          {
+            id: 'bunk_energy_storage',
+            name: 'Энергохранилище',
+            description: 'Увеличивает число комнат, питаемых станцией на 1',
+            cost: 2,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 275, y: 150 },
+            requirements: ['bunk_storage'],
+            icon: '⚡'
+          },
+          {
+            id: 'bunk_building_discount',
+            name: 'Скидка на строительство',
+            description: 'Снижает стоимость постройки на 5%',
+            cost: 2,
+            maxLevel: 10,
+            currentLevel: 0,
+            position: { x: 425, y: 150 },
+            requirements: ['bunk_elevator'],
+            icon: '💰'
+          },
+          
+          // Продвинутые способности (3 уровень)
+          {
+            id: 'bunk_territory_expansion',
+            name: 'Расширение территории',
+            description: 'Убирает ограничение по высоте и ширине',
+            cost: 3,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 275, y: 250 },
+            requirements: ['bunk_fast_building', 'bunk_energy_storage'],
+            icon: '🌍'
+          }
+        ],
+        defense: [
+          // Базовые способности (1 уровень)
+          {
+            id: 'def_banishment',
+            name: 'Изгнание',
+            description: 'Открывает возможность изгнания жителей',
+            cost: 1,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 50, y: 50 },
+            requirements: [],
+            icon: '🚪'
+          },
+          {
+            id: 'def_armor',
+            name: 'Броня',
+            description: 'Макс. здоровье стен +5 ед.',
+            cost: 1,
+            maxLevel: 10,
+            currentLevel: 0,
+            position: { x: 200, y: 50 },
+            requirements: [],
+            icon: '🛡️'
+          },
+          {
+            id: 'def_repair',
+            name: 'Починка',
+            description: 'Восстановление здоровья стен +1ед./час',
+            cost: 1,
+            maxLevel: 5,
+            currentLevel: 0,
+            position: { x: 350, y: 50 },
+            requirements: [],
+            icon: '🔧'
+          },
+          
+          // Средние способности (2 уровень)
+          {
+            id: 'def_damage_boost',
+            name: 'Увеличение урона',
+            description: 'Увеличение урона от оружия на 1 ед.',
+            cost: 2,
+            maxLevel: 10,
+            currentLevel: 0,
+            position: { x: 125, y: 150 },
+            requirements: ['def_armor'],
+            icon: '⚔️'
+          },
+          {
+            id: 'def_shotgun',
+            name: 'Дробовик',
+            description: 'Открывает дробовик',
+            cost: 2,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 275, y: 150 },
+            requirements: ['def_repair'],
+            icon: '🔫'
+          },
+          
+          // Продвинутые способности (3 уровень)
+          {
+            id: 'def_assault_rifle',
+            name: 'Штурм',
+            description: 'Открывает штурмовую винтовку',
+            cost: 3,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 200, y: 250 },
+            requirements: ['def_damage_boost', 'def_shotgun'],
+            icon: '🔫'
+          },
+          
+          // Элитные способности (4 уровень)
+          {
+            id: 'def_sniper_rifle',
+            name: 'Снайпер',
+            description: 'Открывает снайперскую винтовку',
+            cost: 4,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 125, y: 350 },
+            requirements: ['def_assault_rifle'],
+            icon: '🎯'
+          },
+          {
+            id: 'def_execution',
+            name: 'Казнь',
+            description: 'Открывает возможность убийства посетителей',
+            cost: 4,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 275, y: 350 },
+            requirements: ['def_assault_rifle'],
+            icon: '⚰️'
+          },
+          {
+            id: 'def_army',
+            name: 'Армия',
+            description: '5% не использовать патроны для Солдат',
+            cost: 4,
+            maxLevel: 10,
+            currentLevel: 0,
+            position: { x: 425, y: 350 },
+            requirements: ['def_assault_rifle'],
+            icon: '👥'
+          },
+          
+          // Легендарные способности (5 уровень)
+          {
+            id: 'def_masochist',
+            name: 'Мазохист',
+            description: 'Открывает возможность впустить врага в бункер',
+            cost: 5,
+            maxLevel: 1,
+            currentLevel: 0,
+            position: { x: 200, y: 450 },
+            requirements: ['def_sniper_rifle', 'def_execution'],
+            icon: '😈'
+          },
+          {
+            id: 'def_misfire',
+            name: 'Осечка',
+            description: 'Шанс не использовать патрон при стрельбе +5%',
+            cost: 5,
+            maxLevel: 5,
+            currentLevel: 0,
+            position: { x: 350, y: 450 },
+            requirements: ['def_army'],
+            icon: '💥'
+          }
+        ],
+        misc: [
+          // Базовые способности (1 уровень)
+          {
+            id: 'misc_skill_points',
+            name: 'Увеличение очков',
+            description: 'Увеличение количества очков на уровень на 1 ед.',
+            cost: 1,
+            maxLevel: 3,
+            currentLevel: 0,
+            position: { x: 50, y: 50 },
+            requirements: [],
+            icon: '⭐'
+          },
+          
+          // Средние способности (2 уровень)
+          {
+            id: 'misc_night_speed',
+            name: 'Ускорение ночи',
+            description: 'Ускорение ночи на 5%',
+            cost: 2,
+            maxLevel: 5,
+            currentLevel: 0,
+            position: { x: 125, y: 150 },
+            requirements: ['misc_skill_points'],
+            icon: '🌙'
+          },
+          {
+            id: 'misc_day_speed',
+            name: 'Ускорение дня',
+            description: 'Ускорение дня на 5%',
+            cost: 2,
+            maxLevel: 5,
+            currentLevel: 0,
+            position: { x: 275, y: 150 },
+            requirements: ['misc_skill_points'],
+            icon: '☀️'
+          }
+        ]
+      };
+    }
+
+    // Abilities functions
+    window.populateAbilitiesModal = function(abilities) {
+      // Initialize abilities data only once
+      if (Object.keys(abilitiesData).length === 0) {
+        initializeAbilitiesData();
+      }
+      
+      setupCategoryTabs();
+      renderAbilityTree();
+      updateAbilityPoints();
+    };
+
+    window.populateRoomSelectionModal = function(gameScene = null) {
+      console.log('[HTML] populateRoomSelectionModal called with gameScene:', !!gameScene);
+      
+      const roomSelectionGrid = document.querySelector('.room-selection-grid');
+      if (!roomSelectionGrid) return;
+      
+      // Сохраняем ссылку на GameScene для использования в обработчиках
+      window.currentGameScene = gameScene;
+      console.log('[HTML] currentGameScene set to:', !!window.currentGameScene);
+      
+      // Получаем данные о способностях
+      const abilitiesData = window.getAbilitiesData ? window.getAbilitiesData() : null;
+      console.log('[HTML] Abilities data:', abilitiesData);
+
+      // Clear existing content
+      roomSelectionGrid.innerHTML = '';
+
+      // Define available room types with their properties and ability requirements
+      const availableRooms = [
+        {
+          id: 'Спальня',
+          name: 'Спальня',
+          description: 'Комната для сна жителей. Восстанавливает энергию и здоровье.',
+          icon: '🛏️',
+          cost: '100 монет',
+          requiredAbility: null, // Базовая комната, доступна с самого начала
+          category: 'basic'
+        },
+        {
+          id: 'Столовая',
+          name: 'Столовая',
+          description: 'Место для приема пищи. Увеличивает счастье жителей.',
+          icon: '🍽️',
+          cost: '150 монет',
+          requiredAbility: null, // Базовая комната, доступна с самого начала
+          category: 'basic'
+        },
+        {
+          id: 'Туалет',
+          name: 'Туалет',
+          description: 'Санитарное помещение. Необходимо для комфорта жителей.',
+          icon: '🚽',
+          cost: '80 монет',
+          requiredAbility: null, // Базовая комната, доступна с самого начала
+          category: 'basic'
+        },
+        {
+          id: 'Госпиталь',
+          name: 'Госпиталь',
+          description: 'Медицинское учреждение. Лечит больных жителей.',
+          icon: '🏥',
+          cost: '200 монет',
+          requiredAbility: null, // Базовая комната, доступна с самого начала
+          category: 'basic'
+        },
+        {
+          id: 'Склад',
+          name: 'Склад',
+          description: 'Хранилище для ресурсов и предметов.',
+          icon: '📦',
+          cost: '90 монет',
+          requiredAbility: 'bunk_storage', // Требует способность "Хранилище"
+          category: 'advanced'
+        },
+        {
+          id: 'Лифт',
+          name: 'Лифт',
+          description: 'Вертикальное перемещение между этажами.',
+          icon: '🛗',
+          cost: '180 монет',
+          requiredAbility: 'bunk_elevator', // Требует способность "Лифт"
+          category: 'advanced'
+        },
+        {
+          id: 'Оружейная',
+          name: 'Оружейная',
+          description: 'Хранилище оружия и боеприпасов.',
+          icon: '🔫',
+          cost: '250 монет',
+          requiredAbility: 'bunk_armory', // Требует способность "Оружейная"
+          category: 'advanced'
+        },
+                  {
+            id: 'Серверная',
+            name: 'Серверная',
+            description: 'Техническое помещение для электроники.',
+            icon: '💻',
+            cost: '300 монет',
+            requiredAbility: 'bunk_server', // Требует способность "Серверная"
+            category: 'advanced'
+          },
+        {
+          id: 'Рынок',
+          name: 'Рынок',
+          description: 'Торговое помещение для обмена ресурсами.',
+          icon: '🏪',
+          cost: '220 монет',
+          requiredAbility: 'bunk_market', // Требует способность "Рынок"
+          category: 'advanced'
+        },
+                  {
+            id: 'Классная комната',
+            name: 'Классная комната',
+            description: 'Место для обучения и повышения навыков.',
+            icon: '📚',
+            cost: '160 монет',
+            requiredAbility: 'bunk_classroom', // Требует способность "Классная комната"
+            category: 'advanced'
+          },
+        {
+          id: 'Станция',
+          name: 'Станция',
+          description: 'Электростанция для питания комнат. Обеспечивает энергией до 3 комнат.',
+          icon: '⚡',
+          cost: '400 монет',
+          requiredAbility: null, // Доступна с самого начала (критически важна)
+          category: 'critical'
+        },
+        {
+          id: 'Техническая',
+          name: 'Техническая',
+          description: 'Техническое помещение для обслуживания оборудования и систем.',
+          icon: '🔧',
+          cost: '180 монет',
+          requiredAbility: null, // Доступна с самого начала
+          category: 'basic'
+        }
+      ];
+
+      // Filter rooms based on learned abilities
+      console.log('=== ROOM FILTERING DEBUG ===');
+      console.log('Total rooms available:', availableRooms.length);
+      console.log('Abilities data:', JSON.stringify(abilitiesData, null, 2));
+
+      const filteredRooms = availableRooms.filter(room => {
+        console.log(`--- Checking room: ${room.name} ---`);
+        console.log(`Required ability: ${room.requiredAbility}`);
+
+        // Если комната не требует способности, она всегда доступна
+        if (!room.requiredAbility) {
+          console.log(`✅ Room ${room.name} is basic, showing`);
+          return true;
+        }
+
+        // Проверяем, изучена ли требуемая способность
+        if (abilitiesData && abilitiesData.learnedAbilities) {
+          console.log(`Learned abilities:`, abilitiesData.learnedAbilities);
+
+          // Проверяем, есть ли способность в массиве изученных (массив может содержать строки или объекты)
+          let isLearned = false;
+
+          if (Array.isArray(abilitiesData.learnedAbilities)) {
+            // Если массив содержит строки
+            if (typeof abilitiesData.learnedAbilities[0] === 'string') {
+              isLearned = abilitiesData.learnedAbilities.includes(room.requiredAbility);
+            }
+            // Если массив содержит объекты
+            else if (typeof abilitiesData.learnedAbilities[0] === 'object') {
+              const learnedAbility = abilitiesData.learnedAbilities.find(ability =>
+                ability.id === room.requiredAbility
+              );
+              isLearned = learnedAbility && learnedAbility.currentLevel > 0;
+            }
+          }
+
+          console.log(`Looking for ability: ${room.requiredAbility}`);
+          console.log(`Is learned: ${isLearned}`);
+
+          if (isLearned) {
+            console.log(`✅ Room ${room.name} - ability found and learned`);
+          } else {
+            console.log(`❌ Room ${room.name} - ability not learned or not found`);
+          }
+
+          return isLearned;
+        }
+
+        // Если нет данных о способностях, показываем все комнаты
+        console.log(`⚠️ No abilities data, showing room ${room.name}`);
+        return true;
+      });
+
+      console.log('=== FILTERING COMPLETE ===');
+      console.log(`Filtered rooms: ${filteredRooms.length}/${availableRooms.length}`);
+      filteredRooms.forEach(room => console.log(`- ${room.name}`));
+      
+      console.log('[HTML] Available rooms:', availableRooms.length, 'Filtered rooms:', filteredRooms.length);
+      
+      // Helper function to get ability name by ID
+      function getAbilityName(abilityId) {
+        const abilityNames = {
+          'bunk_storage': 'Хранилище',
+          'bunk_elevator': 'Лифт',
+          'bunk_armory': 'Оружейная',
+          'bunk_server': 'Серверная',
+          'bunk_market': 'Рынок',
+          'bunk_classroom': 'Классная комната'
+        };
+        return abilityNames[abilityId] || abilityId;
+      }
+      
+      // TEMPORARY: Show all rooms for debugging
+      console.log('=== TEMPORARY DEBUG: Showing all rooms ===');
+      availableRooms.forEach(room => console.log(`Room: ${room.name}, Required: ${room.requiredAbility}`));
+
+      // Use filtered rooms for now, but we can switch to availableRooms for testing
+      const roomsToShow = filteredRooms; // Change to availableRooms to show all
+
+      // Create room option elements
+      roomsToShow.forEach(room => {
+        const roomOption = document.createElement('div');
+        roomOption.className = 'room-option';
+        roomOption.dataset.roomId = room.id;
+        
+        // Добавляем классы для разных категорий комнат
+        if (room.category === 'critical') {
+          roomOption.classList.add('critical-room');
+        } else if (room.category === 'advanced') {
+          roomOption.classList.add('advanced-room');
+        }
+        
+        // Определяем, заблокирована ли комната
+        let isLocked = false;
+
+        if (room.requiredAbility) {
+          if (abilitiesData && abilitiesData.learnedAbilities) {
+            // Проверяем, есть ли способность в массиве изученных
+            if (Array.isArray(abilitiesData.learnedAbilities)) {
+              if (typeof abilitiesData.learnedAbilities[0] === 'string') {
+                // Если массив содержит строки
+                isLocked = !abilitiesData.learnedAbilities.includes(room.requiredAbility);
+              } else if (typeof abilitiesData.learnedAbilities[0] === 'object') {
+                // Если массив содержит объекты
+                isLocked = !abilitiesData.learnedAbilities.find(ability =>
+                  ability.id === room.requiredAbility && ability.currentLevel > 0
+                );
+              }
+            } else {
+              isLocked = true; // Если нет данных о способностях
+            }
+          } else {
+            isLocked = true; // Если нет данных о способностях
+          }
+        }
+
+        console.log(`[HTML] Room ${room.name}, required: ${room.requiredAbility}, isLocked: ${isLocked}`);
+
+        if (isLocked) {
+          roomOption.classList.add('locked-room');
+        } else {
+          roomOption.classList.add('unlocked-room');
+        }
+        
+        roomOption.innerHTML = `
+          <div class="room-icon">${room.icon}</div>
+          <div class="room-name">${room.name}</div>
+          <div class="room-description">${room.description}</div>
+          <div class="room-cost">${room.cost}</div>
+          ${room.requiredAbility ? `<div class="room-requirement">Требует: ${getAbilityName(room.requiredAbility)}</div>` : ''}
+        `;
+
+        // Add click handler
+        roomOption.addEventListener('click', () => {
+          console.log('[HTML] Room clicked:', room.id, room.name);
+
+          // Проверяем, заблокирована ли комната
+          if (roomOption.classList.contains('locked-room')) {
+            console.log('[HTML] Room is locked, cannot select');
+            // Показываем уведомление пользователю
+            alert(`Комната "${room.name}" заблокирована. Требуется способность: ${getAbilityName(room.requiredAbility)}`);
+            return;
+          }
+
+          // Проверяем, разблокирована ли комната
+          if (!roomOption.classList.contains('unlocked-room') && room.requiredAbility) {
+            console.log('[HTML] Room is not unlocked, cannot select');
+            alert(`Комната "${room.name}" недоступна. Требуется способность: ${getAbilityName(room.requiredAbility)}`);
+            return;
+          }
+          
+          // Remove previous selection
+          document.querySelectorAll('.room-option').forEach(opt => opt.classList.remove('selected'));
+          
+          // Select this room
+          roomOption.classList.add('selected');
+          
+          // Call game scene to handle room placement
+          const gameScene = window.currentGameScene;
+          console.log('[HTML] Attempting to use gameScene:', !!gameScene);
+          console.log('[HTML] window.currentGameScene exists:', !!window.currentGameScene);
+          
+          if (gameScene) {
+            console.log('[HTML] GameScene found:', !!gameScene);
+            console.log('[HTML] simpleBunker exists:', !!gameScene.simpleBunker);
+            
+            // Передаем выбранный тип комнаты в bunkerView
+            if (gameScene.simpleBunker && typeof gameScene.simpleBunker.setSelectedRoomType === 'function') {
+              console.log('[HTML] Calling setSelectedRoomType with:', room.id);
+              gameScene.simpleBunker.setSelectedRoomType(room.id);
+            } else {
+              console.warn('[HTML] simpleBunker or setSelectedRoomType not available');
+            }
+            
+            // Также вызываем оригинальный метод для совместимости
+            if (typeof gameScene.selectRoomTypeForPlacement === 'function') {
+              console.log('[HTML] Calling selectRoomTypeForPlacement with:', room.id);
+              gameScene.selectRoomTypeForPlacement(room.id);
+            } else {
+              console.warn('[HTML] selectRoomTypeForPlacement not available');
+            }
+          } else {
+            console.error('[HTML] GameScene not available in currentGameScene');
+            console.log('[HTML] Available window properties:', Object.keys(window).filter(k => k.includes('game')));
+          }
+          
+          // Close the modal
+          closeModal('room-selection-modal');
+        });
+
+        roomSelectionGrid.appendChild(roomOption);
+      });
+    };
+
+    function setupCategoryTabs() {
+      const tabs = document.querySelectorAll('.category-tab');
+      
+      // Remove existing event listeners to prevent duplicates
+      tabs.forEach(tab => {
+        const newTab = tab.cloneNode(true);
+        tab.parentNode.replaceChild(newTab, tab);
+      });
+      
+      // Add new event listeners
+      document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentCategory = tab.dataset.category;
+          
+          // Clear any visible tooltips before rendering
+          const tooltips = document.querySelectorAll('.ability-tooltip');
+          tooltips.forEach(tooltip => {
+            tooltip.remove();
+          });
+          
+          renderAbilityTree();
+        });
+      });
+    }
+
+    function renderAbilityTree() {
+      const tree = document.getElementById('ability-tree');
+      if (!tree) return;
+
+      // Clear existing content
+      tree.innerHTML = '<svg class="connection-lines" id="connection-lines"></svg>';
+
+      // Clear any visible tooltips
+      const tooltips = document.querySelectorAll('.ability-tooltip');
+      tooltips.forEach(tooltip => {
+        tooltip.remove();
+      });
+
+      // Обновляем модальное окно выбора комнат после изменения способностей
+      if (typeof window.updateRoomSelectionModal === 'function') {
+        console.log('[HTML] Updating room selection modal after ability tree render');
+        setTimeout(() => window.updateRoomSelectionModal(), 100);
+      }
+      
+      const connections = document.getElementById('connection-lines');
+      if (!connections) return;
+
+      const categoryAbilities = abilitiesData[currentCategory] || [];
+      
+      // Render ability nodes
+      categoryAbilities.forEach(ability => {
+        const node = createAbilityNode(ability);
+        tree.appendChild(node);
+      });
+
+      // Render connection lines
+      renderConnections(categoryAbilities);
+    }
+
+    function createAbilityNode(ability) {
+      const node = document.createElement('div');
+      node.className = 'ability-node';
+      node.dataset.abilityId = ability.id;
+      
+      // Determine node state
+      if (ability.currentLevel >= ability.maxLevel) {
+        node.classList.add('maxed');
+      } else if (ability.currentLevel > 0) {
+        node.classList.add('learned');
+      } else if (canLearnAbility(ability)) {
+        node.classList.add('unlocked');
+      } else {
+        node.classList.add('locked');
+      }
+
+      // Set position
+      node.style.left = ability.position.x + 'px';
+      node.style.top = ability.position.y + 'px';
+
+      // Set content
+      const bonusText = getBonusText(ability);
+      node.innerHTML = `
+        <div class="name">${ability.name}</div>
+        <div class="description">${ability.description}</div>
+        ${bonusText ? `<div class="bonus ${ability.currentLevel > 0 ? 'current' : ''}">${bonusText}</div>` : ''}
+        ${ability.currentLevel > 0 ? `<div class="level">${ability.currentLevel}</div>` : ''}
+      `;
+
+      // Add event listeners
+      node.addEventListener('click', () => handleAbilityClick(ability));
+      node.addEventListener('mouseenter', (e) => showAbilityTooltip(e, ability));
+      node.addEventListener('mouseleave', hideAbilityTooltip);
+
+      return node;
+    }
+
+    function renderConnections(abilities) {
+      const connections = document.getElementById('connection-lines');
+      
+      abilities.forEach(ability => {
+        ability.requirements.forEach(reqId => {
+          const reqAbility = abilities.find(a => a.id === reqId);
+          if (reqAbility) {
+            const line = createConnectionLine(ability, reqAbility);
+            connections.appendChild(line);
+          }
+        });
+      });
+    }
+
+    function createConnectionLine(from, to) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      const fromX = from.position.x + 60; // Center of the node (120px width / 2)
+      const fromY = from.position.y + 40; // Center of the node (80px height / 2)
+      const toX = to.position.x + 60;
+      const toY = to.position.y + 40;
+
+      line.setAttribute('x1', fromX);
+      line.setAttribute('y1', fromY);
+      line.setAttribute('x2', toX);
+      line.setAttribute('y2', toY);
+      line.setAttribute('class', 'connection-line');
+
+      // Determine line state
+      if (from.currentLevel > 0 && to.currentLevel > 0) {
+        line.classList.add('learned');
+      } else if (canLearnAbility(from) && canLearnAbility(to)) {
+        line.classList.add('unlocked');
+      }
+
+      return line;
+    }
+
+    function canLearnAbility(ability) {
+      // Check if all requirements are met
+      const requirementsMet = ability.requirements.every(reqId => {
+        const reqAbility = findAbilityById(reqId);
+        return reqAbility && reqAbility.currentLevel > 0;
+      });
+
+      // Check if we have enough points
+      const canAfford = currentAbilityPoints >= ability.cost;
+
+      // Check if not maxed out
+      const notMaxed = ability.currentLevel < ability.maxLevel;
+
+      return requirementsMet && canAfford && notMaxed;
+    }
+
+    function findAbilityById(id) {
+      for (const category of Object.values(abilitiesData)) {
+        const ability = category.find(a => a.id === id);
+        if (ability) return ability;
+      }
+      return null;
+    }
+
+    function getBonusText(ability) {
+      if (ability.currentLevel === 0) return null;
+      
+      const totalBonus = ability.currentLevel * getAbilityBonusPerLevel(ability);
+      const maxBonus = ability.maxLevel * getAbilityBonusPerLevel(ability);
+      
+      if (ability.maxLevel === 1) {
+        return `+${totalBonus}`;
+      } else {
+        return `+${totalBonus}/${maxBonus}`;
+      }
+    }
+
+    function getAbilityBonusPerLevel(ability) {
+      // Возвращает бонус за один уровень способности
+      switch (ability.id) {
+        case 'res_cooking':
+          return 1; // +1 еда за уровень
+        case 'res_plumbing':
+          return 1; // +1 вода за уровень
+        case 'res_hunting':
+          return 5; // +5% еды за уровень
+        case 'res_scouting':
+          return 5; // +5% добычи за уровень
+        case 'res_science':
+          return 1; // +1 опыт за уровень
+        case 'res_chemistry':
+          return 1; // +1 опыт за уровень
+        case 'res_market_economy':
+          return 1; // +1 деньги за уровень
+        case 'res_penicillin':
+          return 1; // +1 здоровье за уровень
+          
+        // Бункер способности
+        case 'bunk_fast_building':
+          return 5; // +5% скорость строительства за уровень
+        case 'bunk_building_discount':
+          return 5; // +5% скидка на строительство за уровень
+        case 'bunk_energy_storage':
+          return 1; // +1 комната для питания за уровень
+          
+        // Защита способности
+        case 'def_armor':
+          return 5; // +5 ед. здоровья стен за уровень
+        case 'def_repair':
+          return 1; // +1 ед./час восстановления за уровень
+        case 'def_damage_boost':
+          return 1; // +1 ед. урона за уровень
+        case 'def_army':
+          return 5; // +5% экономии патронов для солдат за уровень
+        case 'def_misfire':
+          return 5; // +5% шанс осечки за уровень
+          
+        // Разное способности
+        case 'misc_skill_points':
+          return 1; // +1 очко способностей за уровень
+        case 'misc_night_speed':
+          return 5; // +5% ускорение ночи за уровень
+        case 'misc_day_speed':
+          return 5; // +5% ускорение дня за уровень
+        default:
+          return 1; // По умолчанию +1
+      }
+    }
+
+    function handleAbilityClick(ability) {
+      if (!canLearnAbility(ability)) {
+        if (ability.currentLevel >= ability.maxLevel) {
+          showToast('Способность уже максимально изучена!');
+        } else if (ability.currentLevel > 0) {
+          showToast('Недостаточно очков для улучшения!');
+        } else {
+          showToast('Требования не выполнены!');
+        }
+        return;
+      }
+
+      // Learn/upgrade ability
+      currentAbilityPoints -= ability.cost;
+      ability.currentLevel++;
+      learnedAbilities.add(ability.id);
+
+      // Update UI
+      updateAbilityPoints();
+      renderAbilityTree();
+
+      showToast(`Изучена способность: ${ability.name} (уровень ${ability.currentLevel})`);
+    }
+
+    function showAbilityTooltip(event, ability) {
+      const tooltip = document.createElement('div');
+      tooltip.className = 'ability-tooltip';
+      
+      const bonusText = getBonusText(ability);
+      const bonusInfo = bonusText ? `<div class="cost">Текущий бонус: ${bonusText}</div>` : '';
+      
+      tooltip.innerHTML = `
+        <h4>${ability.name}</h4>
+        <div class="description">${ability.description}</div>
+        <div class="cost">Стоимость: ${ability.cost} очков</div>
+        <div class="cost">Уровень: ${ability.currentLevel}/${ability.maxLevel}</div>
+        ${bonusInfo}
+        ${ability.requirements.length > 0 ? 
+          `<div class="requirements">Требования: ${ability.requirements.map(id => findAbilityById(id)?.name).join(', ')}</div>` : 
+          '<div class="requirements">Без требований</div>'
+        }
+      `;
+
+      // Position tooltip relative to cursor
+      const rect = event.target.getBoundingClientRect();
+      const tooltipWidth = 250;
+      const tooltipHeight = 150;
+      
+      // Calculate position to ensure tooltip is visible
+      let left = rect.right + 10;
+      let top = rect.top - 10;
+      
+      // Check if tooltip would go off the right edge
+      if (left + tooltipWidth > window.innerWidth) {
+        left = rect.left - tooltipWidth - 10;
+      }
+      
+      // Check if tooltip would go off the bottom edge
+      if (top + tooltipHeight > window.innerHeight) {
+        top = window.innerHeight - tooltipHeight - 10;
+      }
+      
+      // Ensure tooltip doesn't go off the left or top edges
+      left = Math.max(10, left);
+      top = Math.max(10, top);
+      
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+
+      document.body.appendChild(tooltip);
+      
+      // Show tooltip
+      setTimeout(() => tooltip.classList.add('show'), 100);
+      
+      // Store reference for removal
+      event.target.tooltip = tooltip;
+    }
+
+    function hideAbilityTooltip(event) {
+      if (event.target.tooltip) {
+        event.target.tooltip.remove();
+        event.target.tooltip = null;
+      }
+    }
+
+    function updateAbilityPoints() {
+      const pointsElement = document.getElementById('ability-points');
+      if (pointsElement) {
+        pointsElement.textContent = currentAbilityPoints;
+      }
+    }
+
+    function clearAbilityTree() {
+      const tree = document.getElementById('ability-tree');
+      if (tree) {
+        tree.innerHTML = '<svg class="connection-lines" id="connection-lines"></svg>';
+      }
+      
+      // Clear all visible tooltips
+      clearAllTooltips();
+    }
+
+    function clearAllTooltips() {
+      const tooltips = document.querySelectorAll('.ability-tooltip');
+      tooltips.forEach(tooltip => {
+        tooltip.remove();
+      });
+    }
+
+    function showToast(message) {
+      // Simple toast implementation
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--bunker-gold);
+        color: var(--bunker-bg);
+        padding: 10px 15px;
+        border-radius: 4px;
+        z-index: 10000;
+        font-size: 12px;
+        max-width: 300px;
+      `;
+      toast.textContent = message;
+      
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.remove();
+      }, 3000);
+    }
+
+    // Функция для получения данных о способностях (для синхронизации с Phaser)
+    window.getAbilitiesData = function() {
+      return {
+        currentPoints: currentAbilityPoints,
+        learnedAbilities: Array.from(learnedAbilities),
+        abilitiesData: abilitiesData
+      };
+    };
+
+    // Функция для установки данных о способностях (для синхронизации с Phaser)
+    window.setAbilitiesData = function(data) {
+      if (data.currentPoints !== undefined) {
+        currentAbilityPoints = data.currentPoints;
+      }
+      if (data.learnedAbilities) {
+        learnedAbilities = new Set(data.learnedAbilities);
+      }
+      if (data.abilitiesData) {
+        abilitiesData = data.abilitiesData;
+      }
+      
+      // Обновляем UI
+      updateAbilityPoints();
+      renderAbilityTree();
+    };
+
+    // Universal resource click handler
+    window.handleResourceClick = function(resourceType) {
+      console.log('Resource clicked:', resourceType);
+
+      // Add visual feedback
+      const clickedElement = event?.target;
+      if (clickedElement) {
+        clickedElement.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          clickedElement.style.transform = '';
+        }, 100);
+      }
+
+      if (resourceType === 'residents') {
+        window.openResidents();
+      } else if (resourceType === 'enemies') {
+        window.openEnemies();
+      } else {
+        window.openResource(resourceType);
+      }
+    };
+
+    // Debug functions for testing
+    window.debugOpenPopulation = function() {
+      console.log('Debug: Opening population modal');
+      window.openResidents();
+    };
+
+    window.debugOpenHappiness = function() {
+      console.log('Debug: Opening happiness modal');
+      window.openResource('happiness');
+    };
+
+    window.debugOpenInventory = function() {
+      console.log('Debug: Opening inventory modal');
+      window.openInventory();
+    };
+  </script>
+
 </html>
 
 

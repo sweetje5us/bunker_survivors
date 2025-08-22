@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест окна жителей</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
+        }
+
+        .test-btn {
+            background: #2a2a2a;
+            border: 2px solid #555555;
+            color: #e0e0e0;
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 10px;
+            margin: 5px;
+        }
+
+        .test-btn:hover {
+            background: #3a3a3a;
+            border-color: #D4AF37;
+        }
+
+        .mock-game {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 8px;
+        }
+
+        .debug-info {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 10px;
+        }
+
+        .debug-info h3 {
+            color: #D4AF37;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест окна жителей</h1>
+
+    <div>
+        <button class="test-btn" onclick="testOpenResidents()">👥 Открыть окно жителей</button>
+        <button class="test-btn" onclick="testOpenResidentDetail()">📋 Показать детальную информацию</button>
+        <button class="test-btn" onclick="closeAllModals()">❌ Закрыть все</button>
+    </div>
+
+    <div class="mock-game">
+        <h3>Mock Game Data</h3>
+        <p>Это имитация данных игры для тестирования</p>
+    </div>
+
+    <div class="debug-info">
+        <h3>Debug Information</h3>
+        <p>Нажмите кнопки выше для тестирования функций</p>
+        <p>Проверьте консоль браузера для отладочных сообщений</p>
+        <div id="status">Status: Ready</div>
+    </div>
+
+    <!-- Include the UI overlay -->
+    <div id="game-ui-overlay"></div>
+
+    <script>
+        // Mock game scene with bunker residents
+        const mockGameScene = {
+            bunkerResidents: [
+                {
+                    id: 1,
+                    name: 'Алексей Петров',
+                    age: 32,
+                    gender: 'М',
+                    profession: 'инженер',
+                    status: 'работает',
+                    hunger: 85,
+                    thirst: 90,
+                    energy: 75,
+                    health: 100,
+                    skills: [
+                        { text: 'трудолюбивый', positive: true },
+                        { text: 'гений', positive: true },
+                        { text: 'выгоревший', positive: false }
+                    ],
+                    itemsText: 'Инструменты, запчасти',
+                    admittedAt: 1
+                },
+                {
+                    id: 2,
+                    name: 'Мария Иванова',
+                    age: 28,
+                    gender: 'Ж',
+                    profession: 'доктор',
+                    status: 'отдыхает',
+                    hunger: 95,
+                    thirst: 88,
+                    energy: 60,
+                    health: 100,
+                    skills: [
+                        { text: 'трудолюбивый', positive: true },
+                        { text: 'гений', positive: true }
+                    ],
+                    itemsText: 'Медикаменты, аптечка',
+                    admittedAt: 1
+                },
+                {
+                    id: 3,
+                    name: 'Дмитрий Сидоров',
+                    age: 45,
+                    gender: 'М',
+                    profession: 'охотник',
+                    status: 'работает',
+                    hunger: 70,
+                    thirst: 75,
+                    energy: 80,
+                    health: 95,
+                    skills: [
+                        { text: 'сильный', positive: true },
+                        { text: 'меткий', positive: true }
+                    ],
+                    itemsText: 'Ружьё, патроны',
+                    admittedAt: 2
+                }
+            ]
+        };
+
+        let statusElement = document.getElementById('status');
+
+        function updateStatus(message) {
+            statusElement.textContent = 'Status: ' + message;
+            console.log('[Test]', message);
+        }
+
+        // Load UI overlay
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('./src/ui/game-overlay.html')
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('game-ui-overlay').innerHTML = html;
+                    updateStatus('UI overlay loaded successfully');
+
+                    // Initialize global functions after loading
+                    setTimeout(() => {
+                        updateStatus('Functions initialized');
+                    }, 500);
+                })
+                .catch(error => {
+                    updateStatus('Failed to load UI overlay: ' + error.message);
+                });
+        });
+
+        function testOpenResidents() {
+            updateStatus('Testing openResidents...');
+
+            // Mock window.game object
+            window.game = {
+                scene: {
+                    getScene: function() {
+                        return mockGameScene;
+                    }
+                }
+            };
+
+            if (typeof openResidents === 'function') {
+                openResidents();
+                updateStatus('openResidents executed successfully');
+            } else {
+                updateStatus('openResidents function not found');
+            }
+        }
+
+        function testOpenResidentDetail() {
+            updateStatus('Testing resident detail...');
+
+            // First populate with mock data
+            window.currentResidentsData = mockGameScene.bunkerResidents;
+
+            if (typeof openResidentDetail === 'function') {
+                openResidentDetail(0); // Show first resident
+                updateStatus('openResidentDetail executed successfully');
+            } else {
+                updateStatus('openResidentDetail function not found');
+            }
+        }
+
+        function closeAllModals() {
+            const modals = ['population-modal', 'resident-detail-modal'];
+            modals.forEach(modalId => {
+                if (typeof closeModal === 'function') {
+                    closeModal(modalId);
+                }
+            });
+            updateStatus('All modals closed');
+        }
+
+        console.log('Test page loaded');
+        console.log('Mock residents:', mockGameScene.bunkerResidents);
+    </script>
+</body>
+</html>

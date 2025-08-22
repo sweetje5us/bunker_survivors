@@ -35,6 +35,22 @@ export class GameScene extends Phaser.Scene {
   private foodBtn?: Phaser.GameObjects.Text
   private waterBtn?: Phaser.GameObjects.Text
   private moneyBtn?: Phaser.GameObjects.Text
+  private inventoryBtn?: Phaser.GameObjects.Text
+  private enemyCountText?: Phaser.GameObjects.Text
+
+  // Шкала опыта бункера
+  private experienceBg?: Phaser.GameObjects.Rectangle
+  private experienceFg?: Phaser.GameObjects.Rectangle
+  private levelText?: Phaser.GameObjects.Text
+  private xpText?: Phaser.GameObjects.Text
+  private bunkerLevel = 1
+  private bunkerExperience = 0
+  private maxExperienceForLevel = 100
+  private inventoryRows = 1
+
+  // HTML UI Overlay
+  private uiOverlay: any = null
+  private uiUpdateInterval?: Phaser.Time.TimerEvent
 
   private surfaceArea?: Phaser.GameObjects.Container
   private parallax?: ParallaxBackground
@@ -783,14 +799,30 @@ export class GameScene extends Phaser.Scene {
       console.log('[Power System] Попробуйте построить комнаты без станций, а потом добавить станцию!')
     })
 
-    // Top bar
+    // Top bar - бункерный дизайн в стиле HTML прототипа
     this.topBar = this.add.container(0, 0)
     const s = uiScale(this)
-    const barBg = this.add.rectangle(0, 0, 100, Math.round(56 * s), 0x111214).setOrigin(0)
-    this.dayText = this.add.text(16, Math.round(8 * s), `${t('day')}: ${this.dayNumber} • ${t(this.phase === 'day' ? 'dayPhase' : 'nightPhase')}`, {
-      fontFamily: THEME.fonts.body,
+
+    // Основной темный фон
+    const barBg = this.add.rectangle(0, 0, 100, Math.round(60 * s), 0x1a1a1a).setOrigin(0)
+    barBg.setStrokeStyle(3, 0x333333, 1)
+
+    // Верхняя коричневая полоса акцента
+    const topAccent = this.add.rectangle(0, 0, 100, 3, 0x8B4513).setOrigin(0)
+
+    // Нижняя коричневая полоса акцента
+    const bottomAccent = this.add.rectangle(0, Math.round(57 * s), 100, 3, 0x654321).setOrigin(0)
+
+    // Дополнительные декоративные элементы для стиля
+    const innerBorder = this.add.rectangle(2, 2, 96, Math.round(56 * s), 0x000000, 0).setOrigin(0)
+    innerBorder.setStrokeStyle(1, 0x4a4a4a, 1)
+
+    this.dayText = this.add.text(18, Math.round(6 * s), `${t('day')}: ${this.dayNumber} • ${t(this.phase === 'day' ? 'dayPhase' : 'nightPhase')}`, {
+      fontFamily: THEME.fonts.heading,
       fontSize: fs(this, 12),
-      color: THEME.colors.text
+      color: '#D4AF37', // Золотой цвет как в HTML
+      stroke: '#654321',
+      strokeThickness: 1
     })
     this.resourcesText = this.add.text(16, Math.round(28 * s), '', {
       fontFamily: THEME.fonts.body,
@@ -799,44 +831,90 @@ export class GameScene extends Phaser.Scene {
     })
     // Инициализируем строку ресурсов после создания контейнеров, чтобы избежать нулевых ссылок
     this.time.delayedCall(0, () => this.updateResourcesText())
+
+    // Инициализируем HTML UI overlay
+    this.initUIOverlay()
+    // Кнопки ресурсов в стиле HTML прототипа
+    const buttonStyle = {
+      fontFamily: THEME.fonts.body,
+      fontSize: fs(this, 10),
+      color: '#e0e0e0',
+      backgroundColor: '#2a2a2a',
+      padding: { x: 6, y: 4 }
+    }
+
     // Кнопка населения (десктоп). Кликабельно только на десктопе; на мобильном переключает вкладку PEOPLE
-    this.populationBtn = this.add.text(16, Math.round(28 * s), '', {
-      fontFamily: THEME.fonts.body,
-      fontSize: fs(this, 10),
-      color: THEME.colors.accentGreen
-    }).setInteractive({ useHandCursor: true })
+    this.populationBtn = this.add.text(16, Math.round(28 * s), '', buttonStyle).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.populationBtn.setStroke('#555555', 1)
     this.populationBtn.on('pointerdown', () => this.openResidentsOverlay())
+
     // Кнопки ресурсов
-    this.happinessBtn = this.add.text(0, Math.round(28 * s), '', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: '#81c784' }).setInteractive({ useHandCursor: true })
+    this.happinessBtn = this.add.text(0, Math.round(28 * s), '', { ...buttonStyle, color: '#81c784' }).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.happinessBtn.setStroke('#555555', 1)
     this.happinessBtn.on('pointerdown', () => this.openResourceOverlay('СЧАСТЬЕ'))
-    this.defenseBtn = this.add.text(0, Math.round(28 * s), '', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: '#ffca28' }).setInteractive({ useHandCursor: true })
+
+    this.defenseBtn = this.add.text(0, Math.round(28 * s), '', { ...buttonStyle, color: '#ffca28' }).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.defenseBtn.setStroke('#555555', 1)
     this.defenseBtn.on('pointerdown', () => this.openResourceOverlay('ЗАЩИТА'))
-    this.ammoBtn = this.add.text(0, Math.round(28 * s), '', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: '#90caf9' }).setInteractive({ useHandCursor: true })
+
+    this.ammoBtn = this.add.text(0, Math.round(28 * s), '', { ...buttonStyle, color: '#90caf9' }).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.ammoBtn.setStroke('#555555', 1)
     this.ammoBtn.on('pointerdown', () => this.openResourceOverlay('ПАТРОНЫ'))
-    this.comfortBtn = this.add.text(0, Math.round(28 * s), '', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: '#ce93d8' }).setInteractive({ useHandCursor: true })
+
+    this.comfortBtn = this.add.text(0, Math.round(28 * s), '', { ...buttonStyle, color: '#ce93d8' }).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.comfortBtn.setStroke('#555555', 1)
     this.comfortBtn.on('pointerdown', () => this.openResourceOverlay('КОМФОРТ'))
+
     // Еда, Вода, Деньги как отдельные кнопки
-    this.foodBtn = this.add.text(0, Math.round(28 * s), '', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: THEME.colors.text }).setInteractive({ useHandCursor: true })
+    this.foodBtn = this.add.text(0, Math.round(28 * s), '', buttonStyle).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.foodBtn.setStroke('#555555', 1)
     this.foodBtn.on('pointerdown', () => this.openResourceOverlay(t('food').toUpperCase()))
-    this.waterBtn = this.add.text(0, Math.round(28 * s), '', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: THEME.colors.text }).setInteractive({ useHandCursor: true })
+
+    this.waterBtn = this.add.text(0, Math.round(28 * s), '', buttonStyle).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.waterBtn.setStroke('#555555', 1)
     this.waterBtn.on('pointerdown', () => this.openResourceOverlay(t('water').toUpperCase()))
-    this.moneyBtn = this.add.text(0, Math.round(28 * s), '', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: THEME.colors.text }).setInteractive({ useHandCursor: true })
+
+    this.moneyBtn = this.add.text(0, Math.round(28 * s), '', buttonStyle).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.moneyBtn.setStroke('#555555', 1)
     this.moneyBtn.on('pointerdown', () => this.openResourceOverlay(t('money').toUpperCase()))
-    this.abilitiesBtn = this.add.text(0, Math.round(8 * s), `[ ${t('abilities')} ]`, {
-      fontFamily: THEME.fonts.body,
-      fontSize: fs(this, 10),
-      color: THEME.colors.accentGreen
-    }).setInteractive({ useHandCursor: true })
+
+    this.abilitiesBtn = this.add.text(0, Math.round(8 * s), `[ ${t('abilities')} ]`, buttonStyle).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.abilitiesBtn.setStroke('#555555', 1)
     this.abilitiesBtn.on('pointerdown', () => {
       this.showToast(t('abilitiesWip'))
     })
-    this.pauseBtn = this.add.text(0, Math.round(8 * s), `[ ${t('pause')} ]`, {
-      fontFamily: THEME.fonts.body,
-      fontSize: fs(this, 10),
-      color: THEME.colors.accentYellow
-    }).setInteractive({ useHandCursor: true })
+    this.pauseBtn = this.add.text(0, Math.round(8 * s), `[ ${t('pause')} ]`, buttonStyle).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.pauseBtn.setStroke('#555555', 1)
     this.pauseBtn.on('pointerdown', () => this.togglePause())
-    this.topBar.add([barBg, this.dayText, this.populationBtn!, this.happinessBtn!, this.defenseBtn!, this.ammoBtn!, this.comfortBtn!, this.foodBtn!, this.waterBtn!, this.moneyBtn!, this.resourcesText, this.abilitiesBtn, this.pauseBtn])
+
+    // Кнопка инвентаря
+    this.inventoryBtn = this.add.text(0, Math.round(8 * s), '[ 📦 ]', buttonStyle).setOrigin(0).setInteractive({ useHandCursor: true })
+    this.inventoryBtn.setStroke('#555555', 1)
+    this.inventoryBtn.on('pointerdown', () => this.showToast('Инвентарь (WIP)'))
+
+    // Счетчик врагов в бункере
+    this.enemyCountText = this.add.text(0, Math.round(28 * s), '', buttonStyle).setOrigin(0)
+    this.enemyCountText.setStroke('#555555', 1)
+
+    // Шкала опыта бункера (стиль как в HTML - progress-bar)
+    this.experienceBg = this.add.rectangle(0, Math.round(45 * s), 200, 12, 0x333333).setOrigin(0)
+    this.experienceBg.setStrokeStyle(2, 0x555555, 1)
+    this.experienceFg = this.add.rectangle(0, Math.round(45 * s), 0, 12, 0x4CAF50).setOrigin(0)
+    this.levelText = this.add.text(0, Math.round(32 * s), `УР.${this.bunkerLevel}`, {
+      fontFamily: THEME.fonts.heading,
+      fontSize: fs(this, 10),
+      color: '#D4AF37',
+      stroke: '#654321',
+      strokeThickness: 1
+    })
+
+    this.xpText = this.add.text(0, Math.round(32 * s), `XP: ${this.bunkerExperience}/${this.maxExperienceForLevel}`, {
+      fontFamily: THEME.fonts.body,
+      fontSize: fs(this, 8),
+      color: '#e0e0e0'
+    })
+
+    this.topBar.add([barBg, topAccent, bottomAccent, innerBorder, this.dayText, this.populationBtn!, this.happinessBtn!, this.defenseBtn!, this.ammoBtn!, this.comfortBtn!, this.foodBtn!, this.waterBtn!, this.moneyBtn!, this.resourcesText, this.abilitiesBtn, this.pauseBtn, this.inventoryBtn!, this.enemyCountText!, this.experienceBg!, this.experienceFg!, this.levelText!, this.xpText!])
     this.topBar.setDepth(1000)
 
     // Areas containers
@@ -1088,15 +1166,24 @@ export class GameScene extends Phaser.Scene {
     const s = uiScale(this)
 
     // Layout top bar
-    const barHeight = Math.round(56 * s)
+    const barHeight = Math.round(60 * s)
     if (this.topBar) {
       const bg = this.topBar.getAt(0) as Phaser.GameObjects.Rectangle
+      const topAccent = this.topBar.getAt(1) as Phaser.GameObjects.Rectangle
+      const bottomAccent = this.topBar.getAt(2) as Phaser.GameObjects.Rectangle
+      const innerBorder = this.topBar.getAt(3) as Phaser.GameObjects.Rectangle
+
       bg.width = width
       bg.height = barHeight
+      topAccent.width = width
+      bottomAccent.width = width
+      bottomAccent.y = barHeight - 3
+      innerBorder.width = width - 4
+      innerBorder.height = barHeight - 4
+
       this.topBar.setPosition(0, 0)
-      this.pauseBtn?.setPosition(width - 16 - (this.pauseBtn.width), Math.round(8 * s))
-      this.abilitiesBtn?.setPosition(width - 16 - (this.pauseBtn?.width ?? 0) - 16 - (this.abilitiesBtn?.width ?? 0), Math.round(8 * s))
-      // Позиционирование Population и остальных ресурсов в одну строку
+
+      // Используем новый метод позиционирования
       this.arrangeTopBarRow()
     }
 
@@ -2680,30 +2767,50 @@ export class GameScene extends Phaser.Scene {
 
   private updateResourcesText(): void {
     const population = this.bunkerResidents.length
+    const enemyCount = this.bunkerEnemies.length
     const compact = isPortrait(this) || this.scale.width < 700
     const capacity = this.getBunkerCapacity()
+
     if (compact) {
       this.populationBtn?.setText(`👥 ${population}/${capacity}`)
-      this.happinessBtn?.setText(`😊 ${this.happiness}`)
-      this.defenseBtn?.setText(`🛡️ ${this.defense}`)
+      this.happinessBtn?.setText(`😊 ${this.happiness}%`)
+      this.defenseBtn?.setText(`🛡️ ${this.defense}%`)
       this.ammoBtn?.setText(`🔫 ${this.ammo}`)
-      this.comfortBtn?.setText(`🛋️ ${this.comfort}`)
+      this.comfortBtn?.setText(`🛋️ ${this.comfort}%`)
       this.foodBtn?.setText(`🍖 ${this.food}`)
       this.waterBtn?.setText(`💧 ${this.water}`)
       this.moneyBtn?.setText(`💰 ${this.money}`)
+      this.enemyCountText?.setText(`👹 ${enemyCount}`)
       this.resourcesText?.setText('')
     } else {
       this.populationBtn?.setText(`${t('population').toUpperCase()}: ${population}/${capacity}`)
-      this.happinessBtn?.setText(`СЧАСТЬЕ: ${this.happiness}`)
-      this.defenseBtn?.setText(`ЗАЩИТА: ${this.defense}`)
-      this.ammoBtn?.setText(`ПАТРОНЫ: ${this.ammo}`)
-      this.comfortBtn?.setText(`КОМФОРТ: ${this.comfort}`)
+      this.happinessBtn?.setText(`Happiness: ${this.happiness}%`)
+      this.defenseBtn?.setText(`Defense: ${this.defense}%`)
+      this.ammoBtn?.setText(`Ammo: ${this.ammo}`)
+      this.comfortBtn?.setText(`Comfort: ${this.comfort}%`)
       this.foodBtn?.setText(`${t('food')}: ${this.food}`)
       this.waterBtn?.setText(`${t('water')}: ${this.water}`)
       this.moneyBtn?.setText(`${t('money')}: ${this.money}`)
+      this.enemyCountText?.setText(`Enemies: ${enemyCount}`)
       this.resourcesText?.setText('')
     }
+
+    // Обновляем уровень и шкалу опыта
+    if (this.levelText) {
+      this.levelText.setText(`Bunker Level: ${this.bunkerLevel}`)
+    }
+    if (this.xpText) {
+      this.xpText.setText(`XP: ${this.bunkerExperience}/${this.maxExperienceForLevel}`)
+    }
+    if (this.experienceFg && this.experienceBg) {
+      const progress = this.maxExperienceForLevel > 0 ? (this.bunkerExperience / this.maxExperienceForLevel) : 0
+      this.experienceFg.setSize(Math.max(0, this.experienceBg.width * progress), this.experienceFg.height)
+    }
+
     this.arrangeTopBarRow()
+
+    // Also update HTML overlay
+    this.updateUIOverlay()
   }
 
   // Балансные ставки расхода потребностей по сложности (единиц в час)
@@ -2732,6 +2839,22 @@ export class GameScene extends Phaser.Scene {
   // Методы для вызова из bunkerView (работники)
   public addFood(amount: number): void { this.food = Math.max(0, this.food + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
   public addWater(amount: number): void { this.water = Math.max(0, this.water + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+
+  // Методы управления опытом бункера
+  public addBunkerExperience(amount: number): void {
+    this.bunkerExperience += Math.max(0, Math.floor(amount))
+    this.checkLevelUp()
+    this.updateResourcesText()
+  }
+
+  private checkLevelUp(): void {
+    while (this.bunkerExperience >= this.maxExperienceForLevel) {
+      this.bunkerExperience -= this.maxExperienceForLevel
+      this.bunkerLevel++
+      this.maxExperienceForLevel = Math.floor(this.maxExperienceForLevel * 1.2) // Увеличиваем требуемый опыт
+      this.announce(`Бункер повышен до уровня ${this.bunkerLevel}!`)
+    }
+  }
   public killOneEnemyFromQueue(): void {
     if (this.enemyQueueItems.length === 0) return
     const it = this.enemyQueueItems.shift()!
@@ -2804,23 +2927,187 @@ export class GameScene extends Phaser.Scene {
     if (!this.topBar) return
     const s = uiScale(this)
     const baseY = Math.round(28 * s)
-    let cursorX = 16
-    // Левый блок: население и ресурсы-кнопки
-    if (this.populationBtn) { this.populationBtn.setPosition(cursorX, baseY); cursorX += this.populationBtn.width + 12 }
-    if (this.happinessBtn) { this.happinessBtn.setPosition(cursorX, baseY); cursorX += this.happinessBtn.width + 12 }
-    if (this.defenseBtn) { this.defenseBtn.setPosition(cursorX, baseY); cursorX += this.defenseBtn.width + 12 }
-    if (this.ammoBtn) { this.ammoBtn.setPosition(cursorX, baseY); cursorX += this.ammoBtn.width + 12 }
-    if (this.comfortBtn) { this.comfortBtn.setPosition(cursorX, baseY); cursorX += this.comfortBtn.width + 12 }
-    if (this.foodBtn) { this.foodBtn.setPosition(cursorX, baseY); cursorX += this.foodBtn.width + 12 }
-    if (this.waterBtn) { this.waterBtn.setPosition(cursorX, baseY); cursorX += this.waterBtn.width + 12 }
-    if (this.moneyBtn) { this.moneyBtn.setPosition(cursorX, baseY); cursorX += this.moneyBtn.width + 12 }
-    // Правый блок: abilities/pause
-    const rightMargin = 16
-    let rightX = this.scale.width - rightMargin
-    if (this.pauseBtn) { this.pauseBtn.setPosition(rightX - this.pauseBtn.width, Math.round(8 * s)); rightX = this.pauseBtn.x - 16 }
-    if (this.abilitiesBtn) { this.abilitiesBtn.setPosition(rightX - this.abilitiesBtn.width, Math.round(8 * s)); rightX = this.abilitiesBtn.x - 16 }
-    // Центральная строка ресурсов теперь не используется
-    if (this.resourcesText) { this.resourcesText.setPosition(cursorX, baseY); }
+    const topY = Math.round(8 * s)
+    const portrait = isPortrait(this)
+
+    if (portrait) {
+      // Мобильная версия - компактное расположение
+      const compact = this.scale.width < 700
+      const iconSize = compact ? fs(this, 8) : fs(this, 10)
+
+      // Верхний ряд: день/время, кнопки управления
+      let leftX = 16
+      if (this.dayText) {
+        this.dayText.setFontSize(compact ? fs(this, 10) : fs(this, 12))
+        this.dayText.setPosition(leftX, topY)
+        leftX += this.dayText.width + 12
+      }
+
+      let rightX = this.scale.width - 16
+      if (this.inventoryBtn) {
+        this.inventoryBtn.setFontSize(iconSize)
+        this.inventoryBtn.setPosition(rightX - this.inventoryBtn.width, topY)
+        rightX = this.inventoryBtn.x - 8
+      }
+      if (this.pauseBtn) {
+        this.pauseBtn.setFontSize(iconSize)
+        this.pauseBtn.setPosition(rightX - this.pauseBtn.width, topY)
+        rightX = this.pauseBtn.x - 8
+      }
+      if (this.abilitiesBtn) {
+        this.abilitiesBtn.setFontSize(iconSize)
+        this.abilitiesBtn.setPosition(rightX - this.abilitiesBtn.width, topY)
+      }
+
+      // Нижний ряд: ресурсы и счетчики
+      let resourceX = 16
+      if (this.populationBtn) {
+        this.populationBtn.setFontSize(iconSize)
+        this.populationBtn.setPosition(resourceX, baseY)
+        resourceX += this.populationBtn.width + 8
+      }
+      if (this.happinessBtn) {
+        this.happinessBtn.setFontSize(iconSize)
+        this.happinessBtn.setPosition(resourceX, baseY)
+        resourceX += this.happinessBtn.width + 8
+      }
+      if (this.defenseBtn) {
+        this.defenseBtn.setFontSize(iconSize)
+        this.defenseBtn.setPosition(resourceX, baseY)
+        resourceX += this.defenseBtn.width + 8
+      }
+      if (this.ammoBtn) {
+        this.ammoBtn.setFontSize(iconSize)
+        this.ammoBtn.setPosition(resourceX, baseY)
+        resourceX += this.ammoBtn.width + 8
+      }
+      if (this.comfortBtn) {
+        this.comfortBtn.setFontSize(iconSize)
+        this.comfortBtn.setPosition(resourceX, baseY)
+        resourceX += this.comfortBtn.width + 8
+      }
+      if (this.foodBtn) {
+        this.foodBtn.setFontSize(iconSize)
+        this.foodBtn.setPosition(resourceX, baseY)
+        resourceX += this.foodBtn.width + 8
+      }
+      if (this.waterBtn) {
+        this.waterBtn.setFontSize(iconSize)
+        this.waterBtn.setPosition(resourceX, baseY)
+        resourceX += this.waterBtn.width + 8
+      }
+      if (this.moneyBtn) {
+        this.moneyBtn.setFontSize(iconSize)
+        this.moneyBtn.setPosition(resourceX, baseY)
+        resourceX += this.moneyBtn.width + 8
+      }
+      if (this.enemyCountText) {
+        this.enemyCountText.setFontSize(iconSize)
+        this.enemyCountText.setPosition(resourceX, baseY)
+        resourceX += this.enemyCountText.width + 8
+      }
+
+      // Шкала опыта внизу
+      const expY = Math.round(47 * s)
+      const expWidth = Math.min(300, this.scale.width - 32)
+      if (this.levelText) {
+        this.levelText.setFontSize(fs(this, 8))
+        this.levelText.setPosition(16, Math.round(38 * s))
+      }
+      if (this.xpText) {
+        this.xpText.setFontSize(fs(this, 8))
+        this.xpText.setPosition(80, Math.round(38 * s))
+      }
+      if (this.experienceBg) {
+        this.experienceBg.setPosition(16, expY)
+        this.experienceBg.setSize(expWidth, 12)
+      }
+      if (this.experienceFg) {
+        this.experienceFg.setPosition(16, expY)
+        const progress = this.maxExperienceForLevel > 0 ? (this.bunkerExperience / this.maxExperienceForLevel) : 0
+        this.experienceFg.setSize(Math.max(0, expWidth * progress), 12)
+      }
+    } else {
+      // Десктоп версия - расширенное расположение
+      let cursorX = 16
+      // Левый блок: день/время, население и основные ресурсы
+      if (this.dayText) {
+        this.dayText.setFontSize(fs(this, 14))
+        this.dayText.setPosition(cursorX, topY)
+        cursorX += this.dayText.width + 20
+      }
+
+      if (this.populationBtn) {
+        this.populationBtn.setPosition(cursorX, baseY)
+        cursorX += this.populationBtn.width + 12
+      }
+      if (this.happinessBtn) {
+        this.happinessBtn.setPosition(cursorX, baseY)
+        cursorX += this.happinessBtn.width + 12
+      }
+      if (this.defenseBtn) {
+        this.defenseBtn.setPosition(cursorX, baseY)
+        cursorX += this.defenseBtn.width + 12
+      }
+      if (this.ammoBtn) {
+        this.ammoBtn.setPosition(cursorX, baseY)
+        cursorX += this.ammoBtn.width + 12
+      }
+      if (this.comfortBtn) {
+        this.comfortBtn.setPosition(cursorX, baseY)
+        cursorX += this.comfortBtn.width + 12
+      }
+      if (this.foodBtn) {
+        this.foodBtn.setPosition(cursorX, baseY)
+        cursorX += this.foodBtn.width + 12
+      }
+      if (this.waterBtn) {
+        this.waterBtn.setPosition(cursorX, baseY)
+        cursorX += this.waterBtn.width + 12
+      }
+      if (this.moneyBtn) {
+        this.moneyBtn.setPosition(cursorX, baseY)
+        cursorX += this.moneyBtn.width + 12
+      }
+      if (this.enemyCountText) {
+        this.enemyCountText.setPosition(cursorX, baseY)
+        cursorX += this.enemyCountText.width + 12
+      }
+
+      // Шкала опыта в центре
+      const centerX = this.scale.width / 2
+      const expWidth = Math.min(400, this.scale.width * 0.4)
+      const expY = Math.round(47 * s)
+      if (this.levelText) {
+        this.levelText.setPosition(centerX - expWidth/2 - 60, Math.round(38 * s))
+      }
+      if (this.xpText) {
+        this.xpText.setPosition(centerX - expWidth/2 + 20, Math.round(38 * s))
+      }
+      if (this.experienceBg) {
+        this.experienceBg.setPosition(centerX - expWidth/2, expY)
+        this.experienceBg.setSize(expWidth, 12)
+      }
+      if (this.experienceFg) {
+        this.experienceFg.setPosition(centerX - expWidth/2, expY)
+        const progress = this.maxExperienceForLevel > 0 ? (this.bunkerExperience / this.maxExperienceForLevel) : 0
+        this.experienceFg.setSize(Math.max(0, expWidth * progress), 12)
+      }
+
+      // Правый блок: кнопки управления
+      let rightX = this.scale.width - 16
+      if (this.inventoryBtn) {
+        this.inventoryBtn.setPosition(rightX - this.inventoryBtn.width, topY)
+        rightX = this.inventoryBtn.x - 16
+      }
+      if (this.pauseBtn) {
+        this.pauseBtn.setPosition(rightX - this.pauseBtn.width, topY)
+        rightX = this.pauseBtn.x - 16
+      }
+      if (this.abilitiesBtn) {
+        this.abilitiesBtn.setPosition(rightX - this.abilitiesBtn.width, topY)
+      }
+    }
   }
 
   // Вызывается при изменении структуры бункера (например, построена новая комната)
@@ -3206,6 +3493,275 @@ export class GameScene extends Phaser.Scene {
     } })
     }
     runNext()
+  }
+
+  // ========= HTML UI Overlay Methods =========
+
+  private async initUIOverlay(): Promise<void> {
+    try {
+      // Initialize UI overlay - script should already be loaded from HTML
+      if (typeof window.initGameUI === 'function') {
+        this.initializeOverlay();
+      } else {
+        console.warn('[GameScene] UI manager not available, retrying in 1s...');
+        // Retry after 1 second in case script is still loading
+        setTimeout(() => this.initUIOverlay(), 1000);
+      }
+    } catch (error) {
+      console.error('[GameScene] Failed to initialize UI overlay:', error);
+    }
+  }
+
+  private initializeOverlay(): void {
+    try {
+      // Check if UI overlay container exists and initialize UI manager
+      const overlayContainer = document.getElementById('game-ui-overlay');
+      if (overlayContainer && typeof window.initGameUI === 'function') {
+        this.uiOverlay = window.initGameUI();
+        console.log('[GameScene] HTML UI overlay initialized');
+
+        // Hide old Phaser UI elements
+        this.hidePhaserUI();
+
+        // Start periodic updates to overlay
+        this.uiUpdateInterval = this.time.addEvent({
+          delay: 200, // Update every 200ms
+          loop: true,
+          callback: () => this.updateUIOverlay()
+        });
+
+        // Initialize modals with sample data
+        this.initializeModals();
+      } else {
+        console.warn('[GameScene] UI overlay container not found or UI manager not available');
+      }
+    } catch (error) {
+      console.error('[GameScene] Failed to initialize overlay:', error);
+    }
+  }
+
+  private updateUIOverlay(): void {
+    if (!this.uiOverlay || typeof window.updateGameUI !== 'function') return;
+
+    try {
+      const gameData = {
+        day: this.dayNumber,
+        phase: this.phase,
+        time: this.getClockText(),
+        population: this.bunkerResidents.length,
+        capacity: this.getBunkerCapacity(),
+        happiness: this.happiness,
+        defense: this.defense,
+        ammo: this.ammo,
+        comfort: this.comfort,
+        food: this.food,
+        water: this.water,
+        money: this.money,
+        enemies: this.bunkerEnemies.length,
+        bunkerLevel: this.bunkerLevel,
+        bunkerExperience: this.bunkerExperience,
+        maxExperience: this.maxExperienceForLevel
+      };
+
+      window.updateGameUI(gameData);
+    } catch (error) {
+      console.error('[GameScene] Error updating UI overlay:', error);
+    }
+  }
+
+  // Override existing methods to also update HTML overlay
+  private updateResourcesTextOverlay(): void {
+    // Call original method for Phaser UI
+    this.updateResourcesText();
+
+    // Update HTML overlay
+    this.updateUIOverlay();
+  }
+
+  private hidePhaserUI(): void {
+    // Hide top bar container
+    if (this.topBar) {
+      this.topBar.setVisible(false);
+    }
+
+    // Hide individual UI elements
+    const elementsToHide = [
+      this.dayText, this.populationBtn, this.happinessBtn, this.defenseBtn,
+      this.ammoBtn, this.comfortBtn, this.foodBtn, this.waterBtn, this.moneyBtn,
+      this.abilitiesBtn, this.pauseBtn, this.inventoryBtn, this.enemyCountText,
+      this.resourcesText, this.experienceBg, this.experienceFg, this.levelText, this.xpText
+    ];
+
+    elementsToHide.forEach(element => {
+      if (element) {
+        element.setVisible(false);
+      }
+    });
+
+    console.log('[GameScene] Old Phaser UI elements hidden');
+  }
+
+  private showPhaserUI(): void {
+    // Show top bar container
+    if (this.topBar) {
+      this.topBar.setVisible(true);
+    }
+
+    // Show individual UI elements (fallback method)
+    const elementsToShow = [
+      this.dayText, this.populationBtn, this.happinessBtn, this.defenseBtn,
+      this.ammoBtn, this.comfortBtn, this.foodBtn, this.waterBtn, this.moneyBtn,
+      this.abilitiesBtn, this.pauseBtn, this.inventoryBtn, this.enemyCountText,
+      this.resourcesText, this.experienceBg, this.experienceFg, this.levelText, this.xpText
+    ];
+
+    elementsToShow.forEach(element => {
+      if (element) {
+        element.setVisible(true);
+      }
+    });
+
+    console.log('[GameScene] Old Phaser UI elements shown (fallback)');
+  }
+
+  private initializeModals(): void {
+    // Initialize inventory with sample data
+    if (typeof window.populateInventoryModal === 'function') {
+      const sampleInventory = [
+        { icon: '🍎', quantity: 5 },
+        { icon: '💊', quantity: 3 },
+        { icon: '🔧', quantity: 1 },
+        { icon: '🧰', quantity: 2 },
+        { icon: '💡', quantity: 7 },
+        { icon: '📦', quantity: 12 }
+      ];
+      window.populateInventoryModal(sampleInventory, this.inventoryRows);
+    }
+
+    // Initialize abilities with sample data
+    if (typeof window.populateAbilitiesModal === 'function') {
+      window.populateAbilitiesModal([]);
+    }
+
+    // Debug: Log current residents data
+    console.log('[GameScene] Current bunker residents:', this.bunkerResidents);
+    console.log('[GameScene] Residents count:', this.bunkerResidents.length);
+
+    // Make sure game object is available globally
+    if (typeof window !== 'undefined') {
+      window.game = this.game;
+      console.log('[GameScene] window.game set globally');
+    }
+
+    console.log('[GameScene] Modals initialized with sample data');
+  }
+
+  // Public method to get current residents data for HTML UI
+  public getCurrentResidentsData(): any[] {
+    console.log('[GameScene] getCurrentResidentsData called, residents count:', this.bunkerResidents.length);
+
+    return this.bunkerResidents.map((resident, index) => ({
+      id: resident.id,
+      index: index,
+      name: resident.name,
+      age: resident.age,
+      gender: resident.gender,
+      profession: resident.profession,
+      status: resident.status || 'Отдыхает',
+      hunger: resident.hunger || 100,
+      thirst: resident.thirst || 100,
+      energy: resident.energy || 100,
+      health: resident.health || 100,
+      skills: resident.skills || [],
+      itemsText: resident.itemsText || 'Нет предметов',
+      admittedAt: resident.admittedAt,
+      patient: resident.patient || false,
+      isEnemy: false
+    }));
+  }
+
+  // Public method to get updated resident data by ID
+  public expandInventory(): void {
+    this.inventoryRows++;
+    // Re-initialize inventory with new row count
+    this.initializeModals();
+  }
+
+  public openRoomSelection(): void {
+    console.log('[GameScene] openRoomSelection called');
+    if (window.populateRoomSelectionModal && window.openModal) {
+      console.log('[GameScene] Opening room selection modal');
+      // Передаем this (GameScene) в populateRoomSelectionModal
+      window.populateRoomSelectionModal(this);
+      window.openModal('room-selection-modal');
+    } else {
+      console.warn('[GameScene] Required UI functions not available');
+    }
+  }
+
+  public getResidentById(id: number): any {
+    console.log('[GameScene] getResidentById called for ID:', id);
+
+    // First check bunkerResidents
+    const resident = this.bunkerResidents.find(r => r.id === id);
+    if (resident) {
+      return {
+        id: resident.id,
+        name: resident.name,
+        age: resident.age,
+        gender: resident.gender,
+        profession: resident.profession,
+        status: resident.status || 'Отдыхает',
+        hunger: resident.hunger || 100,
+        thirst: resident.thirst || 100,
+        energy: resident.energy || 100,
+        health: resident.health || 100,
+        skills: resident.skills || [],
+        itemsText: resident.itemsText || 'Нет предметов',
+        admittedAt: resident.admittedAt,
+        patient: resident.patient || false,
+        isEnemy: false
+      };
+    }
+
+    // If not found in bunkerResidents, check bunkerView agents for real-time health
+    if (this.simpleBunker && typeof this.simpleBunker.getResidentAgentById === 'function') {
+      const agent = this.simpleBunker.getResidentAgentById(id);
+      if (agent) {
+        console.log('[GameScene] Found agent in bunkerView with health:', agent.health);
+        return {
+          id: agent.id,
+          name: agent.name || 'Неизвестен',
+          age: agent.age || 25,
+          gender: agent.gender || 'М',
+          profession: agent.profession || 'неизвестно',
+          status: agent.status || 'Отдыхает',
+          hunger: agent.hunger || 100,
+          thirst: agent.thirst || 100,
+          energy: agent.energy || 100,
+          health: agent.health || 100,
+          skills: agent.skills || [],
+          itemsText: agent.itemsText || 'Нет предметов',
+          admittedAt: agent.admittedAt || 1,
+          patient: agent.patient || false,
+          isEnemy: false
+        };
+      }
+    }
+
+    console.warn('[GameScene] Resident not found with ID:', id);
+    return null;
+  }
+
+  // Cleanup - called when scene is destroyed
+  onDestroy(): void {
+    if (this.uiUpdateInterval) {
+      this.uiUpdateInterval.remove(false);
+    }
+
+    if (typeof window.showGameUI === 'function') {
+      window.showGameUI(false);
+    }
   }
 }
 

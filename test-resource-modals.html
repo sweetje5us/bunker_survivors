@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест синхронизации модальных окон ресурсов</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 10px;
+        }
+
+        .test-btn {
+            background: #2a2a2a;
+            border: 2px solid #555555;
+            color: #e0e0e0;
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 10px;
+            margin: 5px;
+            border-radius: 4px;
+        }
+
+        .test-btn:hover {
+            background: #3a3a3a;
+            border-color: #D4AF37;
+        }
+
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .resource-card {
+            background: #2a2a2a;
+            border: 2px solid #555555;
+            padding: 15px;
+            text-align: center;
+            border-radius: 4px;
+        }
+
+        .resource-card:hover {
+            border-color: #D4AF37;
+        }
+
+        .resource-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .resource-value {
+            font-size: 16px;
+            color: #D4AF37;
+            margin-bottom: 5px;
+        }
+
+        .resource-name {
+            font-size: 10px;
+            color: #e0e0e0;
+        }
+
+        .debug-info {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 10px;
+        }
+
+        .debug-info h3 {
+            color: #D4AF37;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест синхронизации модальных окон ресурсов</h1>
+
+    <div class="resource-grid">
+        <div class="resource-card" onclick="testResource('happiness')">
+            <div class="resource-icon">😊</div>
+            <div class="resource-value">75%</div>
+            <div class="resource-name">СЧАСТЬЕ</div>
+        </div>
+
+        <div class="resource-card" onclick="testResource('defense')">
+            <div class="resource-icon">🛡️</div>
+            <div class="resource-value">65%</div>
+            <div class="resource-name">ЗАЩИТА</div>
+        </div>
+
+        <div class="resource-card" onclick="testResource('ammo')">
+            <div class="resource-icon">🔫</div>
+            <div class="resource-value">150</div>
+            <div class="resource-name">ПАТРОНЫ</div>
+        </div>
+
+        <div class="resource-card" onclick="testResource('food')">
+            <div class="resource-icon">🍖</div>
+            <div class="resource-value">85</div>
+            <div class="resource-name">ЕДА</div>
+        </div>
+
+        <div class="resource-card" onclick="testResource('water')">
+            <div class="resource-icon">💧</div>
+            <div class="resource-value">120</div>
+            <div class="resource-name">ВОДА</div>
+        </div>
+
+        <div class="resource-card" onclick="testResource('money')">
+            <div class="resource-icon">💰</div>
+            <div class="resource-value">350</div>
+            <div class="resource-name">ДЕНЬГИ</div>
+        </div>
+
+        <div class="resource-card" onclick="testResource('comfort')">
+            <div class="resource-icon">🛋️</div>
+            <div class="resource-value">80%</div>
+            <div class="resource-name">КОМФОРТ</div>
+        </div>
+    </div>
+
+    <div>
+        <button class="test-btn" onclick="testAllResources()">Тест всех ресурсов</button>
+        <button class="test-btn" onclick="closeAllModals()">❌ Закрыть все</button>
+    </div>
+
+    <div class="debug-info">
+        <h3>Что синхронизировано</h3>
+        <ul>
+            <li>✅ Модальные окна ресурсов теперь показывают реальные данные из GameScene</li>
+            <li>✅ Расчеты потребления и запаса на дни</li>
+            <li>✅ Статусы ресурсов (положительный/нейтральный/отрицательный)</li>
+            <li>✅ Описания для каждого ресурса</li>
+            <li>✅ Цветовое кодирование статусов (зеленый/желтый/красный)</li>
+        </ul>
+        <div id="status">Status: Ready</div>
+    </div>
+
+    <!-- Include the UI overlay -->
+    <div id="game-ui-overlay"></div>
+
+    <script>
+        // Mock game data for testing
+        const mockGameData = {
+            happiness: 75,
+            defense: 65,
+            ammo: 150,
+            food: 85,
+            water: 120,
+            money: 350,
+            comfort: 80,
+            population: 3
+        };
+
+        let statusElement = document.getElementById('status');
+
+        function updateStatus(message) {
+            statusElement.textContent = 'Status: ' + message;
+            console.log('[Test]', message);
+        }
+
+        function testResource(resourceType) {
+            updateStatus('Testing ' + resourceType + ' modal...');
+
+            if (typeof openResource === 'function') {
+                openResource(resourceType);
+                updateStatus(resourceType + ' modal opened successfully');
+            } else {
+                updateStatus('openResource function not found');
+            }
+        }
+
+        function testAllResources() {
+            const resources = ['happiness', 'defense', 'ammo', 'food', 'water', 'money', 'comfort'];
+            let index = 0;
+
+            const testNext = () => {
+                if (index < resources.length) {
+                    testResource(resources[index]);
+                    index++;
+                    setTimeout(testNext, 2000); // Wait 2 seconds between tests
+                } else {
+                    updateStatus('All resources tested');
+                }
+            };
+
+            testNext();
+        }
+
+        // Load UI overlay
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('./src/ui/game-overlay.html')
+                .then(response => response.text())
+                .then(html => {
+                    document.getElementById('game-ui-overlay').innerHTML = html;
+                    updateStatus('UI overlay loaded successfully');
+
+                    // Mock game scene for testing
+                    window.game = {
+                        scene: {
+                            getScene: function() {
+                                return {
+                                    happiness: mockGameData.happiness,
+                                    defense: mockGameData.defense,
+                                    ammo: mockGameData.ammo,
+                                    food: mockGameData.food,
+                                    water: mockGameData.water,
+                                    money: mockGameData.money,
+                                    comfort: mockGameData.comfort,
+                                    bunkerResidents: [{}, {}, {}] // 3 residents
+                                };
+                            }
+                        }
+                    };
+
+                    setTimeout(() => {
+                        updateStatus('Functions initialized');
+                    }, 500);
+                })
+                .catch(error => {
+                    updateStatus('Failed to load UI overlay: ' + error.message);
+                });
+        });
+
+        function closeAllModals() {
+            const modals = ['resource-modal'];
+            modals.forEach(modalId => {
+                if (typeof closeModal === 'function') {
+                    closeModal(modalId);
+                }
+            });
+            updateStatus('All modals closed');
+        }
+
+        console.log('Resource modals sync test page loaded');
+        console.log('Mock game data:', mockGameData);
+    </script>
+</body>
+</html>

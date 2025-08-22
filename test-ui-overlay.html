@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunker UI Overlay Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .game-container {
+            flex: 1;
+            background: #2a2a2a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            min-height: 400px;
+        }
+
+        .test-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: #1a1a1a;
+            border: 2px solid #8B4513;
+            padding: 15px;
+            border-radius: 5px;
+            color: #e0e0e0;
+            font-family: monospace;
+            z-index: 2000;
+        }
+
+        .test-controls input, .test-controls button {
+            background: #2a2a2a;
+            border: 1px solid #555555;
+            color: #e0e0e0;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        .test-controls button {
+            cursor: pointer;
+        }
+
+        .test-controls button:hover {
+            background: #3a3a3a;
+        }
+    </style>
+</head>
+<body>
+    <!-- Game container placeholder -->
+    <div class="game-container">
+        <div style="color: #666; font-size: 24px;">Game Area</div>
+    </div>
+
+    <!-- Test controls -->
+    <div class="test-controls">
+        <h3>UI Overlay Test Controls</h3>
+        <button onclick="toggleUI()">Toggle UI</button>
+        <button onclick="simulateGameData()">Simulate Game Data</button>
+        <button onclick="testMobileView()">Mobile View</button>
+        <br>
+        <button onclick="updateTime()">Update Time</button>
+        <button onclick="addResources()">Add Resources</button>
+        <button onclick="addXP()">Add XP</button>
+        <br>
+        <input type="number" id="dayInput" value="1" min="1" max="100" style="width: 60px;">
+        <button onclick="setDay()">Set Day</button>
+    </div>
+
+    <script>
+        let testData = {
+            day: 1,
+            phase: 'day',
+            time: '06:00',
+            population: 5,
+            capacity: 10,
+            happiness: 75,
+            defense: 60,
+            ammo: 120,
+            comfort: 45,
+            food: 85,
+            water: 90,
+            money: 350,
+            enemies: 2,
+            bunkerLevel: 1,
+            bunkerExperience: 25,
+            maxExperience: 100
+        };
+
+        let uiVisible = true;
+
+        // Initialize UI when page loads
+        window.addEventListener('load', function() {
+            // Wait for UI manager to be available
+            setTimeout(() => {
+                if (typeof initGameUI === 'function') {
+                    initGameUI();
+                    updateGameUI(testData);
+                } else {
+                    console.error('UI Manager not loaded');
+                }
+            }, 500);
+        });
+
+        function toggleUI() {
+            uiVisible = !uiVisible;
+            if (typeof showGameUI === 'function') {
+                showGameUI(uiVisible);
+            }
+        }
+
+        function simulateGameData() {
+            // Simulate changing game data
+            testData.day++;
+            testData.population = Math.min(10, testData.population + Math.floor(Math.random() * 3));
+            testData.happiness = Math.max(0, Math.min(100, testData.happiness + (Math.random() - 0.5) * 20));
+            testData.ammo += Math.floor(Math.random() * 20);
+            testData.food = Math.max(0, testData.food - Math.floor(Math.random() * 10));
+            testData.enemies = Math.floor(Math.random() * 5);
+
+            if (typeof updateGameUI === 'function') {
+                updateGameUI(testData);
+            }
+        }
+
+        function testMobileView() {
+            // Simulate mobile view by resizing window
+            if (window.innerWidth > 768) {
+                window.resizeTo(480, 800);
+            } else {
+                window.resizeTo(1200, 800);
+            }
+        }
+
+        function updateTime() {
+            const hours = Math.floor(Math.random() * 24);
+            const minutes = Math.floor(Math.random() * 60);
+            testData.time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            testData.phase = hours >= 6 && hours < 22 ? 'day' : 'night';
+
+            if (typeof updateGameUI === 'function') {
+                updateGameUI(testData);
+            }
+        }
+
+        function addResources() {
+            testData.food = Math.min(100, testData.food + 10);
+            testData.water = Math.min(100, testData.water + 10);
+            testData.ammo += 20;
+            testData.money += 50;
+
+            if (typeof updateGameUI === 'function') {
+                updateGameUI(testData);
+            }
+        }
+
+        function addXP() {
+            testData.bunkerExperience += 15;
+
+            // Check for level up
+            if (testData.bunkerExperience >= testData.maxExperience) {
+                testData.bunkerExperience -= testData.maxExperience;
+                testData.bunkerLevel++;
+                testData.maxExperience = Math.floor(testData.maxExperience * 1.2);
+            }
+
+            if (typeof updateGameUI === 'function') {
+                updateGameUI(testData);
+            }
+        }
+
+        function setDay() {
+            const dayInput = document.getElementById('dayInput');
+            testData.day = parseInt(dayInput.value) || 1;
+
+            if (typeof updateGameUI === 'function') {
+                updateGameUI(testData);
+            }
+        }
+
+        // Auto-update simulation
+        setInterval(() => {
+            if (uiVisible && typeof updateGameUI === 'function') {
+                simulateGameData();
+            }
+        }, 3000);
+    </script>
+
+    <!-- Load UI manager -->
+    <script src="./src/ui/ui-manager.js"></script>
+</body>
+</html>

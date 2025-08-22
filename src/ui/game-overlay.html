@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunker Game UI</title>
+    <style>
+        :root {
+            --bunker-bg: #1a1a1a;
+            --bunker-accent: #8B4513;
+            --bunker-dark-accent: #654321;
+            --bunker-border: #333333;
+            --bunker-text: #e0e0e0;
+            --bunker-gold: #D4AF37;
+            --bunker-green: #4CAF50;
+            --bunker-red: #f44336;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        body {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            pointer-events: none;
+            font-size: 10px;
+        }
+
+        .game-header {
+            background: linear-gradient(180deg, var(--bunker-bg) 0%, #2a2a2a 100%);
+            border-bottom: 3px solid var(--bunker-accent);
+            padding: 8px 16px;
+            position: relative;
+            min-height: 60px;
+        }
+
+        .game-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--bunker-accent);
+        }
+
+        .game-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--bunker-dark-accent);
+        }
+
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .game-time {
+            color: var(--bunker-gold);
+            text-shadow: 1px 1px 0 var(--bunker-dark-accent);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn {
+            background: #2a2a2a;
+            color: var(--bunker-text);
+            border: 2px solid #555555;
+            padding: 4px 8px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+            font-size: 8px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: #3a3a3a;
+            border-color: var(--bunker-gold);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .inventory-btn {
+            font-size: 10px;
+        }
+
+        .bottom-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .resources-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .resource-item {
+            background: #2a2a2a;
+            border: 1px solid #555555;
+            padding: 2px 6px;
+            font-size: 8px;
+            color: var(--bunker-text);
+            min-width: 50px;
+            text-align: center;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .resource-item:hover {
+            background: #3a3a3a;
+            border-color: var(--bunker-gold);
+        }
+
+        .resource-item.happiness { color: #81c784; }
+        .resource-item.defense { color: #ffca28; }
+        .resource-item.ammo { color: #90caf9; }
+        .resource-item.comfort { color: #ce93d8; }
+        .resource-item.enemies { color: var(--bunker-red); }
+
+        .experience-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 200px;
+        }
+
+        .level-display {
+            color: var(--bunker-gold);
+            font-size: 10px;
+            text-shadow: 1px 1px 0 var(--bunker-dark-accent);
+            white-space: nowrap;
+        }
+
+        .xp-display {
+            color: var(--bunker-text);
+            font-size: 8px;
+            white-space: nowrap;
+        }
+
+        .progress-container {
+            flex: 1;
+            min-width: 120px;
+            max-width: 300px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: #333333;
+            border: 2px solid #555555;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--bunker-green);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .game-header {
+                padding: 4px 8px;
+                min-height: 50px;
+            }
+
+            .top-row {
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 2px;
+            }
+
+            .bottom-row {
+                flex-direction: row;
+                align-items: center;
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+
+            .resources-section {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 2px;
+                justify-content: flex-start;
+                flex: 1;
+                max-width: calc(100% - 150px);
+            }
+
+            .experience-section {
+                flex: 0 0 auto;
+                min-width: 140px;
+            }
+
+            .game-time {
+                font-size: 9px;
+                flex: 1;
+                text-align: left;
+            }
+
+            .action-buttons {
+                gap: 2px;
+                flex-shrink: 0;
+            }
+
+            .btn {
+                font-size: 6px;
+                padding: 2px 4px;
+                min-width: 35px;
+                height: 20px;
+            }
+
+            .inventory-btn {
+                font-size: 7px;
+                min-width: 45px;
+            }
+
+            .resource-item {
+                font-size: 6px;
+                padding: 1px 3px;
+                min-width: 30px;
+                height: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .resident-item {
+                font-size: 8px;
+                padding: 6px;
+                min-height: 30px;
+            }
+
+            .resident-name {
+                font-size: 10px;
+            }
+
+            .resident-profession {
+                font-size: 8px;
+            }
+
+            .level-display {
+                font-size: 7px;
+            }
+
+            .xp-display {
+                font-size: 6px;
+            }
+
+            .progress-bar {
+                height: 8px;
+            }
+
+            .progress-fill {
+                height: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .game-header {
+                padding: 2px 6px;
+                min-height: 45px;
+            }
+
+            .resources-section {
+                max-width: calc(100% - 120px);
+                gap: 1px;
+            }
+
+            .experience-section {
+                min-width: 110px;
+            }
+
+            .game-time {
+                font-size: 8px;
+            }
+
+            .btn {
+                font-size: 5px;
+                padding: 1px 3px;
+                min-width: 30px;
+                height: 16px;
+            }
+
+            .resource-item {
+                font-size: 5px;
+                padding: 1px 2px;
+                min-width: 25px;
+                height: 16px;
+            }
+
+            .resident-item {
+                font-size: 7px;
+                padding: 4px;
+                min-height: 25px;
+            }
+
+            .resident-name {
+                font-size: 8px;
+            }
+
+            .resident-profession {
+                font-size: 6px;
+            }
+        }
+
+        /* Hide UI when needed */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Loading state */
+        .loading {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 20000;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bunker-bg);
+            border: 3px solid var(--bunker-accent);
+            border-radius: 8px;
+            min-width: 300px;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-content.large {
+            min-width: 600px;
+            max-width: 95vw;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: linear-gradient(180deg, var(--bunker-accent) 0%, var(--bunker-dark-accent) 100%);
+            color: var(--bunker-gold);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 16px;
+            text-shadow: 1px 1px 0 var(--bunker-dark-accent);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--bunker-gold);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .modal-body {
+            padding: 20px;
+            color: var(--bunker-text);
+            overflow-y: auto;
+            max-height: calc(90vh - 80px);
+        }
+
+        /* Population Modal */
+        .resident-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            background: #2a2a2a;
+            border: 1px solid #555555;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .resident-item:hover {
+            background: #3a3a3a;
+            border-color: var(--bunker-gold);
+        }
+
+        .resident-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .resident-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--bunker-gold);
+        }
+
+        .resident-profession {
+            font-size: 10px;
+            color: var(--bunker-text);
+        }
+
+        /* Resource Modal */
+        .resource-details {
+            display: grid;
+            gap: 15px;
+        }
+
+        .resource-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: #2a2a2a;
+            border-radius: 4px;
+        }
+
+        .resource-stat.positive {
+            border-left: 3px solid var(--bunker-green);
+        }
+
+        .resource-stat.negative {
+            border-left: 3px solid var(--bunker-red);
+        }
+
+        .resource-stat.neutral {
+            border-left: 3px solid var(--bunker-gold);
+        }
+
+        .resource-stat.neutral span:first-child {
+            color: var(--bunker-gold);
+        }
+
+        /* Menu Modal */
+        .menu-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .menu-btn {
+            background: #2a2a2a;
+            color: var(--bunker-text);
+            border: 2px solid #555555;
+            padding: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+        }
+
+        .menu-btn:hover {
+            background: #3a3a3a;
+            border-color: var(--bunker-gold);
+        }
+
+        .menu-btn.danger {
+            border-color: var(--bunker-red);
+            color: var(--bunker-red);
+        }
+
+        .menu-btn.danger:hover {
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        /* Inventory Modal */
+        .inventory-container {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+
+        .equipment-section h3,
+        .inventory-section h3 {
+            color: var(--bunker-gold);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .equipment-slots {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .equip-slot {
+            background: #1a1a1a;
+            border: 2px solid #444;
+            padding: 15px 8px;
+            text-align: center;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .equip-slot:hover {
+            border-color: var(--bunker-gold);
+            background: #2a2a2a;
+        }
+
+        .equip-slot.equipped {
+            border-color: var(--bunker-green);
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+        }
+
+        .inventory-slot {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            aspect-ratio: 1;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 2px;
+            position: relative;
+        }
+
+        .inventory-slot:hover {
+            border-color: var(--bunker-gold);
+            background: #2a2a2a;
+        }
+
+        .inventory-slot.occupied {
+            background: #2a2a2a;
+        }
+
+        .inventory-slot .item {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .inventory-slot .quantity {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 8px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1px 2px;
+            border-radius: 1px;
+        }
+
+        /* Abilities Modal */
+        .abilities-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .ability-points {
+            background: #2a2a2a;
+            border: 2px solid var(--bunker-gold);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .ability-points h3 {
+            color: var(--bunker-gold);
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+
+        .points-display {
+            font-size: 24px;
+            color: var(--bunker-green);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .category-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .category-tab {
+            background: #2a2a2a;
+            border: 2px solid #555555;
+            color: var(--bunker-text);
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+            font-size: 10px;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .category-tab:hover {
+            border-color: var(--bunker-gold);
+            background: #3a3a3a;
+        }
+
+        .category-tab.active {
+            border-color: var(--bunker-gold);
+            background: var(--bunker-gold);
+            color: var(--bunker-bg);
+        }
+
+        .ability-tree {
+            position: relative;
+            min-height: 400px;
+            min-width: 800px;
+            background: #1a1a1a;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .ability-node {
+            position: absolute;
+            width: 120px;
+            height: 80px;
+            border-radius: 8px;
+            background: #1d242c;
+            border: 2px solid #555555;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: var(--bunker-text);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            padding: 5px;
+        }
+
+        .ability-node:hover {
+            border-color: var(--bunker-gold);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+            transform: scale(1.1);
+        }
+
+        .ability-node.locked {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background: #1d242c;
+            border-color: #444;
+        }
+
+        .ability-node.unlocked {
+            border-color: var(--bunker-green);
+            background: #2a2a2a;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .ability-node.learned {
+            border-color: var(--bunker-gold);
+            background: #3a3a3a;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+        }
+
+        .ability-node.maxed {
+            border-color: var(--bunker-gold);
+            background: var(--bunker-bg);
+            color: var(--bunker-text);
+            box-shadow: 0 0 25px rgba(212, 175, 55, 0.7);
+        }
+
+        .ability-node.maxed .name {
+            color: var(--bunker-gold);
+        }
+
+        .ability-node.maxed .description {
+            color: var(--bunker-text);
+            opacity: 0.9;
+        }
+
+        .ability-node.maxed .bonus {
+            color: var(--bunker-green);
+        }
+
+        .ability-node .level {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--bunker-gold);
+            color: var(--bunker-bg);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .ability-node .name {
+            font-weight: bold;
+            color: var(--bunker-gold);
+            margin-bottom: 2px;
+            line-height: 1.2;
+        }
+
+        .ability-node .description {
+            font-size: 8px;
+            line-height: 1.1;
+            opacity: 0.8;
+        }
+
+        .ability-node .bonus {
+            font-size: 8px;
+            color: var(--bunker-green);
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        .ability-node .bonus.current {
+            color: var(--bunker-gold);
+        }
+
+        .ability-tooltip {
+            position: fixed;
+            background: #2a2a2a;
+            border: 2px solid var(--bunker-gold);
+            border-radius: 8px;
+            padding: 15px;
+            width: 250px;
+            z-index: 30000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .ability-tooltip.show {
+            opacity: 1;
+        }
+
+        .ability-tooltip h4 {
+            color: var(--bunker-gold);
+            margin: 0 0 10px 0;
+            font-size: 12px;
+        }
+
+        .ability-tooltip .description {
+            color: var(--bunker-text);
+            font-size: 10px;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .ability-tooltip .cost {
+            color: var(--bunker-green);
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .ability-tooltip .requirements {
+            color: #888;
+            font-size: 9px;
+            font-style: italic;
+            margin-top: 8px;
+        }
+
+        .connection-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-line {
+            stroke: #555;
+            stroke-width: 2;
+            opacity: 0.3;
+        }
+
+        .connection-line.unlocked {
+            stroke: var(--bunker-green);
+            opacity: 0.6;
+        }
+
+        .connection-line.learned {
+            stroke: var(--bunker-gold);
+            opacity: 0.8;
+        }
+
+        /* Room Selection Styles */
+        .room-selection-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 20px 0;
+        }
+
+        .room-option {
+            background: var(--bunker-bg);
+            border: 2px solid var(--bunker-border);
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .room-option:hover {
+            border-color: var(--bunker-gold);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .room-option.selected {
+            border-color: var(--bunker-gold);
+            background: var(--bunker-gold);
+            color: var(--bunker-bg);
+        }
+
+        .room-option .room-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .room-option .room-name {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .room-option .room-description {
+            font-size: 0.9em;
+            color: var(--bunker-text-light);
+            line-height: 1.4;
+        }
+
+        .room-option .room-cost {
+            margin-top: 10px;
+            font-weight: bold;
+            color: var(--bunker-gold);
+        }
+
+        .room-option.selected .room-cost {
+            color: var(--bunker-bg);
+        }
+
+        /* Room categories and requirements */
+        .room-option.critical-room {
+            border-color: var(--bunker-gold);
+            background: linear-gradient(135deg, var(--bunker-bg), #2a2a2a);
+        }
+
+        .room-option.advanced-room {
+            border-color: var(--bunker-green);
+        }
+
+        .room-option.locked-room {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #1a1a1a;
+            border-color: #666;
+        }
+
+        .room-option.locked-room:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .room-option.unlocked-room {
+            opacity: 1;
+            cursor: pointer;
+            background: var(--bunker-bg);
+            border-color: var(--bunker-green);
+        }
+
+        .room-option.unlocked-room:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-color: var(--bunker-gold);
+        }
+
+        .room-option .room-requirement {
+            margin-top: 8px;
+            font-size: 0.8em;
+            color: var(--bunker-gold);
+            font-style: italic;
+        }
+
+        .room-option.locked-room .room-requirement {
+            color: #888;
+        }
+
+        .room-option.unlocked-room .room-requirement {
+            color: var(--bunker-green);
+        }
+
+        /* Resident Detail Modal Styles */
+        .resident-details {
+            display: grid;
+            gap: 20px;
+        }
+
+        .detail-section {
+            background: #2a2a2a;
+            border: 1px solid #555555;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .detail-section h3 {
+            color: var(--bunker-gold);
+            margin: 0 0 15px 0;
+            text-align: center;
+            border-bottom: 1px solid #555555;
+            padding-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+
+        .detail-item .label {
+            color: #888;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        .detail-item .value {
+            color: var(--bunker-text);
+            text-align: right;
+            font-size: 11px;
+        }
+
+        .status-meters {
+            display: grid;
+            gap: 15px;
+        }
+
+        .status-meter {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .meter-label {
+            color: var(--bunker-gold);
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .meter-bar {
+            height: 16px;
+            background: #333333;
+            border: 2px solid #555555;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .meter-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+            border-radius: 6px;
+        }
+
+        .meter-fill.hunger {
+            background: linear-gradient(90deg, #FF9800, #F57C00);
+        }
+
+        .meter-fill.thirst {
+            background: linear-gradient(90deg, #2196F3, #1976D2);
+        }
+
+        .meter-fill.energy {
+            background: linear-gradient(90deg, #FFEB3B, #FBC02D);
+        }
+
+        .meter-fill.health {
+            background: linear-gradient(90deg, #4CAF50, #388E3C);
+        }
+
+        .meter-value {
+            color: var(--bunker-text);
+            font-size: 11px;
+            font-weight: bold;
+            text-align: right;
+        }
+
+        .skills-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .skill-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #555555;
+        }
+
+        .skill-item.positive {
+            background: rgba(76, 175, 80, 0.1);
+            border-color: var(--bunker-green);
+        }
+
+        .skill-item.negative {
+            background: rgba(244, 67, 54, 0.1);
+            border-color: var(--bunker-red);
+        }
+
+        .skill-text {
+            color: var(--bunker-text);
+            font-size: 11px;
+        }
+
+        .skill-effect {
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .skill-item.positive .skill-effect {
+            color: var(--bunker-green);
+        }
+
+        .skill-item.negative .skill-effect {
+            color: var(--bunker-red);
+        }
+
+        .no-skills {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+            padding: 20px;
+        }
+
+        /* Mobile responsive for modals */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95vw;
+                max-height: 95vh;
+            }
+
+            .modal-content.large {
+                width: 98vw;
+                min-width: unset;
+            }
+
+            .inventory-container {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .equipment-slots {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .inventory-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+
+            .ability-tree {
+                min-height: 300px;
+            }
+            
+            .ability-node {
+                width: 100px;
+                height: 70px;
+                font-size: 8px;
+            }
+            
+            .ability-node .name {
+                font-size: 8px;
+                margin-bottom: 1px;
+            }
+            
+            .ability-node .description {
+                font-size: 6px;
+            }
+            
+            .ability-node .bonus {
+                font-size: 6px;
+                margin-top: 1px;
+            }
+            
+            .ability-node.maxed .name {
+                color: var(--bunker-gold);
+            }
+            
+            .ability-node.maxed .description {
+                color: var(--bunker-text);
+            }
+            
+            .ability-node.maxed .bonus {
+                color: var(--bunker-green);
+            }
+            
+            .category-tabs {
+                gap: 3px;
+            }
+            
+            .category-tab {
+                font-size: 8px;
+                padding: 6px 8px;
+                min-width: 60px;
+            }
+            
+            .ability-tooltip {
+                width: 200px;
+                font-size: 9px;
+                z-index: 30000;
+            }
+            
+            .room-selection-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .room-option {
+                padding: 12px;
+            }
+            
+            .room-option .room-icon {
+                font-size: 1.5em;
+            }
+            
+            .room-option .room-name {
+                font-size: 1em;
+            }
+            
+            .room-option .room-description {
+                font-size: 0.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-header" class="game-header">
+        <div class="top-row">
+            <div class="game-time" id="game-time">Day 1 • Day Phase • 06:00</div>
+            <div class="action-buttons">
+                <button class="btn inventory-btn" id="inventory-btn" onclick="openInventory()">📦 INV</button>
+                <button class="btn" id="abilities-btn" onclick="openAbilities()">ABILITIES</button>
+                <button class="btn" id="pause-btn" onclick="togglePause()">PAUSE</button>
+            </div>
+        </div>
+
+        <div class="bottom-row">
+            <div class="resources-section">
+                <div class="resource-item" id="population" onclick="handleResourceClick('residents')">👥 0/0</div>
+                <div class="resource-item happiness" id="happiness" onclick="handleResourceClick('happiness')">😊 0%</div>
+                <div class="resource-item defense" id="defense" onclick="handleResourceClick('defense')">🛡️ 0%</div>
+                <div class="resource-item ammo" id="ammo" onclick="handleResourceClick('ammo')">🔫 0</div>
+                <div class="resource-item comfort" id="comfort" onclick="handleResourceClick('comfort')">🛋️ 0%</div>
+                <div class="resource-item" id="food" onclick="handleResourceClick('food')">🍖 0</div>
+                <div class="resource-item" id="water" onclick="handleResourceClick('water')">💧 0</div>
+                <div class="resource-item" id="money" onclick="handleResourceClick('money')">💰 0</div>
+                <div class="resource-item enemies" id="enemies" onclick="handleResourceClick('enemies')">👹 0</div>
+            </div>
+
+            <div class="experience-section">
+                <div class="level-display" id="level">Bunker Level: 1</div>
+                <div class="xp-display" id="xp">XP: 0/100</div>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="xp-fill"></div>
+                    </div>
+                </div>
+                </div>
+  </div>
+</div>
+
+<!-- Modal Windows -->
+<div id="population-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Население бункера</h2>
+      <button class="close-btn" onclick="closeModal('population-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="population-list">
+        <!-- Population list will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="resource-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="resource-modal-title">Ресурс</h2>
+      <button class="close-btn" onclick="closeModal('resource-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="resource-modal-content">
+        <!-- Resource details will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="menu-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Меню игры</h2>
+      <button class="close-btn" onclick="closeModal('menu-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="menu-options">
+        <button class="menu-btn" onclick="continueGame()">Продолжить</button>
+        <button class="menu-btn" onclick="saveGame()">Сохранить игру</button>
+        <button class="menu-btn" onclick="loadGame()">Загрузить игру</button>
+        <button class="menu-btn" onclick="openSettings()">Настройки</button>
+        <button class="menu-btn" onclick="exitToMenu()">Выйти в меню</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="inventory-modal" class="modal">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <h2>Инвентарь</h2>
+      <button class="close-btn" onclick="closeModal('inventory-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="inventory-container">
+        <!-- Equipment Slots -->
+        <div class="equipment-section">
+          <h3>Экипировка</h3>
+          <div class="equipment-slots">
+            <div class="equip-slot" data-slot="weapon">Оружие</div>
+          </div>
+        </div>
+
+        <!-- Inventory Grid -->
+        <div class="inventory-section">
+          <h3>Инвентарь</h3>
+          <div class="inventory-grid" id="inventory-grid">
+            <!-- 40 inventory slots will be created by JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="abilities-modal" class="modal">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <h2>Способности бункера</h2>
+              <button class="close-btn" onclick="closeModal('abilities-modal'); clearAllTooltips();">&times;</button>
+    </div>
+    <div class="modal-body">
+              <div class="abilities-container">
+          <div class="ability-points">
+            <h3>Очки способностей</h3>
+            <div class="points-display" id="ability-points">100</div>
+          </div>
+          
+          <div class="category-tabs">
+            <div class="category-tab active" data-category="resources">Ресурсы</div>
+            <div class="category-tab" data-category="bunker">Бункер</div>
+            <div class="category-tab" data-category="defense">Защита</div>
+            <div class="category-tab" data-category="misc">Разное</div>
+          </div>
+          
+          <div class="ability-tree" id="ability-tree">
+            <svg class="connection-lines" id="connection-lines"></svg>
+            <!-- Ability nodes will be populated by JavaScript -->
+          </div>
+        </div>
+    </div>
+  </div>
+</div>
+
+    <!-- Room Selection Modal -->
+    <div id="room-selection-modal" class="modal">
+      <div class="modal-content large">
+        <div class="modal-header">
+          <h2>Выбор комнаты для постройки</h2>
+          <button class="close-btn" onclick="closeModal('room-selection-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- Debug buttons -->
+          <div style="margin-bottom: 15px; text-align: center;">
+            <button class="btn" onclick="if(window.showAllRooms) window.showAllRooms(); else console.log('showAllRooms not available')" style="margin-right: 10px;">
+              🔍 Показать все комнаты (отладка)
+            </button>
+            <button class="btn" onclick="console.log('Current abilities:', window.getAbilitiesData ? window.getAbilitiesData() : 'No data')">
+              📊 Показать данные способностей
+            </button>
+          </div>
+          <div class="room-selection-grid">
+            <!-- Room options will be dynamically generated here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+<!-- Resident Detail Modal -->
+<div id="resident-detail-modal" class="modal">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <h2>Подробности о жителе</h2>
+      <button class="close-btn" onclick="closeModal('resident-detail-modal'); closeModal('population-modal'); openResidents();">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom: 15px;">
+        <button class="menu-btn" onclick="closeModal('resident-detail-modal'); openResidents();" style="width: 100%;">
+          ← Назад к списку жителей
+        </button>
+      </div>
+      <div id="resident-detail-content">
+        <!-- Resident detail content will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+        // Game UI Bridge - connects Phaser game data to HTML overlay
+        class GameUIBridge {
+            constructor() {
+                this.gameData = {
+                    day: 1,
+                    phase: 'day',
+                    time: '06:00',
+                    population: 0,
+                    capacity: 0,
+                    happiness: 50,
+                    defense: 50,
+                    ammo: 100,
+                    comfort: 100,
+                    food: 100,
+                    water: 100,
+                    money: 200,
+                    enemies: 0,
+                    bunkerLevel: 1,
+                    bunkerExperience: 0,
+                    maxExperience: 100
+                };
+
+                this.updateInterval = null;
+                this.isVisible = true;
+            }
+
+            // Initialize the UI bridge
+            init() {
+                this.updateUI();
+                console.log('[GameUIBridge] Initialized');
+            }
+
+            // Update all UI elements with current game data
+            updateUI() {
+                // Update game time
+                document.getElementById('game-time').textContent =
+                    `Day ${this.gameData.day} • ${this.gameData.phase === 'day' ? 'Day Phase' : 'Night Phase'} • ${this.gameData.time}`;
+
+                // Update resources
+                document.getElementById('population').textContent = `👥 ${this.gameData.population}/${this.gameData.capacity}`;
+                document.getElementById('happiness').textContent = `😊 ${this.gameData.happiness}%`;
+                document.getElementById('defense').textContent = `🛡️ ${this.gameData.defense}%`;
+                document.getElementById('ammo').textContent = `🔫 ${this.gameData.ammo}`;
+                document.getElementById('comfort').textContent = `🛋️ ${this.gameData.comfort}%`;
+                document.getElementById('food').textContent = `🍖 ${this.gameData.food}`;
+                document.getElementById('water').textContent = `💧 ${this.gameData.water}`;
+                document.getElementById('money').textContent = `💰 ${this.gameData.money}`;
+                document.getElementById('enemies').textContent = `👹 ${this.gameData.enemies}`;
+
+                // Update experience
+                document.getElementById('level').textContent = `Bunker Level: ${this.gameData.bunkerLevel}`;
+                document.getElementById('xp').textContent = `XP: ${this.gameData.bunkerExperience}/${this.gameData.maxExperience}`;
+
+                const progress = this.gameData.maxExperience > 0 ?
+                    (this.gameData.bunkerExperience / this.gameData.maxExperience) * 100 : 0;
+                document.getElementById('xp-fill').style.width = `${Math.max(0, Math.min(100, progress))}%`;
+            }
+
+            // Update game data from Phaser
+            updateGameData(data) {
+                this.gameData = { ...this.gameData, ...data };
+                this.updateUI();
+            }
+
+            // Show/hide UI
+            setVisible(visible) {
+                this.isVisible = visible;
+                const header = document.getElementById('game-header');
+                if (visible) {
+                    header.classList.remove('hidden');
+                } else {
+                    header.classList.add('hidden');
+                }
+            }
+
+            // Set loading state
+            setLoading(loading) {
+                const header = document.getElementById('game-header');
+                if (loading) {
+                    header.classList.add('loading');
+                } else {
+                    header.classList.remove('loading');
+                }
+            }
+        }
+
+        // Global UI bridge instance
+        let gameUI = null;
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            gameUI = new GameUIBridge();
+            gameUI.init();
+
+            // Make functions globally available for Phaser
+            window.updateGameUI = function(data) {
+                if (gameUI) gameUI.updateGameData(data);
+            };
+
+            window.showGameUI = function(visible) {
+                if (gameUI) gameUI.setVisible(visible);
+            };
+
+            window.setGameUILoading = function(loading) {
+                if (gameUI) gameUI.setLoading(loading);
+            };
+        });
+
+        // Button functions (placeholders)
+        function openInventory() {
+            console.log('Opening inventory...');
+            // This will be connected to Phaser game
+            if (window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene) {
+                    gameScene.showToast('Inventory (WIP)');
+                }
+            }
+        }
+
+        function openAbilities() {
+            console.log('Opening abilities...');
+            if (window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene) {
+                    gameScene.showToast('Abilities (WIP)');
+                }
+            }
+        }
+
+        function togglePause() {
+            console.log('Toggling pause...');
+            if (window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene && gameScene.togglePause) {
+                    gameScene.togglePause();
+                }
+            }
+        }
+
+        function openResidents() {
+            console.log('Opening residents...');
+            if (window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene && gameScene.openResidentsOverlay) {
+                    gameScene.openResidentsOverlay();
+                }
+            }
+        }
+
+        function openResource(resource) {
+            console.log('Opening resource:', resource);
+            if (window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene && gameScene.openResourceOverlay) {
+                    gameScene.openResourceOverlay(resource.toUpperCase());
+                }
+            }
+        }
+
+        function openEnemies() {
+            console.log('Opening enemies info...');
+            if (window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene) {
+                    gameScene.showToast('Enemies: ' + (gameUI ? gameUI.gameData.enemies : '0'));
+                }
+            }
+        }
+    </script>
+</body>
+</html>

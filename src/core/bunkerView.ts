@@ -1,6 +1,13 @@
 import Phaser from 'phaser'
 import { ensureCharacterAnimations, pickSkinForGender, pickClothingSetForGender, pickHairForGender, ensureSpecialistAnimations, getSpecialistSpriteKey, isSpecialistSprite } from './characters'
 
+// Объявление типов для window
+declare global {
+  interface Window {
+    openRoomSelection?: () => void;
+  }
+}
+
 // Интерфейс для состояний комнаты
 export interface RoomState {
   // Флаг доступности (по умолчанию true, нельзя изменить для "Вход")
@@ -51,6 +58,7 @@ export class SimpleBunkerView {
   
   // Режим добавления комнат
   private isAddingRoom = false
+  private selectedRoomType: string | null = null
   private addButton?: Phaser.GameObjects.Text
   private peopleButton?: Phaser.GameObjects.Text
   private availableRoomTypes = [
@@ -60,14 +68,14 @@ export class SimpleBunkerView {
     'Столовая',
     'Туалет',
     // Новые типы
-    'Техническая',
-    'Серверная', 
     'Госпиталь',
+    'Кухня',
     'Склад',
-    'Лаборатория',
-    'Станция',
-    // Служебный тип
-    'Лифт'
+    'Лифт',
+    'Оружейная',
+    'Серверная',
+    'Рынок',
+    'Классная комната'
   ]
   private residentAgents: Array<{
     id?: number;
@@ -142,6 +150,12 @@ export class SimpleBunkerView {
 
   public getRootContainer(): Phaser.GameObjects.Container {
     return this.root
+  }
+
+  // Public method to get resident agent by ID for HTML UI integration
+  public getResidentAgentById(id: number): any {
+    const agent = this.residentAgents.find(a => a.id === id);
+    return agent || null;
   }
 
   constructor(scene: Phaser.Scene, parent: Phaser.GameObjects.Container) {
@@ -1328,7 +1342,7 @@ export class SimpleBunkerView {
     ).setOrigin(0.5)
     
     this.addButton.setInteractive({ useHandCursor: true })
-    this.addButton.on('pointerdown', () => this.showRoomSelectionMenu())
+    this.addButton.on('pointerdown', () => this.openRoomSelectionModal())
     
     // Добавляем кнопку к parent, чтобы она была поверх всего
     this.parent.add(this.addButton)
@@ -1359,6 +1373,38 @@ export class SimpleBunkerView {
     
     // Добавляем кнопку к parent, чтобы она была поверх всего
     this.parent.add(this.peopleButton)
+  }
+
+  private openRoomSelectionModal(): void {
+    // Вызываем HTML модальное окно через GameScene
+    if (window.openRoomSelection) {
+      window.openRoomSelection();
+    }
+  }
+
+  public setSelectedRoomType(roomType: string): void {
+    console.log('[bunkerView] setSelectedRoomType called with:', roomType);
+    console.log('[bunkerView] Available room types:', this.availableRoomTypes);
+    console.log('[bunkerView] Is room type valid?', this.availableRoomTypes.includes(roomType));
+    
+    // Сохраняем выбранный тип комнаты
+    this.selectedRoomType = roomType;
+    console.log('[bunkerView] selectedRoomType set to:', this.selectedRoomType);
+    
+    // Переводим в режим размещения комнаты
+    this.isAddingRoom = true;
+    console.log('[bunkerView] isAddingRoom set to:', this.isAddingRoom);
+    
+    // Показываем доступные позиции для размещения
+    const availablePositions = this.findAvailablePositions(roomType);
+    console.log('[bunkerView] Available positions found:', availablePositions.length);
+    
+    if (availablePositions.length > 0) {
+      console.log('[bunkerView] Calling showAvailablePositions');
+      this.showAvailablePositions(availablePositions, roomType);
+    } else {
+      console.log('[bunkerView] No available positions for room type:', roomType);
+    }
   }
 
   private showResidentsList(): void {
