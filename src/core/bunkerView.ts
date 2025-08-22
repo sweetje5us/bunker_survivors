@@ -424,7 +424,7 @@ export class SimpleBunkerView {
             }
           }
           
-          console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) получает новую цель: ${bestTarget.profession} (ID: ${bestTarget.id})`)
+          // console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) получает новую цель: ${bestTarget.profession} (ID: ${bestTarget.id})`)
           agent.enemyTargetId = bestTarget.id
           
           // Строим путь к цели
@@ -644,6 +644,37 @@ export class SimpleBunkerView {
               agent.target = undefined
               console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) получил новую цель и восстановил путь`)
             }
+          }
+        }
+      }
+    }
+    
+    // Дополнительная проверка: враги, которые застревают в движении
+    for (const agent of this.residentAgents) {
+      if (!agent || !agent.isEnemy) continue
+      
+      // Если враг в режиме ходьбы, но не имеет пути и цели
+      if (agent.animLock === 'walk' && !agent.path && !agent.target && agent.enemyTargetId) {
+        console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) застрял в движении, восстанавливаем путь`)
+        
+        // Ищем цель заново
+        const target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
+        if (target && target.rect) {
+          // Определяем комнату цели
+          let targetRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], target.rect.x, target.rect.y)) {
+              targetRoomIndex = i
+              break
+            }
+          }
+          
+          if (targetRoomIndex >= 0) {
+            // Строим путь заново
+            this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
+            agent.animLock = 'walk'
+            agent.target = undefined
+            console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) путь восстановлен к цели`)
           }
         }
       }
@@ -3353,11 +3384,22 @@ export class SimpleBunkerView {
           if (!ok) { ensureIdle(agent) }
           }
         }
+        
+        // Проверяем обнаружение врагов перед работой
+        if (!(agent as any).isCoward && !(agent as any).away) {
+          this.checkEnemyDetectionInRoom(agent)
+        }
       }
       // 2) Безработные/бездомные: бродят (только для НЕ врагов)
       if (!agent.isEnemy) {
         const profession = (agent.profession ?? '').toLowerCase()
         const isWanderer = (!profession || ['бездомный', 'безработный', 'бездельник'].includes(profession)) || agent.scheduleState === 'rest'
+        
+        // Проверяем обнаружение врагов перед блужданием
+        if (isWanderer && !(agent as any).isCoward && !(agent as any).away) {
+          this.checkEnemyDetectionInRoom(agent)
+        }
+        
         if (isWanderer && !agent.target && (!agent.path || agent.path.length === 0)) {
           // иногда стоим, иногда идём в случайную комнату (не лифт)
           if (!agent.dwellUntil || this.scene.time.now > agent.dwellUntil) {
@@ -3387,6 +3429,12 @@ export class SimpleBunkerView {
 
 
       // 3) Движение по пути (если цель есть); иначе остаёмся на месте, но продолжаем отрисовку состояний
+      
+      // Проверяем обнаружение врагов во время движения (для жителей)
+      if (!agent.isEnemy && !(agent as any).isCoward && !(agent as any).away) {
+        this.checkEnemyDetectionInRoom(agent)
+      }
+      
       moving = false
       if (agent.target) {
       const dx = agent.target.x - agent.rect.x
@@ -3469,6 +3517,16 @@ export class SimpleBunkerView {
       })()
       const workingNow = agent.scheduleState === 'work' && isLabWorkerNow && ((isInLab || inAssignedWork)) && hasArrived && !agent.isEnemy
       const sleepingNow = agent.scheduleState === 'sleep' && isInRestRoom && hasArrived
+      
+      // Проверяем обнаружение врагов перед работой и сном (для жителей)
+      if (!agent.isEnemy && !(agent as any).isCoward && !(agent as any).away) {
+        this.checkEnemyDetectionInRoom(agent)
+      }
+      
+      // Проверяем обнаружение врагов перед работой и сном (для жителей)
+      if (!agent.isEnemy && !(agent as any).isCoward && !(agent as any).away) {
+        this.checkEnemyDetectionInRoom(agent)
+      }
 
       const playAll = (suffix: 'attack' | 'sleep' | 'walk' | 'idle' | 'hurt' | 'dead') => {
         // Проверяем приоритет анимаций - hurt и dead имеют максимальный приоритет
@@ -4077,14 +4135,14 @@ export class SimpleBunkerView {
                   // Очищаем прямой target, чтобы враг использовал path
                   agent.target = undefined
                   
-                  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) строит путь через комнаты: ${enemyRoomIndex} -> ${targetRoom}`)
+                  // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) строит путь через комнаты: ${enemyRoomIndex} -> ${targetRoom}`)
                 }
               }
             } else {
               // Если в той же комнате и не в лифте, идем напрямую
               agent.target = new Phaser.Math.Vector2(target.rect.x, target.rect.y)
               agent.animLock = 'walk'
-              console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) идет напрямую к цели в той же комнате`)
+              // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) идет напрямую к цели в той же комнате`)
             }
           } else {
             // Враг в радиусе атаки - используем attack анимацию и наносим урон
@@ -4162,7 +4220,7 @@ export class SimpleBunkerView {
                       agent.target = new Phaser.Math.Vector2(newTarget.rect.x, newTarget.rect.y)
                       console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) нашел новую цель:`, agent.target)
                     } else {
-          agent.target = undefined
+                      agent.target = undefined
                     }
                   } else {
                     // Нет живых жителей вообще
@@ -4171,11 +4229,42 @@ export class SimpleBunkerView {
                     console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) не имеет цели - нет живых жителей`)
                   }
                 }
+                
+                // Дополнительная проверка: если враг застрял в движении, принудительно выводим его
+                if (agent.animLock === 'walk' && !agent.path && !agent.target && agent.enemyTargetId) {
+                  console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) застрял в движении, принудительно выводим`)
+                  
+                  // Ищем цель заново
+                  const target = this.residentAgents.find(a => a.id === agent.enemyTargetId && !a.isEnemy)
+                  if (target && target.rect) {
+                    // Определяем комнату цели
+                    let targetRoomIndex = -1
+                    for (let i = 0; i < this.roomRects.length; i++) {
+                      if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], target.rect.x, target.rect.y)) {
+                        targetRoomIndex = i
+                        break
+                      }
+                    }
+                    
+                    if (targetRoomIndex >= 0) {
+                      // Строим путь заново
+                      this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(target.rect.x, target.rect.y), false)
+                      agent.animLock = 'walk'
+                      agent.target = undefined
+                      console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) путь восстановлен к цели`)
+                    }
+                  }
+                }
                 const animationSuffix = agent.animLock === 'work' ? 'attack' : (agent.animLock || 'idle')
                 // console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) вызываем playAll с animLock=${agent.animLock}, suffix=${animationSuffix}`)
                 playAll(animationSuffix) // Гарантируем воспроизведение анимации
-      } else if (workingNow) {
-                // if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок workingNow`)
+            } else if (workingNow) {
+        // Проверяем обнаружение врагов перед работой (для жителей)
+        if (!agent.isEnemy && !(agent as any).isCoward && !(agent as any).away) {
+          this.checkEnemyDetectionInRoom(agent)
+        }
+        
+        // if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок workingNow`)
 
         if (agent.isEnemy) {
           // Для врагов используем idle анимацию
@@ -4210,6 +4299,11 @@ export class SimpleBunkerView {
         agent.target = undefined
         agent.path = []
       } else if (sleepingNow) {
+        // Проверяем обнаружение врагов перед сном (для жителей)
+        if (!agent.isEnemy && !(agent as any).isCoward && !(agent as any).away) {
+          this.checkEnemyDetectionInRoom(agent)
+        }
+        
         if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок sleepingNow`)
         
         // Для жителей проверяем, нужно ли просыпаться для боя
@@ -4248,8 +4342,13 @@ export class SimpleBunkerView {
         agent.animLock = null
         playAll('idle')
       } else if ((followingPath || moving) && !agent.isEnemy) {
-             if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок движения для НЕ-врагов`)
-             // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) в блоке движения: followingPath=${followingPath}, moving=${moving}`)
+        // Проверяем обнаружение врагов во время движения (для жителей)
+        if (!(agent as any).isCoward && !(agent as any).away) {
+          this.checkEnemyDetectionInRoom(agent)
+        }
+        
+        if (agent.isEnemy) console.log(`[DEBUG] Враг ${agent.enemyType} (ID: ${agent.id}) попал в блок движения для НЕ-врагов`)
+        // console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) в блоке движения: followingPath=${followingPath}, moving=${moving}`)
         agent.animLock = null
         // Флип по направлению движения
         if (agent.sprite && agent.target) {
@@ -5386,6 +5485,174 @@ export class SimpleBunkerView {
       agent.target = undefined
       agent.path = []
       agent.dwellUntil = undefined
+      
+      // Дополнительно: если житель агрессивный, он должен искать врагов в соседних комнатах
+      if ((agent as any).isAggressive) {
+        console.log(`[bunkerView] Агрессивный житель ${agent.profession} (ID: ${agent.id}) будет искать врагов в соседних комнатах`)
+      }
+    }
+    
+    // Дополнительная проверка: если житель агрессивный, проверяем врагов в соседних комнатах
+    if ((agent as any).isAggressive && !enemiesInRoom.length) {
+      const allEnemies = this.residentAgents.filter(a => 
+        a && a.isEnemy && (a.health || 0) > 0
+      )
+      
+      if (allEnemies.length > 0) {
+        // Ищем ближайшего врага
+        let bestEnemy = allEnemies[0]
+        let bestDistance = Number.POSITIVE_INFINITY
+        
+        for (const enemy of allEnemies) {
+          const distance = Phaser.Math.Distance.Between(
+            agent.rect.x, agent.rect.y,
+            enemy.rect.x, enemy.rect.y
+          )
+          if (distance < bestDistance) {
+            bestDistance = distance
+            bestEnemy = enemy
+          }
+        }
+        
+        // Если враг достаточно близко, идем к нему
+        if (bestDistance < 200) { // Радиус обнаружения 200 пикселей
+          console.log(`[bunkerView] Агрессивный житель ${agent.profession} (ID: ${agent.id}) обнаружил врага на расстоянии ${Math.round(bestDistance)}, идет к нему`)
+          
+          // Инициализируем боевые параметры если нужно
+          if (agent.health === undefined) {
+            this.initializeCombatStats(agent)
+          }
+          
+          // Устанавливаем цель атаки
+          ;(agent as any).combatTarget = bestEnemy.id
+          agent.animLock = 'walk'
+          
+          // Строим путь к врагу
+          let targetRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], bestEnemy.rect.x, bestEnemy.rect.y)) {
+              targetRoomIndex = i
+              break
+            }
+          }
+          
+          if (targetRoomIndex >= 0) {
+            this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(bestEnemy.rect.x, bestEnemy.rect.y), false)
+            agent.target = undefined
+            agent.dwellUntil = undefined
+          }
+        }
+      }
+    }
+    
+    // Специальная логика для бездомных и безработных: они должны быть более внимательными
+    const profession = (agent.profession ?? '').toLowerCase()
+    const isWanderer = (!profession || ['бездомный', 'безработный', 'бездельник'].includes(profession))
+    
+    if (isWanderer && !enemiesInRoom.length) {
+      // Бездомные и безработные проверяют врагов в соседних комнатах
+      const allEnemies = this.residentAgents.filter(a => 
+        a && a.isEnemy && (a.health || 0) > 0
+      )
+      
+      if (allEnemies.length > 0) {
+        // Ищем ближайшего врага
+        let bestEnemy = allEnemies[0]
+        let bestDistance = Number.POSITIVE_INFINITY
+        
+        for (const enemy of allEnemies) {
+          const distance = Phaser.Math.Distance.Between(
+            agent.rect.x, agent.rect.y,
+            enemy.rect.x, enemy.rect.y
+          )
+          if (distance < bestDistance) {
+            bestDistance = distance
+            bestEnemy = enemy
+          }
+        }
+        
+        // Если враг достаточно близко, идем к нему (даже если не агрессивный)
+        if (bestDistance < 150) { // Радиус обнаружения 150 пикселей для бездомных
+          console.log(`[bunkerView] Бездомный/безработный ${agent.profession} (ID: ${agent.id}) обнаружил врага на расстоянии ${Math.round(bestDistance)}, идет к нему`)
+          
+          // Инициализируем боевые параметры если нужно
+          if (agent.health === undefined) {
+            this.initializeCombatStats(agent)
+          }
+          
+          // Устанавливаем цель атаки
+          ;(agent as any).combatTarget = bestEnemy.id
+          agent.animLock = 'walk'
+          
+          // Строим путь к врагу
+          let targetRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], bestEnemy.rect.x, bestEnemy.rect.y)) {
+              targetRoomIndex = i
+              break
+            }
+          }
+          
+          if (targetRoomIndex >= 0) {
+            this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(bestEnemy.rect.x, bestEnemy.rect.y), false)
+            agent.target = undefined
+            agent.dwellUntil = undefined
+          }
+        }
+      }
+    }
+    
+    if (isWanderer && !enemiesInRoom.length) {
+      // Бездомные и безработные проверяют врагов в соседних комнатах
+      const allEnemies = this.residentAgents.filter(a => 
+        a && a.isEnemy && (a.health || 0) > 0
+      )
+      
+      if (allEnemies.length > 0) {
+        // Ищем ближайшего врага
+        let bestEnemy = allEnemies[0]
+        let bestDistance = Number.POSITIVE_INFINITY
+        
+        for (const enemy of allEnemies) {
+          const distance = Phaser.Math.Distance.Between(
+            agent.rect.x, agent.rect.y,
+            enemy.rect.x, enemy.rect.y
+          )
+          if (distance < bestDistance) {
+            bestDistance = distance
+            bestEnemy = enemy
+          }
+        }
+        
+        // Если враг достаточно близко, идем к нему (даже если не агрессивный)
+        if (bestDistance < 150) { // Радиус обнаружения 150 пикселей для бездомных
+          console.log(`[bunkerView] Бездомный/безработный ${agent.profession} (ID: ${agent.id}) обнаружил врага на расстоянии ${Math.round(bestDistance)}, идет к нему`)
+          
+          // Инициализируем боевые параметры если нужно
+          if (agent.health === undefined) {
+            this.initializeCombatStats(agent)
+          }
+          
+          // Устанавливаем цель атаки
+          ;(agent as any).combatTarget = bestEnemy.id
+          agent.animLock = 'walk'
+          
+          // Строим путь к врагу
+          let targetRoomIndex = -1
+          for (let i = 0; i < this.roomRects.length; i++) {
+            if (Phaser.Geom.Rectangle.Contains(this.roomRects[i], bestEnemy.rect.x, bestEnemy.rect.y)) {
+              targetRoomIndex = i
+              break
+            }
+          }
+          
+          if (targetRoomIndex >= 0) {
+            this.buildPathTo(agent, targetRoomIndex, new Phaser.Math.Vector2(bestEnemy.rect.x, bestEnemy.rect.y), false)
+            agent.target = undefined
+            agent.dwellUntil = undefined
+          }
+        }
+      }
     }
   }
 }
