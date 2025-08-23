@@ -949,6 +949,12 @@ export class GameScene extends Phaser.Scene {
     // Принудительно применяем лэйаут для корректной инициализации позиций превью и кнопок
     this.time.delayedCall(0, () => this.layout())
     this.time.delayedCall(50, () => this.layout())
+
+    // Initialize modals after bunker is fully set up (with delay to ensure proper initialization)
+    this.time.delayedCall(100, () => {
+      console.log('[GameScene] Initializing modals after bunker setup');
+      this.initializeModals();
+    });
   }
 
   private initResourcesBasedOnDifficulty(): void {
@@ -1134,6 +1140,15 @@ export class GameScene extends Phaser.Scene {
     } else {
     this.simpleBunker = new SimpleBunkerView(this, this.bunkerArea)
     }
+
+    // Инициализируем количество рядов инвентаря на основе количества складов
+    this.time.delayedCall(200, () => {
+      if (this.simpleBunker) {
+        const storageCount = this.simpleBunker.getStorageRoomCount?.() || 0;
+        console.log(`[GameScene] Initial storage room count: ${storageCount}`);
+        this.updateInventoryRows(storageCount);
+      }
+    });
     
     // В контейнерах Phaser порядок определяется позицией в списке, depth внутри контейнера не влияет.
     // Поднимем заголовок в конец списка, чтобы он был поверх картинок комнат.
@@ -3530,8 +3545,8 @@ export class GameScene extends Phaser.Scene {
           callback: () => this.updateUIOverlay()
         });
 
-        // Initialize modals with sample data
-        this.initializeModals();
+        // Initialize modals with sample data (will be called later with proper bunker state)
+        // this.initializeModals();
       } else {
         console.warn('[GameScene] UI overlay container not found or UI manager not available');
       }
@@ -3635,6 +3650,18 @@ export class GameScene extends Phaser.Scene {
         { icon: '💡', quantity: 7 },
         { icon: '📦', quantity: 12 }
       ];
+
+      // Если bunkerView доступен, используем актуальное количество складов
+      if (this.simpleBunker && this.simpleBunker.getStorageRoomCount) {
+        const storageCount = this.simpleBunker.getStorageRoomCount();
+        const correctRows = Math.max(1, storageCount + 1);
+        if (correctRows !== this.inventoryRows) {
+          console.log(`[GameScene] Correcting inventory rows from ${this.inventoryRows} to ${correctRows} based on ${storageCount} storage rooms`);
+          this.inventoryRows = correctRows;
+        }
+      }
+
+      console.log(`[GameScene] Initializing inventory with ${this.inventoryRows} rows`);
       window.populateInventoryModal(sampleInventory, this.inventoryRows);
     }
 
@@ -3685,6 +3712,89 @@ export class GameScene extends Phaser.Scene {
     this.inventoryRows++;
     // Re-initialize inventory with new row count
     this.initializeModals();
+  }
+
+  // Public method to update inventory rows based on storage room count
+  public updateInventoryRows(storageCount: number): void {
+    console.log(`[GameScene] updateInventoryRows called with storageCount: ${storageCount}`);
+    // Каждый склад дает +1 ряд инвентаря, минимум 1 ряд
+    const newRows = Math.max(1, storageCount + 1);
+
+    if (newRows !== this.inventoryRows) {
+      console.log(`[GameScene] Updating inventory rows: ${this.inventoryRows} -> ${newRows} (storage rooms: ${storageCount})`);
+      this.inventoryRows = newRows;
+
+      // Re-initialize inventory with new row count
+      this.initializeModals();
+
+      // Если модальное окно инвентаря открыто, обновляем его немедленно
+      const inventoryModal = document.getElementById('inventory-modal');
+      if (inventoryModal && inventoryModal.style.display !== 'none') {
+        console.log(`[GameScene] Inventory modal is open, refreshing immediately after room removal`);
+        this.time.delayedCall(100, () => {
+          if (typeof window.populateInventoryModal === 'function') {
+            const sampleInventory = [
+              { icon: '🍎', quantity: 5 },
+              { icon: '💊', quantity: 3 },
+              { icon: '🔧', quantity: 1 },
+              { icon: '🧰', quantity: 2 },
+              { icon: '💡', quantity: 7 },
+              { icon: '📦', quantity: 12 }
+            ];
+            window.populateInventoryModal(sampleInventory, this.inventoryRows);
+            console.log(`[GameScene] Immediate inventory refresh with ${this.inventoryRows} rows after room removal`);
+          }
+        });
+      }
+
+      // Также обновляем глобальное состояние инвентаря с задержкой
+      this.time.delayedCall(200, () => {
+        if (typeof window.populateInventoryModal === 'function') {
+          const sampleInventory = [
+            { icon: '🍎', quantity: 5 },
+            { icon: '💊', quantity: 3 },
+            { icon: '🔧', quantity: 1 },
+            { icon: '🧰', quantity: 2 },
+            { icon: '💡', quantity: 7 },
+            { icon: '📦', quantity: 12 }
+          ];
+          window.populateInventoryModal(sampleInventory, this.inventoryRows);
+          console.log(`[GameScene] Inventory updated with ${this.inventoryRows} rows via delayed call`);
+
+          // Принудительно обновляем интерфейс инвентаря если модальное окно открыто
+          const inventoryModal = document.getElementById('inventory-modal');
+          if (inventoryModal && inventoryModal.style.display !== 'none' && typeof window.populateInventoryModal === 'function') {
+            console.log(`[GameScene] Forcing inventory UI refresh`);
+            this.time.delayedCall(100, () => {
+              if (typeof window.populateInventoryModal === 'function') {
+                window.populateInventoryModal(sampleInventory, this.inventoryRows);
+              }
+            });
+          }
+        }
+      });
+    } else {
+      console.log(`[GameScene] No change needed: inventory already has ${this.inventoryRows} rows for ${storageCount} storage rooms`);
+      // Даже если нет изменений, обновим интерфейс если модальное окно открыто
+      const inventoryModal = document.getElementById('inventory-modal');
+      if (inventoryModal && inventoryModal.style.display !== 'none') {
+        console.log(`[GameScene] Inventory modal is open, refreshing even though no change needed`);
+        this.time.delayedCall(100, () => {
+          if (typeof window.populateInventoryModal === 'function') {
+            const sampleInventory = [
+              { icon: '🍎', quantity: 5 },
+              { icon: '💊', quantity: 3 },
+              { icon: '🔧', quantity: 1 },
+              { icon: '🧰', quantity: 2 },
+              { icon: '💡', quantity: 7 },
+              { icon: '📦', quantity: 12 }
+            ];
+            window.populateInventoryModal(sampleInventory, this.inventoryRows);
+            console.log(`[GameScene] Inventory refresh with ${this.inventoryRows} rows (no change in count)`);
+          }
+        });
+      }
+    }
   }
 
   public openRoomSelection(): void {

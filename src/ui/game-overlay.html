@@ -33,6 +33,15 @@
             font-size: 10px;
         }
 
+        /* Класс для полного отключения pointer-events во время перемещения */
+        .panning-disabled {
+            pointer-events: none !important;
+        }
+
+        .panning-disabled * {
+            pointer-events: none !important;
+        }
+
         .game-header {
             background: linear-gradient(180deg, var(--bunker-bg) 0%, #2a2a2a 100%);
             border-bottom: 3px solid var(--bunker-accent);
@@ -420,7 +429,13 @@
             padding: 20px;
             color: var(--bunker-text);
             overflow-y: auto;
-            max-height: calc(90vh - 80px);
+            max-height: calc(95vh - 80px);
+        }
+
+        /* Specific styles for inventory modal */
+        #inventory-modal .modal-body {
+            min-height: 600px;
+            overflow-y: visible;
         }
 
         /* Population Modal */
@@ -564,6 +579,142 @@
         .equip-slot.equipped {
             border-color: var(--bunker-green);
             background: rgba(76, 175, 80, 0.1);
+        }
+
+        /* Weapon slot specific styles */
+        .weapon-slot {
+            position: relative;
+            min-height: 80px;
+            padding: 10px;
+        }
+
+        .weapon-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+            min-height: 60px;
+        }
+
+        .weapon-icon {
+            width: 64px;
+            height: 32px;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+
+        /* Specific weapon sizes for main display */
+        .weapon-slot[data-current-weapon="pistol"] .weapon-icon {
+            width: 32px;
+            height: 32px;
+        }
+
+        .weapon-slot[data-current-weapon="shotgun"] .weapon-icon {
+            width: 96px;
+            height: 32px;
+        }
+
+        .weapon-slot[data-current-weapon="assault_rifle"] .weapon-icon {
+            width: 96px;
+            height: 32px;
+        }
+
+        .weapon-slot[data-current-weapon="sniper_rifle"] .weapon-icon {
+            width: 128px;
+            height: 32px;
+        }
+
+        .weapon-name {
+            font-size: 10px;
+            color: var(--bunker-text);
+            text-align: center;
+        }
+
+        .weapon-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #1a1a1a;
+            border: 2px solid var(--bunker-accent);
+            border-radius: 4px;
+            z-index: 25000;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .weapon-dropdown.show {
+            display: block;
+        }
+
+        .weapon-option {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid #444;
+            min-height: 60px;
+            position: relative;
+        }
+
+        .weapon-option:last-child {
+            border-bottom: none;
+        }
+
+        .weapon-option:hover:not(.locked) {
+            background: #2a2a2a;
+        }
+
+        .weapon-option.locked {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .weapon-option.locked::after {
+            content: '🔒';
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 14px;
+            color: var(--bunker-red);
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .weapon-option-icon {
+            object-fit: contain;
+            image-rendering: pixelated;
+            max-width: 100%;
+            max-height: 40px;
+        }
+
+        /* Specific weapon sizes in dropdown */
+        .weapon-option[data-weapon="pistol"] .weapon-option-icon {
+            width: 32px;
+            height: 32px;
+        }
+
+        .weapon-option[data-weapon="shotgun"] .weapon-option-icon {
+            width: 96px;
+            height: 32px;
+        }
+
+        .weapon-option[data-weapon="assault_rifle"] .weapon-option-icon {
+            width: 96px;
+            height: 32px;
+        }
+
+        .weapon-option[data-weapon="sniper_rifle"] .weapon-option-icon {
+            width: 128px;
+            height: 32px;
         }
 
         .inventory-grid {
@@ -1312,7 +1463,26 @@
         <div class="equipment-section">
           <h3>Экипировка</h3>
           <div class="equipment-slots">
-            <div class="equip-slot" data-slot="weapon">Оружие</div>
+            <div class="equip-slot weapon-slot" data-slot="weapon" data-current-weapon="pistol" onclick="toggleWeaponDropdown()">
+              <div class="weapon-display">
+                <img src="src/sprites/guns/img/pistol.png" alt="Пистолет" class="weapon-icon" id="current-weapon-icon">
+                <div class="weapon-name" id="current-weapon-name">Пистолет</div>
+              </div>
+              <div class="weapon-dropdown" id="weapon-dropdown">
+                <div class="weapon-option" data-weapon="pistol" onclick="selectWeapon('pistol')">
+                  <img src="src/sprites/guns/img/pistol.png" alt="Пистолет" class="weapon-option-icon">
+                </div>
+                <div class="weapon-option locked" data-weapon="shotgun" onclick="selectWeapon('shotgun')">
+                  <img src="src/sprites/guns/img/shotgun.png" alt="Дробовик" class="weapon-option-icon">
+                </div>
+                <div class="weapon-option locked" data-weapon="assault_rifle" onclick="selectWeapon('assault_rifle')">
+                  <img src="src/sprites/guns/img/assault_rifle.png" alt="Штурмовая винтовка" class="weapon-option-icon">
+                </div>
+                <div class="weapon-option locked" data-weapon="sniper_rifle" onclick="selectWeapon('sniper_rifle')">
+                  <img src="src/sprites/guns/img/sniper_rifle.png" alt="Снайперская винтовка" class="weapon-option-icon">
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1501,9 +1671,217 @@
             };
         });
 
+        // Weapon system functions
+        let currentWeapon = 'pistol';
+        let weaponDropdownVisible = false;
+
+        // Make functions globally available immediately
+        window.toggleWeaponDropdown = function() {
+            const dropdown = document.getElementById('weapon-dropdown');
+            if (dropdown) {
+                weaponDropdownVisible = !weaponDropdownVisible;
+                if (weaponDropdownVisible) {
+                    dropdown.classList.add('show');
+                    if (window.updateWeaponAvailability) window.updateWeaponAvailability();
+                } else {
+                    dropdown.classList.remove('show');
+                }
+            }
+        };
+
+        window.selectWeapon = function(weaponType) {
+            if (window.isWeaponAvailable && !window.isWeaponAvailable(weaponType)) {
+                if (window.showToast) window.showToast('Это оружие требует изучения способности!');
+                return;
+            }
+
+            currentWeapon = weaponType;
+            if (window.updateWeaponDisplay) window.updateWeaponDisplay(weaponType);
+            weaponDropdownVisible = false;
+            const dropdown = document.getElementById('weapon-dropdown');
+            if (dropdown) {
+                dropdown.classList.remove('show');
+            }
+
+            if (window.showToast) window.showToast(`Выбрано оружие: ${window.getWeaponDisplayName ? window.getWeaponDisplayName(weaponType) : weaponType}`);
+        };
+
+        // Define supporting functions
+        window.showToast = function(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 10px 20px;
+                border-radius: 5px;
+                z-index: 10000;
+                font-size: 12px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '1';
+            }, 10);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            }, 2000);
+        };
+
+        window.getWeaponData = function(weaponType) {
+            const weapons = {
+                pistol: {
+                    name: 'Пистолет',
+                    icon: 'src/sprites/weapon/pistol/frame_00_delay-0.3s.png',
+                    damage: 1,
+                    ammoType: 'pistol'
+                },
+                shotgun: {
+                    name: 'Дробовик',
+                    icon: 'src/sprites/weapon/shotgun/frame_00_delay-0.4s.png',
+                    damage: 2,
+                    ammoType: 'shotgun'
+                },
+                assault_rifle: {
+                    name: 'Штурмовая винтовка',
+                    icon: 'src/sprites/weapon/assault_rifle/frame_00_delay-0.4s.png',
+                    damage: 1,
+                    ammoType: 'assault_rifle'
+                },
+                sniper_rifle: {
+                    name: 'Снайперская винтовка',
+                    icon: 'src/sprites/weapon/sniper_rifle/frame_00_delay-0.4s.png',
+                    damage: 3,
+                    ammoType: 'sniper_rifle'
+                }
+            };
+
+            return weapons[weaponType] || weapons.pistol;
+        };
+
+        window.getWeaponDisplayName = function(weaponType) {
+            const weaponData = window.getWeaponData(weaponType);
+            return weaponData.name;
+        };
+
+        window.isWeaponAvailable = function(weaponType) {
+            if (weaponType === 'pistol') return true;
+
+            if (typeof window.getAbilitiesData === 'function') {
+                try {
+                    const abilitiesData = window.getAbilitiesData();
+                    if (abilitiesData && abilitiesData.abilitiesData) {
+                        const defenseAbilities = abilitiesData.abilitiesData.defense;
+                        if (Array.isArray(defenseAbilities)) {
+                            switch (weaponType) {
+                                case 'shotgun':
+                                    const shotgunAbility = defenseAbilities.find(ability => ability.id === 'def_shotgun');
+                                    return shotgunAbility && shotgunAbility.currentLevel > 0;
+                                case 'assault_rifle':
+                                    const assaultRifleAbility = defenseAbilities.find(ability => ability.id === 'def_assault_rifle');
+                                    return assaultRifleAbility && assaultRifleAbility.currentLevel > 0;
+                                case 'sniper_rifle':
+                                    const sniperRifleAbility = defenseAbilities.find(ability => ability.id === 'def_sniper_rifle');
+                                    return sniperRifleAbility && sniperRifleAbility.currentLevel > 0;
+                                default:
+                                    return false;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Error checking weapon availability:', error);
+                }
+            }
+
+            return false;
+        };
+
+        window.updateWeaponDisplay = function(weaponType) {
+            const icon = document.getElementById('current-weapon-icon');
+            const name = document.getElementById('current-weapon-name');
+            const weaponSlot = document.querySelector('.weapon-slot');
+
+            if (icon && name && weaponSlot) {
+                const weaponData = window.getWeaponData(weaponType);
+                icon.src = weaponData.icon;
+                icon.alt = weaponData.name;
+                name.textContent = weaponData.name;
+                weaponSlot.setAttribute('data-current-weapon', weaponType);
+            }
+        };
+
+        window.updateWeaponAvailability = function() {
+            const weaponOptions = document.querySelectorAll('.weapon-option');
+
+            weaponOptions.forEach(option => {
+                const weaponType = option.dataset.weapon;
+                const isAvailable = window.isWeaponAvailable(weaponType);
+
+                if (isAvailable) {
+                    option.classList.remove('locked');
+                    const status = option.querySelector('.weapon-option-status');
+                    if (status) {
+                        status.textContent = '✓';
+                        status.className = 'weapon-option-status available';
+                    }
+                } else {
+                    option.classList.add('locked');
+                    const status = option.querySelector('.weapon-option-status');
+                    if (status) {
+                        status.textContent = '🔒';
+                        status.className = 'weapon-option-status locked';
+                    }
+                }
+            });
+        };
+
+        window.initializeWeaponSystem = function() {
+            window.updateWeaponDisplay(currentWeapon);
+            window.updateWeaponAvailability();
+        };
+
+                // Make variables globally available
+        window.currentWeapon = currentWeapon;
+        window.weaponDropdownVisible = weaponDropdownVisible;
+
+        // Add event listeners when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Close weapon dropdown when clicking outside
+            document.addEventListener('click', function(event) {
+                const weaponSlot = document.querySelector('.weapon-slot');
+                const dropdown = document.getElementById('weapon-dropdown');
+
+                if (weaponSlot && dropdown && !weaponSlot.contains(event.target)) {
+                    if (window.weaponDropdownVisible !== undefined) {
+                        window.weaponDropdownVisible = false;
+                    }
+                    dropdown.classList.remove('show');
+                }
+            });
+        });
+
         // Button functions (placeholders)
         function openInventory() {
             console.log('Opening inventory...');
+            // Initialize weapon system
+            if (window.initializeWeaponSystem) {
+                window.initializeWeaponSystem();
+            }
             // This will be connected to Phaser game
             if (window.game && window.game.scene) {
                 const gameScene = window.game.scene.getScene('Game');
@@ -1562,6 +1940,8 @@
                 }
             }
         }
+
+
     </script>
 </body>
 </html>

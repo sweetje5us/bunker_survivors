@@ -15,6 +15,18 @@
         display:flex;
       }
       canvas { display:block; margin:auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+      
+      /* Защита от случайных кликов в модальном окне */
+      .modal {
+        pointer-events: auto;
+        touch-action: pan-y; /* Разрешаем только вертикальный скролл */
+      }
+      
+      /* Предотвращаем горизонтальные жесты в модальном окне */
+      .room-selection-grid {
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+      }
     </style>
   </head>
   <body>
@@ -43,11 +55,32 @@
   <script>
     // Global functions for UI overlay button clicks
     window.openInventory = function() {
-      // Populate inventory and open modal
-      if (typeof populateInventoryModal === 'function') {
-        populateInventoryModal(null); // Will use sample data
-      }
+      // Open modal first
       openModal('inventory-modal');
+
+      // Initialize weapon system when inventory is opened
+      setTimeout(() => {
+        if (window.initializeWeaponSystem) {
+          window.initializeWeaponSystem();
+        }
+
+        // Обновляем инвентарь на основе текущего состояния GameScene
+        if (window.game && window.game.scene && typeof populateInventoryModal === 'function') {
+          const gameScene = window.game.scene.getScene('Game');
+          if (gameScene && gameScene.inventoryRows) {
+            console.log(`[openInventory] Refreshing inventory with ${gameScene.inventoryRows} rows from GameScene`);
+            const sampleInventory = [
+              { icon: '🍎', quantity: 5 },
+              { icon: '💊', quantity: 3 },
+              { icon: '🔧', quantity: 1 },
+              { icon: '🧰', quantity: 2 },
+              { icon: '💡', quantity: 7 },
+              { icon: '📦', quantity: 12 }
+            ];
+            populateInventoryModal(sampleInventory, gameScene.inventoryRows);
+          }
+        }
+      }, 100);
     };
 
     window.openAbilities = function() {
@@ -56,33 +89,245 @@
         populateAbilitiesModal(null); // Will use sample data
       }
       openModal('abilities-modal');
+
+      // Initialize weapon system when abilities modal is opened
+      setTimeout(() => {
+        if (window.initializeWeaponSystem) {
+          window.initializeWeaponSystem();
+        }
+      }, 100);
     };
 
-    window.openRoomSelection = function() {
-      // Populate room selection and open modal
-      if (typeof populateRoomSelectionModal === 'function') {
-        // Получаем GameScene из window.game
-        let gameScene = null;
-        if (window.game && window.game.scene) {
-          console.log('[HTML] Available scenes:', window.game.scene.scenes.map(s => s.scene.key));
-          
-          // Пробуем разные варианты имен сцены
-          gameScene = window.game.scene.getScene('GameScene') || 
-                     window.game.scene.getScene('Game');
-          
-          // Если не нашли по имени, берем первую доступную сцену Game
-          if (!gameScene) {
-            const gameScenes = window.game.scene.scenes.filter(s => s.scene.key === 'Game');
-            if (gameScenes.length > 0) {
-              gameScene = gameScenes[0];
+    // Weapon system functions
+    window.currentWeapon = 'pistol';
+    window.weaponDropdownVisible = false;
+
+    window.toggleWeaponDropdown = function() {
+      const dropdown = document.getElementById('weapon-dropdown');
+      if (dropdown) {
+        window.weaponDropdownVisible = !window.weaponDropdownVisible;
+        if (window.weaponDropdownVisible) {
+          dropdown.classList.add('show');
+          if (window.updateWeaponAvailability) window.updateWeaponAvailability();
+        } else {
+          dropdown.classList.remove('show');
+        }
+      }
+    };
+
+    window.selectWeapon = function(weaponType) {
+      if (window.isWeaponAvailable && !window.isWeaponAvailable(weaponType)) {
+        if (window.showToast) window.showToast('Это оружие требует изучения способности!');
+        return;
+      }
+
+      window.currentWeapon = weaponType;
+      if (window.updateWeaponDisplay) window.updateWeaponDisplay(weaponType);
+      window.weaponDropdownVisible = false;
+      const dropdown = document.getElementById('weapon-dropdown');
+      if (dropdown) {
+        dropdown.classList.remove('show');
+      }
+
+      if (window.showToast) window.showToast(`Выбрано оружие: ${window.getWeaponDisplayName ? window.getWeaponDisplayName(weaponType) : weaponType}`);
+    };
+
+    window.getWeaponData = function(weaponType) {
+      const weapons = {
+        pistol: {
+          name: 'Пистолет',
+          icon: 'src/sprites/guns/img/pistol.png',
+          damage: 1,
+          ammoType: 'pistol'
+        },
+        shotgun: {
+          name: 'Дробовик',
+          icon: 'src/sprites/guns/img/shotgun.png',
+          damage: 2,
+          ammoType: 'shotgun'
+        },
+        assault_rifle: {
+          name: 'Штурмовая винтовка',
+          icon: 'src/sprites/guns/img/assault_rifle.png',
+          damage: 1,
+          ammoType: 'assault_rifle'
+        },
+        sniper_rifle: {
+          name: 'Снайперская винтовка',
+          icon: 'src/sprites/guns/img/sniper_rifle.png',
+          damage: 3,
+          ammoType: 'sniper_rifle'
+        }
+      };
+
+      return weapons[weaponType] || weapons.pistol;
+    };
+
+    window.getWeaponDisplayName = function(weaponType) {
+      const weaponData = window.getWeaponData(weaponType);
+      return weaponData.name;
+    };
+
+    window.isWeaponAvailable = function(weaponType) {
+      if (weaponType === 'pistol') return true;
+
+      if (typeof window.getAbilitiesData === 'function') {
+        try {
+          const abilitiesData = window.getAbilitiesData();
+          if (abilitiesData && abilitiesData.abilitiesData) {
+            const defenseAbilities = abilitiesData.abilitiesData.defense;
+            if (Array.isArray(defenseAbilities)) {
+              switch (weaponType) {
+                case 'shotgun':
+                  const shotgunAbility = defenseAbilities.find(ability => ability.id === 'def_shotgun');
+                  return shotgunAbility && shotgunAbility.currentLevel > 0;
+                case 'assault_rifle':
+                  const assaultRifleAbility = defenseAbilities.find(ability => ability.id === 'def_assault_rifle');
+                  return assaultRifleAbility && assaultRifleAbility.currentLevel > 0;
+                case 'sniper_rifle':
+                  const sniperRifleAbility = defenseAbilities.find(ability => ability.id === 'def_sniper_rifle');
+                  return sniperRifleAbility && sniperRifleAbility.currentLevel > 0;
+                default:
+                  return false;
+              }
             }
           }
-          
-          console.log('[HTML] Found gameScene:', !!gameScene);
+        } catch (error) {
+          console.warn('Error checking weapon availability:', error);
         }
-        populateRoomSelectionModal(gameScene);
       }
-      openModal('room-selection-modal');
+
+      return false;
+    };
+
+    window.updateWeaponDisplay = function(weaponType) {
+      const icon = document.getElementById('current-weapon-icon');
+      const name = document.getElementById('current-weapon-name');
+      const weaponSlot = document.querySelector('.weapon-slot');
+
+      if (icon && name && weaponSlot) {
+        const weaponData = window.getWeaponData(weaponType);
+        icon.src = weaponData.icon;
+        icon.alt = weaponData.name;
+        name.textContent = weaponData.name;
+        weaponSlot.setAttribute('data-current-weapon', weaponType);
+      }
+    };
+
+    window.updateWeaponAvailability = function() {
+      const weaponOptions = document.querySelectorAll('.weapon-option');
+
+      weaponOptions.forEach(option => {
+        const weaponType = option.dataset.weapon;
+        const isAvailable = window.isWeaponAvailable(weaponType);
+
+        if (isAvailable) {
+          option.classList.remove('locked');
+          const status = option.querySelector('.weapon-option-status');
+          if (status) {
+            status.textContent = '✓';
+            status.className = 'weapon-option-status available';
+          }
+        } else {
+          option.classList.add('locked');
+          const status = option.querySelector('.weapon-option-status');
+          if (status) {
+            status.textContent = '🔒';
+            status.className = 'weapon-option-status locked';
+          }
+        }
+      });
+    };
+
+    window.initializeWeaponSystem = function() {
+      window.updateWeaponDisplay(window.currentWeapon);
+      window.updateWeaponAvailability();
+    };
+
+    window.showToast = function(message) {
+      const toast = document.createElement('div');
+      toast.className = 'toast-notification';
+      toast.textContent = message;
+      toast.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 10000;
+        font-size: 12px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      `;
+
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '1';
+      }, 10);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 300);
+      }, 2000);
+    };
+
+    // Close weapon dropdown when clicking outside
+    document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('click', function(event) {
+        const weaponSlot = document.querySelector('.weapon-slot');
+        const dropdown = document.getElementById('weapon-dropdown');
+
+        if (weaponSlot && dropdown && !weaponSlot.contains(event.target)) {
+          if (window.weaponDropdownVisible !== undefined) {
+            window.weaponDropdownVisible = false;
+          }
+          if (dropdown.classList.contains('show')) {
+            dropdown.classList.remove('show');
+          }
+        }
+      });
+    });
+
+    window.openRoomSelection = function() {
+      // Предотвращаем всплытие события, чтобы избежать случайного выбора комнаты
+      // Небольшая задержка для предотвращения случайного клика на мобильном
+      setTimeout(() => {
+        // Populate room selection and open modal
+        if (typeof populateRoomSelectionModal === 'function') {
+          // Получаем GameScene из window.game
+          let gameScene = null;
+          if (window.game && window.game.scene) {
+            console.log('[HTML] Available scenes:', window.game.scene.scenes.map(s => s.scene.key));
+            
+            // Пробуем разные варианты имен сцены
+            gameScene = window.game.scene.getScene('GameScene') || 
+                       window.game.scene.getScene('Game');
+            
+            // Если не нашли по имени, берем первую доступную сцену Game
+            if (!gameScene) {
+              const gameScenes = window.game.scene.scenes.filter(s => s.scene.key === 'Game');
+              if (gameScenes.length > 0) {
+                gameScene = gameScenes[0];
+              }
+            }
+            
+            console.log('[HTML] Found gameScene:', !!gameScene);
+          }
+          populateRoomSelectionModal(gameScene);
+        }
+        openModal('room-selection-modal');
+        // Записываем время открытия модального окна для защиты от случайного выбора
+        window.lastRoomModalOpenTime = Date.now();
+      }, 100); // Задержка 100мс для предотвращения случайного клика
     };
 
     window.togglePause = function() {
@@ -691,14 +936,20 @@
 
     // Inventory functions
     window.populateInventoryModal = function(inventory, inventoryRows = 1) {
+      console.log(`[populateInventoryModal] Called with inventoryRows: ${inventoryRows}, inventory length: ${inventory ? inventory.length : 0}`);
+
       const grid = document.getElementById('inventory-grid');
-      if (!grid) return;
+      if (!grid) {
+        console.log(`[populateInventoryModal] inventory-grid element not found`);
+        return;
+      }
 
       // Clear existing slots
       grid.innerHTML = '';
 
       // Create inventory slots (6 columns × inventoryRows)
       const totalSlots = 6 * inventoryRows;
+      console.log(`[populateInventoryModal] Creating ${totalSlots} slots (6 columns × ${inventoryRows} rows)`);
       for (let i = 0; i < totalSlots; i++) {
         const slot = document.createElement('div');
         slot.className = 'inventory-slot';
@@ -715,6 +966,8 @@
 
         grid.appendChild(slot);
       }
+
+      console.log(`[populateInventoryModal] Successfully created ${totalSlots} inventory slots`);
     };
 
     window.selectInventorySlot = function(index) {
@@ -1436,9 +1689,41 @@
           ${room.requiredAbility ? `<div class="room-requirement">Требует: ${getAbilityName(room.requiredAbility)}</div>` : ''}
         `;
 
-        // Add click handler
-        roomOption.addEventListener('click', () => {
-          console.log('[HTML] Room clicked:', room.id, room.name);
+        // Add both click and touch handlers with protection against accidental clicks
+        const handleRoomSelect = (event) => {
+          // Дополнительная защита: проверяем, не было ли недавно открыто модальное окно
+          const now = Date.now();
+          const lastOpenTime = window.lastRoomModalOpenTime || 0;
+          if (now - lastOpenTime < 200) { // 200мс после открытия модального окна
+            console.log('[HTML] Modal just opened, ignoring room selection');
+            return;
+          }
+          
+          // Проверяем, не является ли это скроллом
+          if (event.type === 'touchend' && event.changedTouches && event.changedTouches.length > 0) {
+            const touch = event.changedTouches[0];
+            const startX = roomOption.dataset.touchStartX;
+            const startY = roomOption.dataset.touchStartY;
+            
+            // Если есть начальная позиция касания, проверяем расстояние
+            if (startX && startY) {
+              const dx = Math.abs(touch.clientX - parseInt(startX));
+              const dy = Math.abs(touch.clientY - parseInt(startY));
+              
+              // Если движение больше 10px, считаем это скроллом, а не выбором
+              if (dx > 10 || dy > 10) {
+                console.log('[HTML] Scrolling detected, ignoring room selection');
+                return;
+              }
+            }
+          }
+          
+          // Предотвращаем всплытие события
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          
+          console.log('[HTML] Room selected:', room.id, room.name);
 
           // Проверяем, заблокирована ли комната
           if (roomOption.classList.contains('locked-room')) {
@@ -1492,7 +1777,19 @@
           
           // Close the modal
           closeModal('room-selection-modal');
+        };
+
+        // Привязываем обработчики событий для кликов и касаний
+        roomOption.addEventListener('click', handleRoomSelect);
+        roomOption.addEventListener('touchstart', (event) => {
+          // Сохраняем начальную позицию касания для определения скролла
+          if (event.touches && event.touches.length > 0) {
+            const touch = event.touches[0];
+            roomOption.dataset.touchStartX = touch.clientX.toString();
+            roomOption.dataset.touchStartY = touch.clientY.toString();
+          }
         });
+        roomOption.addEventListener('touchend', handleRoomSelect);
 
         roomSelectionGrid.appendChild(roomOption);
       });

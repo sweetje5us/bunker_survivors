@@ -51,8 +51,13 @@ export class SimpleBunkerView {
   private mode: 'overview' | 'focus' = 'overview'
   private focusedIndex: number | null = null
   private isPanning = false
+  private recentlyFinishedPanning = false
   private panStart?: Phaser.Math.Vector2
   private contentStart?: Phaser.Math.Vector2
+  
+  // Фиксированные масштабы для предотвращения автоматического изменения
+  private fixedFocusScale: number = 1
+  private fixedOverviewScale: number = 0.5
   private readonly overviewMinScale = 0.5
   private debugAnim: boolean = false
   
@@ -196,27 +201,94 @@ export class SimpleBunkerView {
 
     // Interactions: toggle zoom on click, pan in overview
     this.root.setInteractive(new Phaser.Geom.Rectangle(0, 0, 1, 1), Phaser.Geom.Rectangle.Contains)
+    
+    // Для мобильного: включаем поддержку touch событий
+    this.scene.input.addPointer(2) // Добавляем дополнительные указатели для мультитач
+
+    // Используем события на document уровне для гарантированного перехвата
+    this.setupDocumentEvents()
+    
+    // Для мобильного: улучшаем обработку touch событий
+    this.scene.input.setDefaultCursor('grab')
+
     this.root.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      this.isPanning = this.mode === 'overview'
+      // Проверяем, не кликаем ли мы по HTML UI элементам
+      const target = p.event.target as HTMLElement
+      if (target && (target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
+                     target.closest('.resource-item') || target.closest('.btn') ||
+                     target.closest('[onclick]'))) {
+        console.log('[bunkerView] Click on HTML element, ignoring pan')
+        return
+      }
+
+      // Начинаем перемещение только в режиме overview
+      // Подготавливаем к возможному перемещению или клику
+      this.isPanning = false // Начинаем с false, активируем только при движении в режиме overview
       ;(p as any)._dragged = false
       this.panStart = new Phaser.Math.Vector2(p.x, p.y)
       this.contentStart = new Phaser.Math.Vector2(this.content.x, this.content.y)
+
     })
+
     this.root.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (!this.isPanning || !this.panStart || !this.contentStart) return
+      if (!this.panStart || !this.contentStart) return
+      
       const dx = p.x - this.panStart.x
       const dy = p.y - this.panStart.y
-      if (Math.abs(dx) + Math.abs(dy) > 4) (p as any)._dragged = true
-      const newX = this.contentStart.x + dx
-      const newY = this.contentStart.y + dy
-      this.content.setPosition(newX, newY)
-      // Синхронизируем затемнение при панорамировании
-      this.darknessContainer.setPosition(newX, newY)
-      // Перерисуем overlay, чтобы шапки/кнопки следовали за комнатами при панорамировании
-      this.updateLabels()
+      
+      // Отмечаем, что было движение, если расстояние больше порога
+      // Для мобильного используем больший порог
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      const panThreshold = isMobile ? 8 : 4 // Больший порог для мобильного
+      
+      if (Math.abs(dx) + Math.abs(dy) > panThreshold) {
+        if (!this.isPanning) {
+          this.isPanning = true
+          this.disableHTMLEvents() // Отключаем HTML overlay только при реальном движении
+
+        }
+        
+        // Выполняем перемещение
+        (p as any)._dragged = true
+        
+        const newX = this.contentStart.x + dx
+        const newY = this.contentStart.y + dy
+        this.content.setPosition(newX, newY)
+        // Синхронизируем затемнение при панорамировании
+        this.darknessContainer.setPosition(newX, newY)
+        // Перерисуем overlay, чтобы шапки/кнопки следовали за комнатами при панорамировании
+        this.updateLabels()
+      }
     })
     this.root.on('pointerup', (p: Phaser.Input.Pointer) => {
-      if (!(p as any)._dragged) {
+      // Сохраняем позицию контента до восстановления HTML
+      const contentX = this.content.x
+      const contentY = this.content.y
+
+      // Восстанавливаем pointer-events на HTML overlay только если было перемещение
+      if (this.isPanning) {
+        this.enableHTMLEvents()
+      }
+
+      // Восстанавливаем позицию контента после восстановления HTML
+      if (this.content.x !== contentX || this.content.y !== contentY) {
+        console.log('[bunkerView] Content position changed during pointerup, restoring:', contentX, contentY)
+        this.content.setPosition(contentX, contentY)
+        this.darknessContainer.setPosition(contentX, contentY)
+      }
+
+      // Проверяем, не кликнули ли мы по HTML UI элементам
+      const target = p.event.target as HTMLElement
+      if (target && (target.tagName === 'BUTTON' || target.tagName === 'INPUT' ||
+                     target.closest('.resource-item') || target.closest('.btn') ||
+                     target.closest('[onclick]'))) {
+        console.log('[bunkerView] Click on HTML element, ignoring room click')
+        this.isPanning = false
+        return
+      }
+
+      // Определяем тип события: если не было перемещения, то это клик
+      if (!this.isPanning) {
         // Определяем, в какую комнату кликнули (в локальных координатах content)
         const m = this.content.getWorldTransformMatrix()
         const tmp = new Phaser.Math.Vector2()
@@ -257,6 +329,12 @@ export class SimpleBunkerView {
         }
 
         this.layout(this.viewport)
+      }
+      
+      // Сбрасываем флаги только если не было перемещения
+      if (!this.isPanning) {
+        this.panStart = undefined
+        this.contentStart = undefined
       }
       this.isPanning = false
     })
@@ -975,25 +1053,68 @@ export class SimpleBunkerView {
 
     if (this.mode === 'focus' && this.focusedIndex !== null) {
       const fr = this.roomRects[this.focusedIndex]
-      const sFocus = getFocusScale(fr)
+      // Используем фиксированный фокусный масштаб или вычисляем новый, если это первая фокусировка
+      if (this.fixedFocusScale === 1) {
+        this.fixedFocusScale = getFocusScale(fr)
+      }
+      const sFocus = this.fixedFocusScale
+      
+      // Дополнительная защита: если масштаб уже установлен и мы в режиме фокуса, не меняем его
+      if (this.content.scale === sFocus && this.mode === 'focus') {
+        return
+      }
+      
       const rcx = fr.x + fr.width / 2
       const rcy = fr.y + fr.height / 2
       const posX = Math.round(availW / 2 - rcx * sFocus)
       const posY = Math.round(availH / 2 - rcy * sFocus)
+
+      // Проверяем, активно ли перемещение - если да, не центрируем
+      if (this.isPanning) {
+        console.log('[bunkerView] Layout called during panning, skipping focus centering')
+        // Не меняем позицию и масштаб во время активного перемещения
+        return
+      }
+
       this.content.setScale(sFocus)
       this.content.setPosition(posX, posY)
       // Синхронизируем затемнение с основным контентом
       this.darknessContainer.setScale(sFocus)
       this.darknessContainer.setPosition(posX, posY)
     } else {
-      // Обзор: масштаб не больше половины фокусного и не больше масштаба, умещающего всё
-      const baseFocusRect = this.roomRects[this.focusedIndex ?? 0] ?? this.roomRects[0]
-      const sFocusBase = baseFocusRect ? getFocusScale(baseFocusRect) : 1
-      const sOverview = Math.min(sFocusBase * 0.5, fitAllScale)
+      // Обзор: используем фиксированный масштаб обзора
+      if (this.fixedOverviewScale === 0.5) {
+        const baseFocusRect = this.roomRects[this.focusedIndex ?? 0] ?? this.roomRects[0]
+        const sFocusBase = baseFocusRect ? getFocusScale(baseFocusRect) : 1
+        this.fixedOverviewScale = sFocusBase * 0.5
+      }
+      const sOverview = this.fixedOverviewScale
+      
+      // Дополнительная защита: если масштаб уже установлен и мы в режиме обзора, не меняем его
+      if (this.content.scale === sOverview && this.mode === 'overview') {
+        return
+      }
+      
+      // Центрируем по текущему размеру бункера, но с фиксированным масштабом
       const centerX = minX + totalWidth / 2
       const centerY = minY + totalHeight / 2
       const posX = Math.round(availW / 2 - centerX * sOverview)
       const posY = Math.round(availH / 2 - centerY * sOverview)
+
+          // Проверяем, активно ли перемещение - если да, не центрируем
+    if (this.isPanning) {
+      console.log('[bunkerView] Layout called during panning, skipping centering')
+      // Не меняем позицию и масштаб во время активного перемещения
+      return
+    }
+
+    // Дополнительная проверка: если недавно завершилось перемещение, не центрируем
+    if (this.recentlyFinishedPanning) {
+      console.log('[bunkerView] Layout called after recent panning, skipping centering')
+      this.recentlyFinishedPanning = false
+      return
+    }
+
       this.content.setScale(sOverview)
       this.content.setPosition(posX, posY)
       // Синхронизируем затемнение с основным контентом
@@ -1042,7 +1163,13 @@ export class SimpleBunkerView {
       this.closeAllDetails()
       this.lastFocusedIndex = this.focusedIndex
     }
-    this.updateLabels()
+    
+    // Проверяем, активно ли перемещение - если да, не обновляем лейблы
+    if (!this.isPanning) {
+      this.updateLabels()
+    } else {
+      console.log('[bunkerView] updateLabels called during panning, skipping')
+    }
     
     // Обновляем прозрачность затемнения при смене режима/фокуса
     this.updateAllDarknessTransparency()
@@ -1053,6 +1180,13 @@ export class SimpleBunkerView {
 
   private drawBunker(): void {
     console.log(`[Darkness] drawBunker вызван`)
+    
+    // Проверяем, активно ли перемещение - если да, не перерисовываем
+    if (this.isPanning) {
+      console.log('[bunkerView] drawBunker called during panning, skipping redraw')
+      return
+    }
+    
     this.panel.clear()
     
     // Сначала чистим старые images (если есть), оставляем panel (границы), панели деталей и прямоугольники затемнения
@@ -1135,6 +1269,36 @@ export class SimpleBunkerView {
     }
   }
 
+  // Метод для подсчета количества складов
+  public getStorageRoomCount(): number {
+    let storageCount = 0;
+    for (let i = 0; i < this.roomNames.length; i++) {
+      if (this.roomNames[i] === 'Склад') {
+        storageCount++;
+      }
+    }
+    return storageCount;
+  }
+
+  // Метод для уведомления об изменении количества складов
+  public notifyStorageRoomChange(): void {
+    const storageCount = this.getStorageRoomCount();
+    console.log(`[bunkerView] Storage rooms count changed: ${storageCount} (triggering inventory update)`);
+
+    // Уведомляем игровую сцену об изменении
+    if (window.game && window.game.scene) {
+      const gameScene = window.game.scene.getScene('Game') as any;
+      if (gameScene && gameScene.updateInventoryRows) {
+        console.log(`[bunkerView] Calling gameScene.updateInventoryRows(${storageCount})`);
+        gameScene.updateInventoryRows(storageCount);
+      } else {
+        console.warn(`[bunkerView] gameScene.updateInventoryRows not found`);
+      }
+    } else {
+      console.warn(`[bunkerView] window.game or window.game.scene not available`);
+    }
+  }
+
   private fitImageToRect(img: Phaser.GameObjects.Image, rect: Phaser.Geom.Rectangle): void {
     img.setDisplaySize(rect.width, rect.height)
   }
@@ -1204,6 +1368,9 @@ export class SimpleBunkerView {
   }
 
   private updateLabels(): void {
+    // Убираем блокировку - заголовки должны двигаться с комнатами
+    // Проверяем только для критических операций, но не для обычного обновления позиций
+    
     // Очистить overlay (сохранить открытые панели деталей)
     for (const child of [...this.overlay.list]) {
       const nm = (child as any).name
@@ -1369,12 +1536,21 @@ export class SimpleBunkerView {
     ).setOrigin(0.5)
     
     this.addButton.setInteractive({ useHandCursor: true })
-    this.addButton.on('pointerdown', () => {
+    this.addButton.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Предотвращаем всплытие события
+      pointer.event.preventDefault()
+      pointer.event.stopPropagation()
+      pointer.event.stopImmediatePropagation()
+      
       // Выходим из режима удаления при добавлении комнаты
       if (this.isRemovingRoom) {
         this.toggleRemoveMode()
       }
-      this.openRoomSelectionModal()
+      
+      // Небольшая задержка для предотвращения случайного выбора комнаты
+      setTimeout(() => {
+        this.openRoomSelectionModal()
+      }, 100)
     })
 
     // Добавляем кнопку к parent, чтобы она была поверх всего
@@ -1635,7 +1811,7 @@ export class SimpleBunkerView {
     if (typeof window.getAbilitiesData === 'function') {
       try {
         const abilitiesData = window.getAbilitiesData()
-        console.log('[bunkerView] Checking demolition ability, abilities data:', abilitiesData)
+        // console.log('[bunkerView] Checking demolition ability, abilities data:', abilitiesData)
 
         if (abilitiesData && abilitiesData.abilitiesData) {
           // Ищем способность "bunk_demolition" во всех категориях
@@ -1644,7 +1820,7 @@ export class SimpleBunkerView {
               const demolitionAbility = category.find(ability => ability.id === 'bunk_demolition')
               if (demolitionAbility) {
                 const isLearned = demolitionAbility.currentLevel > 0
-                console.log('[bunkerView] Demolition ability found, currentLevel:', demolitionAbility.currentLevel, 'isLearned:', isLearned)
+                // console.log('[bunkerView] Demolition ability found, currentLevel:', demolitionAbility.currentLevel, 'isLearned:', isLearned)
                 return isLearned
               }
             }
@@ -1679,12 +1855,12 @@ export class SimpleBunkerView {
   }
 
   private updateRemoveButtonVisibility(): void {
-    console.log('[bunkerView] Updating remove button visibility')
+    // console.log('[bunkerView] Updating remove button visibility')
 
     const shouldShowRemoveButton = this.isDemolitionAbilityLearned()
     const removeButtonExists = !!this.removeButton
 
-    console.log('[bunkerView] Should show remove button:', shouldShowRemoveButton, 'exists:', removeButtonExists)
+    // console.log('[bunkerView] Should show remove button:', shouldShowRemoveButton, 'exists:', removeButtonExists)
 
     if (shouldShowRemoveButton && !removeButtonExists) {
       // Нужно создать кнопку удаления
@@ -1702,7 +1878,7 @@ export class SimpleBunkerView {
         this.toggleRemoveMode()
       }
     } else {
-      console.log('[bunkerView] Remove button visibility is correct, no changes needed')
+      // console.log('[bunkerView] Remove button visibility is correct, no changes needed')
     }
   }
 
@@ -1723,7 +1899,7 @@ export class SimpleBunkerView {
       }
 
       if (this.isDemolitionAbilityLearned()) {
-        console.log('[bunkerView] Ability data is ready, updating remove button visibility')
+        // console.log('[bunkerView] Ability data is ready, updating remove button visibility')
         this.updateRemoveButtonVisibility()
         clearInterval(checkInterval)
       } else if (attempts % 10 === 0) { // Логируем каждые 10 попыток
@@ -1786,6 +1962,9 @@ export class SimpleBunkerView {
   private removeRoom(roomIndex: number): void {
     console.log('[bunkerView] Removing room:', this.roomNames[roomIndex], 'at index:', roomIndex)
 
+    // Сохраняем имя комнаты перед удалением (важно для проверки типа комнаты)
+    const roomName = this.roomNames[roomIndex]
+
     // Обновляем пути жителей, которые могли идти к этой комнате
     this.handleResidentsAfterRoomRemoval(roomIndex)
 
@@ -1813,8 +1992,17 @@ export class SimpleBunkerView {
     // Обновляем видимость кнопки удаления
     this.updateRemoveButtonVisibility()
 
+    // Проверяем, была ли удалена комната склада
+    const wasStorageRoom = roomName === 'Склад'
+
     // Выходим из режима удаления
     this.toggleRemoveMode()
+
+    // Если была удалена комната склада, уведомляем об изменении
+    if (wasStorageRoom) {
+      console.log(`[bunkerView] Storage room removed, calling notifyStorageRoomChange`);
+      this.notifyStorageRoomChange()
+    }
 
     console.log('[bunkerView] Room removed successfully')
   }
@@ -2578,10 +2766,27 @@ export class SimpleBunkerView {
     // Отключаем режим добавления
     this.isAddingRoom = false
     
-    // Полный перерасчёт layout для корректного масштабирования
-    this.layout(this.viewport)
+    // Сохраняем текущую позицию и масштаб перед перерасчётом layout
+    const currentX = this.content.x
+    const currentY = this.content.y
+    const currentScale = this.content.scale
+
+    // НЕ вызываем layout при добавлении комнаты - это может изменить масштаб
+    // Вместо этого просто обновляем UI элементы, которые зависят от количества комнат
+    
+    // Обновляем заголовки комнат без изменения масштаба
+    this.updateLabels()
+    
+    // Обновляем затемнение для новой комнаты
+    this.updateAllDarknessTransparency()
     
     console.log(`Добавлена комната: ${roomType} в позицию (${pos.x}, ${pos.y})`)
+
+    // Проверяем, была ли добавлена комната склада
+    if (roomType === 'Склад') {
+      this.notifyStorageRoomChange()
+    }
+
     // Обновим UI ресурсов/вместимости в GameScene сразу после добавления комнаты
     try {
       (this.scene as any).updateResourcesText?.()
@@ -6479,6 +6684,236 @@ export class SimpleBunkerView {
           // НЕ сбрасываем target и dwellUntil - это может сломать нормальное поведение
         }
       }
+    }
+
+  }
+
+  // Временное отключение pointer-events на HTML overlay для перемещения
+  private disableHTMLEvents(): void {
+    const overlay = document.getElementById('game-ui-overlay')
+    if (overlay) {
+      // Сохраняем оригинальные стили
+      this.originalPointerEvents = overlay.style.pointerEvents || 'none'
+      this.originalDisplay = overlay.style.display || 'block'
+
+      // Полностью скрываем HTML overlay во время перемещения
+      overlay.style.display = 'none'
+
+      console.log('[bunkerView] Hidden HTML overlay completely for panning')
+    }
+  }
+
+  // Восстановление pointer-events на HTML overlay
+  private enableHTMLEvents(): void {
+    const overlay = document.getElementById('game-ui-overlay')
+    if (overlay && this.originalPointerEvents !== undefined && this.originalDisplay !== undefined) {
+      // Сохраняем текущую позицию контента перед восстановлением HTML
+      const currentContentX = this.content.x
+      const currentContentY = this.content.y
+
+      // Восстанавливаем display стиль
+      overlay.style.display = this.originalDisplay
+
+      // Восстанавливаем pointer-events на overlay
+      overlay.style.pointerEvents = this.originalPointerEvents
+
+      // Восстанавливаем позицию контента, если она изменилась
+      if (this.content.x !== currentContentX || this.content.y !== currentContentY) {
+        console.log('[bunkerView] Content position changed during HTML restore, restoring:', currentContentX, currentContentY)
+        this.content.setPosition(currentContentX, currentContentY)
+        this.darknessContainer.setPosition(currentContentX, currentContentY)
+      }
+
+      console.log('[bunkerView] Restored HTML overlay display and pointer events')
+    }
+    this.isPanning = false
+    this.recentlyFinishedPanning = true
+    
+    // Сбрасываем флаг через небольшую задержку
+    setTimeout(() => {
+      this.recentlyFinishedPanning = false
+    }, 100)
+  }
+
+  private originalPointerEvents: string = 'none'
+  private originalDisplay: string = 'block'
+
+  // Настройка событий на document уровне для гарантированного перехвата
+  private setupDocumentEvents(): void {
+    // Используем capture phase для перехвата всех pointer событий
+    document.addEventListener('pointermove', this.handleDocumentPointerMove.bind(this), true)
+    document.addEventListener('pointerup', this.handleDocumentPointerUp.bind(this), true)
+    
+    // Для мобильного: добавляем touch события для лучшей поддержки
+    document.addEventListener('touchmove', this.handleDocumentTouchMove.bind(this), true)
+    document.addEventListener('touchend', this.handleDocumentTouchEnd.bind(this), true)
+    
+    console.log('[bunkerView] Document events setup for guaranteed panning capture')
+  }
+
+  // Обработчик pointermove на document уровне
+  private handleDocumentPointerMove(event: Event): void {
+    // Проверяем, не происходит ли событие в модальном окне
+    const target = event.target as HTMLElement
+    if (target && (target.closest('.modal') || target.closest('#room-selection-modal'))) {
+      // Событие происходит в модальном окне, не обрабатываем для bunkerView
+      return
+    }
+    
+    if (!this.panStart || !this.contentStart) return
+
+    // Получаем координаты относительно Phaser canvas
+    const canvas = this.scene.game.canvas as HTMLCanvasElement
+    const rect = canvas.getBoundingClientRect()
+    
+    // PointerEvent содержит clientX/Y для всех типов событий
+    const clientX = (event as PointerEvent).clientX
+    const clientY = (event as PointerEvent).clientY
+    
+    const p = {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    }
+
+    const dx = p.x - this.panStart.x
+    const dy = p.y - this.panStart.y
+    
+    // Проверяем минимальное расстояние для начала перемещения
+    // Для мобильного используем больший порог
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    const panThreshold = isMobile ? 8 : 4 // Больший порог для мобильного
+    
+    // Отладочная информация для мобильного
+    if (isMobile) {
+      console.log('[bunkerView] Mobile panning:', { dx, dy, threshold: panThreshold, isPanning: this.isPanning })
+    }
+    
+    if (Math.abs(dx) + Math.abs(dy) > panThreshold) {
+      // Активируем перемещение только при реальном движении
+      if (!this.isPanning) {
+        this.isPanning = true
+
+      }
+      
+      ;(this as any)._dragged = true
+      
+      const newX = this.contentStart.x + dx
+      const newY = this.contentStart.y + dy
+      this.content.setPosition(newX, newY)
+      // Синхронизируем затемнение при панорамировании
+      this.darknessContainer.setPosition(newX, newY)
+      
+      // Обновляем заголовки комнат, чтобы они двигались вместе с контентом
+      this.updateLabels()
+    }
+
+    // console.log('[bunkerView] Document pointermove handled:', p.x, p.y)
+  }
+
+  // Обработчик pointerup на document уровне
+  private handleDocumentPointerUp(event: PointerEvent): void {
+    // Проверяем, не происходит ли событие в модальном окне
+    const target = event.target as HTMLElement
+    if (target && (target.closest('.modal') || target.closest('#room-selection-modal'))) {
+      // Событие происходит в модальном окне, не обрабатываем для bunkerView
+      return
+    }
+    
+    if (this.isPanning) {
+      // Сохраняем позицию контента до восстановления HTML
+      const contentX = this.content.x
+      const contentY = this.content.y
+      const contentScale = this.content.scale
+
+      // Восстанавливаем pointer-events на HTML overlay
+      this.enableHTMLEvents()
+
+      // Восстанавливаем позицию контента после восстановления HTML
+      if (this.content.x !== contentX || this.content.y !== contentY) {
+        console.log('[bunkerView] Document pointerup: Content position changed, restoring:', contentX, contentY)
+        this.content.setPosition(contentX, contentY)
+        this.darknessContainer.setPosition(contentX, contentY)
+      }
+
+      // Восстанавливаем масштаб если он изменился
+      if (this.content.scale !== contentScale) {
+        console.log('[bunkerView] Document pointerup: Content scale changed, restoring:', contentScale)
+        this.content.setScale(contentScale)
+        this.darknessContainer.setScale(contentScale)
+      }
+
+      // Устанавливаем флаг недавно завершенного перемещения
+      this.recentlyFinishedPanning = true
+      
+      // Сбрасываем флаг через небольшую задержку
+      setTimeout(() => {
+        this.recentlyFinishedPanning = false
+      }, 200)
+
+      console.log('[bunkerView] Document pointerup handled, panning ended')
+    }
+  }
+
+  // Обработчик touchmove для мобильного
+  private handleDocumentTouchMove(event: TouchEvent): void {
+    // Проверяем, не происходит ли touch в модальном окне
+    const target = event.target as HTMLElement
+    if (target && (target.closest('.modal') || target.closest('#room-selection-modal'))) {
+      // Touch происходит в модальном окне, не обрабатываем для bunkerView
+      return
+    }
+    
+    // Предотвращаем скролл страницы при панорамировании
+    event.preventDefault()
+    
+    if (!this.panStart || !this.contentStart) return
+    
+    // Получаем координаты относительно Phaser canvas
+    const canvas = this.scene.game.canvas as HTMLCanvasElement
+    const rect = canvas.getBoundingClientRect()
+    
+    if (event.touches && event.touches.length > 0) {
+      const touch = event.touches[0]
+      const p = {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      }
+      
+      const dx = p.x - this.panStart.x
+      const dy = p.y - this.panStart.y
+      
+      // Для touch используем меньший порог
+      const touchThreshold = 5
+      
+      if (Math.abs(dx) + Math.abs(dy) > touchThreshold) {
+        if (!this.isPanning) {
+          this.isPanning = true
+          this.disableHTMLEvents()
+        }
+        
+        const newX = this.contentStart.x + dx
+        const newY = this.contentStart.y + dy
+        this.content.setPosition(newX, newY)
+        this.darknessContainer.setPosition(newX, newY)
+        this.updateLabels()
+      }
+    }
+  }
+
+  // Обработчик touchend для мобильного
+  private handleDocumentTouchEnd(event: TouchEvent): void {
+    // Проверяем, не происходит ли touch в модальном окне
+    const target = event.target as HTMLElement
+    if (target && (target.closest('.modal') || target.closest('#room-selection-modal'))) {
+      // Touch происходит в модальном окне, не обрабатываем для bunkerView
+      return
+    }
+    
+    if (this.isPanning) {
+      this.enableHTMLEvents()
+      this.isPanning = false
+      this.panStart = undefined
+      this.contentStart = undefined
     }
   }
 }
