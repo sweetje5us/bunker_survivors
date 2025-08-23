@@ -56,11 +56,16 @@ export class SimpleBunkerView {
   private readonly overviewMinScale = 0.5
   private debugAnim: boolean = false
   
-  // Режим добавления комнат
+  // Режимы редактирования
   private isAddingRoom = false
+  private isRemovingRoom = false
   private selectedRoomType: string | null = null
+  private roomHitAreas: Phaser.GameObjects.Rectangle[] = []
+  private originalRoomColors: Map<number, number> = new Map() // Храним оригинальные цвета рамок
   private addButton?: Phaser.GameObjects.Text
+  private removeButton?: Phaser.GameObjects.Text
   private peopleButton?: Phaser.GameObjects.Text
+  private currentDialog?: Phaser.GameObjects.Container
   private availableRoomTypes = [
     // Базовые типы со старта
     'Вход',
@@ -102,6 +107,7 @@ export class SimpleBunkerView {
     intention?: 'work' | 'eat' | 'drink' | 'rest' | 'sleep' | 'hospital' | 'wander';
     workRoomIndex?: number;
     stayInRoomName?: string;
+    targetRoomIndex?: number; // Целевая комната для движения
     settled?: boolean;
     assignedRoomIndex?: number;
     assignedSlotIndex?: number;
@@ -166,6 +172,9 @@ export class SimpleBunkerView {
     this.darknessContainer = scene.add.container(0, 0)
     this.panel = scene.add.graphics()
     this.overlay = scene.add.container(0, 0)
+
+    // Добавляем обработчик для отслеживания готовности данных о способностях
+    this.setupAbilityDataListener()
     const label = scene.add.text(0, 0, 'Entrance', {
       fontFamily: '"Press Start 2P", system-ui, sans-serif',
       fontSize: '12px',
@@ -216,8 +225,8 @@ export class SimpleBunkerView {
         const ly = tmp.y
 
         let hitIndex: number | null = null
-        // Проверяем клик только если не в режиме добавления комнат
-        if (!this.isAddingRoom) {
+        // Проверяем клик только если не в режиме добавления или удаления комнат
+        if (!this.isAddingRoom && !this.isRemovingRoom) {
           for (let i = 0; i < this.roomRects.length; i++) {
             const rr = this.roomRects[i]
             if (Phaser.Geom.Rectangle.Contains(rr, lx, ly)) {
@@ -929,9 +938,12 @@ export class SimpleBunkerView {
     const padding = 12
     const availW = Math.max(1, viewRect.width)
     const availH = Math.max(1, viewRect.height)
-    
+
     // Отрисовываем всё (используем базовые координаты без перезаписи размеров)
     this.drawBunker()
+
+    // Обновляем подсветки комнат при изменении layout
+    this.updateRoomHighlights()
     
     // Обновляем hit area
     const hit = this.root.input?.hitArea as Phaser.Geom.Rectangle | undefined
@@ -1202,6 +1214,9 @@ export class SimpleBunkerView {
       label.destroy()
     }
     this.labels = []
+
+    // Очищаем кликабельные области комнат (они будут пересозданы)
+    this.clearRoomHitAreas()
     
     // Удаляем старую кнопку добавления
     if (this.addButton) {
@@ -1282,6 +1297,8 @@ export class SimpleBunkerView {
         this.overlay.add(hit)
       }
 
+      // Кликабельные области для удаления создаются в recreateRoomHitAreas
+
       // Если панель деталей открыта — обновим её позицию, чтобы была закреплена к правому краю шапки
       const opened = this.detailsPanels.get(i)
       if (opened && opened.scene) {
@@ -1314,11 +1331,21 @@ export class SimpleBunkerView {
     elevatorLabel.setShadow(1, 1, '#000000', 2, true, true)
     this.overlay.add(elevatorLabel)
     
+    // Если мы в режиме удаления, обновляем все подсветки и кликабельные области
+    if (this.isRemovingRoom && this.mode === 'overview') {
+      console.log('[bunkerView] In removal mode and overview, calling updateRoomHighlights')
+      this.updateRoomHighlights()
+    }
+
     // Кнопка добавления комнат (только в overview режиме)
     if (this.mode === 'overview') {
       this.createAddButton()
       this.createPeopleButton()
     }
+
+    // Обновляем видимость кнопки удаления в зависимости от способности
+    // Делаем это после создания основных кнопок
+    this.updateRemoveButtonVisibility()
   }
 
   private createAddButton(): void {
@@ -1342,10 +1369,632 @@ export class SimpleBunkerView {
     ).setOrigin(0.5)
     
     this.addButton.setInteractive({ useHandCursor: true })
-    this.addButton.on('pointerdown', () => this.openRoomSelectionModal())
-    
+    this.addButton.on('pointerdown', () => {
+      // Выходим из режима удаления при добавлении комнаты
+      if (this.isRemovingRoom) {
+        this.toggleRemoveMode()
+      }
+      this.openRoomSelectionModal()
+    })
+
     // Добавляем кнопку к parent, чтобы она была поверх всего
     this.parent.add(this.addButton)
+  }
+
+  private createRemoveButton(): void {
+    if (this.removeButton) return // Уже создана
+
+    // Проверяем, что способность "Демонтаж" изучена
+    if (!this.isDemolitionAbilityLearned()) {
+      console.log('[bunkerView] Demolition ability not learned, skipping remove button creation')
+      return
+    }
+
+    // Проверяем, что viewport корректно инициализирован
+    if (!this.viewport || this.viewport.width <= 0) {
+      console.warn('[bunkerView] Viewport not initialized, cannot create remove button')
+      return
+    }
+
+    const buttonSize = 32
+    const margin = 16
+    const spacing = 8
+
+    const buttonX = this.viewport.width - buttonSize * 3 - margin - spacing * 2
+    const buttonY = margin
+
+    // Проверяем, что позиция корректна
+    if (buttonX < 0 || buttonY < 0) {
+      console.warn('[bunkerView] Invalid button position:', buttonX, buttonY)
+      return
+    }
+
+    this.removeButton = this.scene.add.text(
+      buttonX,
+      buttonY,
+      '×',
+      {
+        fontFamily: '"Press Start 2P", system-ui, sans-serif',
+        fontSize: '24px',
+        color: '#f44336',
+        backgroundColor: '#1a1d22',
+        padding: { x: 8, y: 4 }
+      }
+    ).setOrigin(0.5)
+
+    this.removeButton.setInteractive({ useHandCursor: true })
+    this.removeButton.on('pointerdown', () => this.toggleRemoveMode())
+
+    // Добавляем кнопку к parent, чтобы она была поверх всего
+    this.parent.add(this.removeButton)
+  }
+
+  private toggleRemoveMode(): void {
+    this.isRemovingRoom = !this.isRemovingRoom
+    this.isAddingRoom = false // Отключаем режим добавления
+
+    console.log('[bunkerView] Remove mode toggled to:', this.isRemovingRoom)
+
+    if (this.isRemovingRoom) {
+      this.removeButton?.setColor('#ff5722') // Более яркий красный
+      this.addButton?.setColor('#666') // Делаем кнопку добавления неактивной
+      this.updateRoomHighlights() // Используем updateRoomHighlights вместо прямого вызова
+    } else {
+      this.removeButton?.setColor('#f44336') // Обычный красный
+      this.addButton?.setColor('#4fc3f7') // Возвращаем обычный цвет кнопки добавления
+      this.clearRoomHighlights()
+      this.clearRoomHitAreas()
+      // Закрываем диалог подтверждения при выходе из режима
+      if (this.currentDialog) {
+        this.currentDialog.destroy()
+        this.currentDialog = undefined
+      }
+    }
+  }
+
+  private highlightRemovableRooms(): void {
+    console.log('[bunkerView] Highlighting removable rooms by changing border colors')
+
+    // Перерисовываем panel с красными рамками для удаляемых комнат
+    this.panel.clear()
+
+    // Рисуем комнаты заново
+    for (let i = 0; i < this.roomRects.length; i++) {
+      const rect = this.roomRects[i]
+      const name = this.roomNames[i]
+      const key = this.roomTextureKey(name)
+      if (key) {
+        const img = this.scene.add.image(rect.x, rect.y, key).setOrigin(0)
+        this.fitImageToRect(img, rect)
+        this.content.add(img)
+      } else {
+        // Фолбэк — заливка
+        this.panel.fillStyle(0x1f242b, 1)
+        this.panel.fillRect(rect.x, rect.y, rect.width, rect.height)
+      }
+    }
+
+    // Рисуем рамки с красным цветом для удаляемых комнат
+    this.roomRects.forEach((roomRect, index) => {
+      if (this.canRemoveRoom(index)) {
+        console.log(`[bunkerView] Highlighting room ${index} (${this.roomNames[index]}) with red border`)
+        // Сохраняем оригинальный цвет
+        this.originalRoomColors.set(index, 0x4fc3f7) // Синий цвет по умолчанию
+        // Рисуем красную рамку
+        this.panel.lineStyle(3, 0xff5722, 1) // Красный контур
+        this.panel.strokeRect(roomRect.x, roomRect.y, roomRect.width, roomRect.height)
+      } else {
+        // Обычная рамка для остальных комнат
+        this.panel.lineStyle(1, 0x4fc3f7, 0.6) // Синий контур
+        this.panel.strokeRect(roomRect.x, roomRect.y, roomRect.width, roomRect.height)
+      }
+    })
+
+    // Рисуем рамки лифтов
+    this.panel.lineStyle(1, 0x4fc3f7, 0.6)
+    this.panel.strokeRect(this.elevatorRect.x, this.elevatorRect.y, this.elevatorRect.width, this.elevatorRect.height)
+    for (const lift of this.extraElevators) {
+      this.panel.strokeRect(lift.x, lift.y, lift.width, lift.height)
+    }
+
+    console.log('[bunkerView] Highlighted', this.roomRects.filter((_, index) => this.canRemoveRoom(index)).length, 'removable rooms with red borders')
+  }
+
+  private updateRoomHighlights(): void {
+    if (this.isRemovingRoom) {
+      console.log('[bunkerView] Updating room highlights and hit areas')
+      this.highlightRemovableRooms() // Подсвечиваем рамки красным
+      this.clearRoomHitAreas()
+      this.recreateRoomHitAreas() // Создаем кликабельные области
+      console.log('[bunkerView] Room highlights and hit areas updated')
+    }
+  }
+
+  private clearRoomHighlights(): void {
+    console.log('[bunkerView] Clearing room highlights - restoring original border colors')
+
+    // Восстанавливаем оригинальные цвета рамок в panel
+    this.panel.clear()
+
+    // Рисуем комнаты заново
+    for (let i = 0; i < this.roomRects.length; i++) {
+      const rect = this.roomRects[i]
+      const name = this.roomNames[i]
+      const key = this.roomTextureKey(name)
+      if (key) {
+        const img = this.scene.add.image(rect.x, rect.y, key).setOrigin(0)
+        this.fitImageToRect(img, rect)
+        this.content.add(img)
+      } else {
+        // Фолбэк — заливка
+        this.panel.fillStyle(0x1f242b, 1)
+        this.panel.fillRect(rect.x, rect.y, rect.width, rect.height)
+      }
+    }
+
+    // Рисуем обычные рамки (синие)
+    this.panel.lineStyle(1, 0x4fc3f7, 0.6)
+    for (const roomRect of this.roomRects) {
+      this.panel.strokeRect(roomRect.x, roomRect.y, roomRect.width, roomRect.height)
+    }
+    this.panel.strokeRect(this.elevatorRect.x, this.elevatorRect.y, this.elevatorRect.width, this.elevatorRect.height)
+    for (const lift of this.extraElevators) {
+      this.panel.strokeRect(lift.x, lift.y, lift.width, lift.height)
+    }
+
+    // Очищаем сохраненные цвета
+    this.originalRoomColors.clear()
+
+    console.log('[bunkerView] Room highlights cleared - borders restored to original colors')
+  }
+
+  private clearRoomHitAreas(): void {
+    if (this.roomHitAreas) {
+      this.roomHitAreas.forEach(hitArea => hitArea.destroy())
+      this.roomHitAreas = []
+    }
+  }
+
+  private recreateRoomHitAreas(): void {
+    console.log('[bunkerView] Recreating room hit areas for removal mode')
+
+    // Очищаем существующие кликабельные области
+    this.clearRoomHitAreas()
+
+    const pad = 4
+    const roomsFontPx = this.computeRoomsFontSize(pad)
+    const mContent = this.content.getWorldTransformMatrix()
+    const mRoot = this.root.getWorldTransformMatrix()
+
+    for (let i = 0; i < this.roomRects.length; i++) {
+      if (!this.canRemoveRoom(i)) continue
+
+      const r = this.roomRects[i]
+      const roomName = this.roomNames[i]
+
+      // Используем тот же метод преобразования, что и для рамок
+      const mContent = this.content.getWorldTransformMatrix()
+      const mRoot = this.root.getWorldTransformMatrix()
+
+      // Преобразуем координаты комнаты: content local -> world -> root local
+      const tlWorld = new Phaser.Math.Vector2(r.x, r.y)
+      const brWorld = new Phaser.Math.Vector2(r.x + r.width, r.y + r.height)
+      mContent.transformPoint(tlWorld.x, tlWorld.y, tlWorld)
+      mContent.transformPoint(brWorld.x, brWorld.y, brWorld)
+      const tlLocal = new Phaser.Math.Vector2()
+      const brLocal = new Phaser.Math.Vector2()
+      mRoot.applyInverse(tlWorld.x, tlWorld.y, tlLocal)
+      mRoot.applyInverse(brWorld.x, brWorld.y, brLocal)
+      const scrX = tlLocal.x
+      const scrY = tlLocal.y
+      const scrW = Math.max(1, brLocal.x - tlLocal.x)
+      const scrH = Math.max(1, brLocal.y - tlLocal.y)
+
+      console.log(`[bunkerView] Hit area for room ${i} (${roomName}): pos(${scrX + scrW / 2}, ${scrY + scrH / 2}), size(${scrW}, ${scrH})`)
+
+      // Проверяем, что размеры корректные
+      if (scrW <= 0 || scrH <= 0) {
+        console.warn(`[bunkerView] Invalid hit area size for room ${i} (${roomName}): ${scrW}x${scrH}`)
+        continue
+      }
+
+      // Создаем кликабельную область для всей комнаты
+      const roomHitArea = this.scene.add.rectangle(
+        scrX + scrW / 2,
+        scrY + scrH / 2,
+        scrW,
+        scrH,
+        0x000000,
+        0.001
+      )
+      roomHitArea.setInteractive({ useHandCursor: true })
+      roomHitArea.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        console.log(`[bunkerView] Hit area clicked for room ${i} (${roomName})`)
+        // Предотвращаем распространение события дальше
+        pointer.event.stopPropagation()
+        pointer.event.stopImmediatePropagation()
+        this.toggleRoomDetailsPanel(i)
+      })
+      // Добавляем в начало overlay для большего приоритета
+      this.overlay.addAt(roomHitArea, 0)
+      this.roomHitAreas.push(roomHitArea)
+
+      console.log(`[bunkerView] Created interactive hit area for room ${i} (${roomName})`)
+    }
+
+    console.log('[bunkerView] Recreated', this.roomHitAreas.length, 'room hit areas')
+
+    // Проверяем, что кликабельные области действительно добавлены
+    this.roomHitAreas.forEach((hitArea, index) => {
+      console.log(`[bunkerView] Hit area ${index}: visible=${hitArea.visible}, interactive=${hitArea.input?.enabled}`)
+    })
+  }
+
+  private isDemolitionAbilityLearned(): boolean {
+    // Проверяем, доступны ли данные о способностях
+    if (typeof window.getAbilitiesData === 'function') {
+      try {
+        const abilitiesData = window.getAbilitiesData()
+        console.log('[bunkerView] Checking demolition ability, abilities data:', abilitiesData)
+
+        if (abilitiesData && abilitiesData.abilitiesData) {
+          // Ищем способность "bunk_demolition" во всех категориях
+          for (const category of Object.values(abilitiesData.abilitiesData)) {
+            if (Array.isArray(category)) {
+              const demolitionAbility = category.find(ability => ability.id === 'bunk_demolition')
+              if (demolitionAbility) {
+                const isLearned = demolitionAbility.currentLevel > 0
+                console.log('[bunkerView] Demolition ability found, currentLevel:', demolitionAbility.currentLevel, 'isLearned:', isLearned)
+                return isLearned
+              }
+            }
+          }
+        }
+
+        // Альтернативная проверка через learnedAbilities
+        if (abilitiesData && abilitiesData.learnedAbilities) {
+          if (Array.isArray(abilitiesData.learnedAbilities)) {
+            if (typeof abilitiesData.learnedAbilities[0] === 'string') {
+              const isLearned = abilitiesData.learnedAbilities.includes('bunk_demolition')
+              console.log('[bunkerView] Demolition ability in learnedAbilities (strings):', isLearned)
+              return isLearned
+            } else if (typeof abilitiesData.learnedAbilities[0] === 'object') {
+              const isLearned = abilitiesData.learnedAbilities.some((ability: any) =>
+                ability.id === 'bunk_demolition' && ability.currentLevel > 0
+              )
+              console.log('[bunkerView] Demolition ability in learnedAbilities (objects):', isLearned)
+              return isLearned
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[bunkerView] Error checking demolition ability:', error)
+      }
+    } else {
+      console.log('[bunkerView] getAbilitiesData function not available')
+    }
+
+    console.log('[bunkerView] Demolition ability not found or not learned')
+    return false
+  }
+
+  private updateRemoveButtonVisibility(): void {
+    console.log('[bunkerView] Updating remove button visibility')
+
+    const shouldShowRemoveButton = this.isDemolitionAbilityLearned()
+    const removeButtonExists = !!this.removeButton
+
+    console.log('[bunkerView] Should show remove button:', shouldShowRemoveButton, 'exists:', removeButtonExists)
+
+    if (shouldShowRemoveButton && !removeButtonExists) {
+      // Нужно создать кнопку удаления
+      console.log('[bunkerView] Creating remove button')
+      this.createRemoveButton()
+    } else if (!shouldShowRemoveButton && removeButtonExists) {
+      // Нужно удалить кнопку удаления
+      console.log('[bunkerView] Destroying remove button')
+      if (this.removeButton) {
+        this.removeButton.destroy()
+        this.removeButton = undefined
+      }
+      // Выходим из режима удаления если он был активен
+      if (this.isRemovingRoom) {
+        this.toggleRemoveMode()
+      }
+    } else {
+      console.log('[bunkerView] Remove button visibility is correct, no changes needed')
+    }
+  }
+
+  private setupAbilityDataListener(): void {
+    console.log('[bunkerView] Setting up ability data listener')
+
+    // Проверяем данные о способностях каждые 100мс в течение 5 секунд после старта
+    let attempts = 0
+    const maxAttempts = 50 // 5 секунд
+
+    const checkInterval = setInterval(() => {
+      attempts++
+
+      if (attempts > maxAttempts) {
+        console.log('[bunkerView] Stopped checking for ability data after', maxAttempts, 'attempts')
+        clearInterval(checkInterval)
+        return
+      }
+
+      if (this.isDemolitionAbilityLearned()) {
+        console.log('[bunkerView] Ability data is ready, updating remove button visibility')
+        this.updateRemoveButtonVisibility()
+        clearInterval(checkInterval)
+      } else if (attempts % 10 === 0) { // Логируем каждые 10 попыток
+        console.log('[bunkerView] Still waiting for ability data, attempt', attempts)
+      }
+    }, 100)
+
+    // Также проверяем сразу, на случай если данные уже готовы
+    setTimeout(() => {
+      if (this.isDemolitionAbilityLearned()) {
+        console.log('[bunkerView] Ability data was ready immediately')
+        this.updateRemoveButtonVisibility()
+        clearInterval(checkInterval)
+      }
+    }, 10)
+  }
+
+  private canRemoveRoom(roomIndex: number): boolean {
+    const roomName = this.roomNames[roomIndex]
+
+    // Нельзя удалять комнату "Вход"
+    if (roomName === 'Вход') {
+      return false
+    }
+
+    // Нельзя удалять первый лифт
+    if (roomName === 'Лифт' && this.isFirstElevator(roomIndex)) {
+      return false
+    }
+
+    // Проверяем, есть ли в комнате жители или враги
+    const hasResidents = this.residentAgents.some(agent =>
+      agent.roomIndex === roomIndex && agent.isEnemy !== true
+    )
+    const hasEnemies = this.residentAgents.some(agent =>
+      agent.roomIndex === roomIndex && agent.isEnemy === true
+    )
+
+    if (hasResidents || hasEnemies) {
+      return false
+    }
+
+    return true
+  }
+
+  private isFirstElevator(roomIndex: number): boolean {
+    // Находим все лифты
+    const elevatorIndices: number[] = []
+    this.roomNames.forEach((name, index) => {
+      if (name === 'Лифт') {
+        elevatorIndices.push(index)
+      }
+    })
+
+    // Сортируем по индексу и проверяем, является ли этот лифт первым
+    elevatorIndices.sort((a, b) => a - b)
+    return elevatorIndices[0] === roomIndex
+  }
+
+  private removeRoom(roomIndex: number): void {
+    console.log('[bunkerView] Removing room:', this.roomNames[roomIndex], 'at index:', roomIndex)
+
+    // Обновляем пути жителей, которые могли идти к этой комнате
+    this.handleResidentsAfterRoomRemoval(roomIndex)
+
+    // Удаляем комнату из массивов
+    this.roomNames.splice(roomIndex, 1)
+    this.roomRects.splice(roomIndex, 1)
+    this.roomStates.delete(roomIndex)
+
+    // Перестраиваем индексы для оставшихся комнат
+    this.rebuildRoomStatesAfterRemoval(roomIndex)
+
+    // Очищаем подсветки и кликабельные области
+    this.clearRoomHighlights()
+    this.clearRoomHitAreas()
+
+    // Перерисовываем бункер (это также обновит метки)
+    this.drawBunker()
+
+    // Дополнительно обновляем метки, чтобы гарантированно удалить старые
+    this.updateLabels()
+
+    // Обновляем рамки подсветки для оставшихся комнат
+    this.updateRoomHighlights()
+
+    // Обновляем видимость кнопки удаления
+    this.updateRemoveButtonVisibility()
+
+    // Выходим из режима удаления
+    this.toggleRemoveMode()
+
+    console.log('[bunkerView] Room removed successfully')
+  }
+
+  private handleResidentsAfterRoomRemoval(removedRoomIndex: number): void {
+    console.log('[bunkerView] Handling residents after room removal:', removedRoomIndex)
+
+    this.residentAgents.forEach(agent => {
+      if (!agent) return
+
+      // Если житель был в удаляемой комнате - перемещаем в ближайшую доступную
+      if (agent.roomIndex === removedRoomIndex) {
+        console.log('[bunkerView] Resident was in removed room, finding new room')
+        const newRoomIndex = this.findNearestAvailableRoom(agent.rect.x, agent.rect.y)
+        if (newRoomIndex !== null) {
+          agent.roomIndex = newRoomIndex
+          console.log('[bunkerView] Moved resident to room:', newRoomIndex)
+        }
+      }
+
+      // Если житель шел к удаляемой комнате - отменяем путь
+      if (agent.targetRoomIndex === removedRoomIndex) {
+        console.log('[bunkerView] Resident was going to removed room, canceling path')
+        agent.path = []
+        agent.targetRoomIndex = undefined
+        agent.intention = 'wander' // Переключаем на блуждание
+      }
+    })
+  }
+
+  private rebuildRoomStatesAfterRemoval(removedIndex: number): void {
+    console.log('[bunkerView] Rebuilding room states after removal')
+
+    // Создаем новый Map с обновленными индексами
+    const newRoomStates = new Map<number, any>()
+
+    this.roomStates.forEach((state, index) => {
+      if (index > removedIndex) {
+        // Сдвигаем индексы вниз
+        newRoomStates.set(index - 1, state)
+      } else if (index < removedIndex) {
+        // Оставляем без изменений
+        newRoomStates.set(index, state)
+      }
+      // Пропускаем удаленный индекс
+    })
+
+    this.roomStates = newRoomStates
+
+    // Обновляем roomIndex у всех агентов
+    this.residentAgents.forEach(agent => {
+      if (!agent || agent.roomIndex === undefined) return
+
+      if (agent.roomIndex > removedIndex) {
+        agent.roomIndex = agent.roomIndex - 1
+      } else if (agent.roomIndex === removedIndex) {
+        // Находим ближайшую комнату
+        const newRoomIndex = this.findNearestAvailableRoom(agent.rect.x, agent.rect.y)
+        agent.roomIndex = newRoomIndex || 0
+      }
+    })
+  }
+
+  private findNearestAvailableRoom(x: number, y: number): number | null {
+    let nearestIndex: number | null = null
+    let minDistance = Number.MAX_SAFE_INTEGER
+
+    this.roomRects.forEach((rect, index) => {
+      const centerX = rect.x + rect.width / 2
+      const centerY = rect.y + rect.height / 2
+      const distance = Phaser.Math.Distance.Between(x, y, centerX, centerY)
+
+      if (distance < minDistance) {
+        minDistance = distance
+        nearestIndex = index
+      }
+    })
+
+    return nearestIndex
+  }
+
+  private showRemoveConfirmation(roomIndex: number): void {
+    const roomName = this.roomNames[roomIndex]
+    console.log('[bunkerView] Showing remove confirmation for room:', roomName)
+
+    // Создаем простое диалоговое окно подтверждения
+    const dialogWidth = 300
+    const dialogHeight = 120
+    const dialogX = this.viewport.width / 2 - dialogWidth / 2
+    const dialogY = this.viewport.height / 2 - dialogHeight / 2
+
+    // Создаем контейнер для диалога
+    const dialog = this.scene.add.container(dialogX, dialogY)
+    dialog.setDepth(1000) // Поверх всего
+
+    // Фон диалога
+    const background = this.scene.add.rectangle(0, 0, dialogWidth, dialogHeight, 0x1a1d22, 0.95)
+    background.setStrokeStyle(2, 0x4fc3f7, 1)
+    background.setOrigin(0)
+
+    // Заголовок
+    const title = this.scene.add.text(dialogWidth / 2, 20, 'Подтверждение удаления', {
+      fontFamily: '"Press Start 2P", system-ui, sans-serif',
+      fontSize: '12px',
+      color: '#ff5722',
+      align: 'center'
+    }).setOrigin(0.5)
+
+    // Сообщение
+    const message = this.scene.add.text(dialogWidth / 2, 45, `Удалить комнату "${roomName}"?`, {
+      fontFamily: '"Press Start 2P", system-ui, sans-serif',
+      fontSize: '10px',
+      color: '#ffffff',
+      align: 'center',
+      wordWrap: { width: dialogWidth - 20 }
+    }).setOrigin(0.5)
+
+    // Кнопки
+    const confirmButton = this.scene.add.text(dialogWidth / 2 - 50, 80, 'Да', {
+      fontFamily: '"Press Start 2P", system-ui, sans-serif',
+      fontSize: '10px',
+      color: '#ff5722',
+      backgroundColor: '#2a2d35',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5)
+
+    const cancelButton = this.scene.add.text(dialogWidth / 2 + 50, 80, 'Нет', {
+      fontFamily: '"Press Start 2P", system-ui, sans-serif',
+      fontSize: '10px',
+      color: '#4fc3f7',
+      backgroundColor: '#2a2d35',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5)
+
+    // Добавляем интерактивность
+    confirmButton.setInteractive({ useHandCursor: true })
+    cancelButton.setInteractive({ useHandCursor: true })
+
+    // Обработчики кликов
+    confirmButton.on('pointerdown', () => {
+      console.log('[bunkerView] Confirmed room removal:', roomName)
+      this.removeRoom(roomIndex)
+      dialog.destroy()
+    })
+
+    cancelButton.on('pointerdown', () => {
+      console.log('[bunkerView] Cancelled room removal:', roomName)
+      dialog.destroy()
+    })
+
+    // Добавляем элементы в диалог
+    dialog.add([background, title, message, confirmButton, cancelButton])
+
+    // Сохраняем ссылку на диалог для возможного удаления
+    this.currentDialog = dialog
+  }
+
+  private showToast(message: string): void {
+    console.log('[bunkerView] Showing toast:', message)
+
+    // Простое уведомление в углу экрана
+    const toastY = this.viewport.height - 50
+    const toast = this.scene.add.text(20, toastY, message, {
+      fontFamily: '"Press Start 2P", system-ui, sans-serif',
+      fontSize: '10px',
+      color: '#ff9800',
+      backgroundColor: '#1a1d22',
+      padding: { x: 8, y: 4 }
+    }).setOrigin(0)
+
+    toast.setDepth(500)
+
+    // Анимация исчезновения
+    this.scene.tweens.add({
+      targets: toast,
+      alpha: 0,
+      duration: 3000,
+      delay: 2000,
+      onComplete: () => toast.destroy()
+    })
   }
 
   private createPeopleButton(): void {
@@ -1941,6 +2590,23 @@ export class SimpleBunkerView {
   }
 
   private toggleRoomDetailsPanel(index: number): void {
+    // Проверяем режимы редактирования
+    if (this.isRemovingRoom) {
+      if (this.canRemoveRoom(index)) {
+        this.showRemoveConfirmation(index)
+      } else {
+        console.log('[bunkerView] Cannot remove room:', this.roomNames[index])
+        // Можно добавить уведомление пользователю
+        this.showToast(`Невозможно удалить комнату "${this.roomNames[index]}"`)
+      }
+      return
+    }
+
+    if (this.isAddingRoom) {
+      // В режиме добавления не показываем детали комнат
+      return
+    }
+
     const exists = this.detailsPanels.get(index)
     if (exists && exists.scene) {
       exists.destroy()

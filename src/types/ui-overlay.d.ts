@@ -46,6 +46,9 @@ declare global {
     getCurrentResidentsData?: () => any[];
     getResidentById?: (id: number) => any;
 
+    // BunkerView methods
+    setSelectedRoomType?: (roomType: string) => void;
+
     // Game instance for UI bridge
     game?: Phaser.Game;
   }

@@ -1373,9 +1373,11 @@
         return abilityNames[abilityId] || abilityId;
       }
       
-      // TEMPORARY: Show all rooms for debugging
+      // Отладочные логи закомментированы для продакшена
+      /*
       console.log('=== TEMPORARY DEBUG: Showing all rooms ===');
       availableRooms.forEach(room => console.log(`Room: ${room.name}, Required: ${room.requiredAbility}`));
+      */
 
       // Use filtered rooms for now, but we can switch to availableRooms for testing
       const roomsToShow = filteredRooms; // Change to availableRooms to show all
@@ -1417,7 +1419,8 @@
           }
         }
 
-        console.log(`[HTML] Room ${room.name}, required: ${room.requiredAbility}, isLocked: ${isLocked}`);
+        // Отладочный лог закомментирован для продакшена
+        // console.log(`[HTML] Room ${room.name}, required: ${room.requiredAbility}, isLocked: ${isLocked}`);
 
         if (isLocked) {
           roomOption.classList.add('locked-room');
@@ -1539,6 +1542,15 @@
       if (typeof window.updateRoomSelectionModal === 'function') {
         console.log('[HTML] Updating room selection modal after ability tree render');
         setTimeout(() => window.updateRoomSelectionModal(), 100);
+      }
+
+      // Обновляем видимость кнопки удаления комнат в Phaser
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.simpleBunker && typeof gameScene.simpleBunker.updateRemoveButtonVisibility === 'function') {
+          console.log('[HTML] Updating remove button visibility after ability change');
+          setTimeout(() => gameScene.simpleBunker.updateRemoveButtonVisibility(), 200);
+        }
       }
       
       const connections = document.getElementById('connection-lines');
