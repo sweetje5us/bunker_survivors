@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weapon Sync Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .weapon-slot {
+            width: 200px;
+            height: 100px;
+            border: 2px solid #555;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px;
+            cursor: pointer;
+            background: #2a2a2a;
+        }
+        .weapon-display {
+            text-align: center;
+        }
+        .weapon-icon {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #ccc;
+        }
+        .weapon-name {
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        .weapon-dropdown {
+            display: none;
+            position: absolute;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 10px;
+            z-index: 1000;
+        }
+        .weapon-dropdown.show {
+            display: block;
+        }
+        .weapon-option {
+            display: flex;
+            align-items: center;
+            padding: 5px;
+            margin: 2px 0;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .weapon-option:hover {
+            background: #444;
+        }
+        .weapon-option.locked {
+            opacity: 0.4;
+        }
+        .weapon-option-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+        }
+        .log {
+            background: #222;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔫 Weapon Sync Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Controls</h3>
+        <button onclick="testWeaponSelection('pistol')">Select Pistol</button>
+        <button onclick="testWeaponSelection('shotgun')">Select Shotgun</button>
+        <button onclick="testWeaponSelection('assault_rifle')">Select AR</button>
+        <button onclick="testWeaponSelection('sniper_rifle')">Select Sniper</button>
+        <button onclick="testSync()">Test Sync</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="weapon-slot" data-current-weapon="pistol" onclick="toggleDropdown()">
+        <div class="weapon-display">
+            <img src="src/sprites/guns/img/pistol.png" alt="Пистолет" class="weapon-icon" id="current-weapon-icon">
+            <div class="weapon-name" id="current-weapon-name">Пистолет</div>
+        </div>
+        <div class="weapon-dropdown" id="weapon-dropdown">
+            <div class="weapon-option" data-weapon="pistol" onclick="selectWeapon('pistol')">
+                <img src="src/sprites/guns/img/pistol.png" alt="Пистолет" class="weapon-option-icon">
+                <span>Пистолет</span>
+            </div>
+            <div class="weapon-option locked" data-weapon="shotgun" onclick="selectWeapon('shotgun')">
+                <img src="src/sprites/guns/img/shotgun.png" alt="Дробовик" class="weapon-option-icon">
+                <span>Дробовик</span>
+            </div>
+            <div class="weapon-option locked" data-weapon="assault_rifle" onclick="selectWeapon('assault_rifle')">
+                <img src="src/sprites/guns/img/assault_rifle.png" alt="Штурмовая винтовка" class="weapon-option-icon">
+                <span>Штурмовая винтовка</span>
+            </div>
+            <div class="weapon-option locked" data-weapon="sniper_rifle" onclick="selectWeapon('sniper_rifle')">
+                <img src="src/sprites/guns/img/sniper_rifle.png" alt="Снайперская винтовка" class="weapon-option-icon">
+                <span>Снайперская винтовка</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>Current State</h3>
+        <div id="state-display">Loading...</div>
+    </div>
+
+    <div class="test-section">
+        <h3>Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        // Weapon system state
+        let currentWeapon = 'pistol';
+        let weaponDropdownVisible = false;
+
+        // Mock abilities data
+        const mockAbilitiesData = {
+            learnedAbilities: ['def_shotgun', 'def_assault_rifle']
+        };
+
+        // Logging function
+        function log(message) {
+            const logElement = document.getElementById('log');
+            if (logElement) {
+                const timestamp = new Date().toLocaleTimeString();
+                logElement.innerHTML += `[${timestamp}] ${message}\n`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+            console.log(message);
+        }
+
+        // Weapon data
+        function getWeaponData(weaponType) {
+            const weaponData = {
+                'pistol': {
+                    name: 'Пистолет',
+                    ability: null,
+                    damage: 1,
+                    ammoCost: 1
+                },
+                'shotgun': {
+                    name: 'Дробовик',
+                    ability: 'def_shotgun',
+                    damage: 2,
+                    ammoCost: 1
+                },
+                'assault_rifle': {
+                    name: 'Штурмовая винтовка',
+                    ability: 'def_assault_rifle',
+                    damage: 1,
+                    ammoCost: 1,
+                    description: 'Клик - одиночный выстрел, удерживание - автоматический огонь (3 выстрела/сек)'
+                },
+                'sniper_rifle': {
+                    name: 'Снайперская винтовка',
+                    ability: 'def_sniper_rifle',
+                    damage: 3,
+                    ammoCost: 1
+                }
+            };
+            return weaponData[weaponType] || weaponData['pistol'];
+        }
+
+        function getWeaponDisplayName(weaponType) {
+            return getWeaponData(weaponType).name;
+        }
+
+        function isWeaponAvailable(weaponType) {
+            const weaponData = getWeaponData(weaponType);
+
+            // Basic weapons are always available
+            if (!weaponData.ability) return true;
+
+            // Check if ability is learned
+            return mockAbilitiesData.learnedAbilities.includes(weaponData.ability);
+        }
+
+        function updateWeaponDisplay() {
+            const icon = document.getElementById('current-weapon-icon');
+            const name = document.getElementById('current-weapon-name');
+            const weaponSlot = document.querySelector('.weapon-slot');
+
+            if (icon && name && weaponSlot) {
+                const weaponData = getWeaponData(currentWeapon);
+                
+                // Обновляем изображение оружия
+                let imageSrc;
+                switch (currentWeapon) {
+                    case 'pistol':
+                        imageSrc = 'src/sprites/guns/img/pistol.png';
+                        break;
+                    case 'shotgun':
+                        imageSrc = 'src/sprites/guns/img/shotgun.png';
+                        break;
+                    case 'assault_rifle':
+                        imageSrc = 'src/sprites/guns/img/assault_rifle.png';
+                        break;
+                    case 'sniper_rifle':
+                        imageSrc = 'src/sprites/guns/img/sniper_rifle.png';
+                        break;
+                    default:
+                        imageSrc = 'src/sprites/guns/img/pistol.png';
+                }
+                
+                icon.src = imageSrc;
+                icon.alt = weaponData.name;
+                name.textContent = weaponData.name;
+                weaponSlot.setAttribute('data-current-weapon', currentWeapon);
+                
+                log(`[updateWeaponDisplay] Updated weapon display to: ${currentWeapon} (${weaponData.name})`);
+            } else {
+                log('[updateWeaponDisplay] Required elements not found');
+            }
+        }
+
+        function updateWeaponAvailability() {
+            const weaponOptions = document.querySelectorAll('.weapon-option');
+            weaponOptions.forEach(option => {
+                const weaponType = option.dataset.weapon;
+                if (weaponType) {
+                    const available = isWeaponAvailable(weaponType);
+                    option.classList.toggle('locked', !available);
+                    option.classList.toggle('available', available);
+                    
+                    log(`[updateWeaponAvailability] Weapon ${weaponType}: ${available ? 'available' : 'locked'}`);
+                }
+            });
+        }
+
+        function toggleDropdown() {
+            const dropdown = document.getElementById('weapon-dropdown');
+            if (!dropdown) {
+                log('[toggleDropdown] Weapon dropdown not found');
+                return;
+            }
+
+            weaponDropdownVisible = !weaponDropdownVisible;
+            log(`[toggleDropdown] Toggling dropdown visibility to: ${weaponDropdownVisible}`);
+
+            if (weaponDropdownVisible) {
+                dropdown.classList.add('show');
+                updateWeaponAvailability();
+                log('[toggleDropdown] Dropdown shown and availability updated');
+            } else {
+                dropdown.classList.remove('show');
+                log('[toggleDropdown] Dropdown hidden');
+            }
+        }
+
+        function selectWeapon(weaponType) {
+            log(`[selectWeapon] Selecting weapon: ${weaponType}`);
+
+            // Check if weapon is available
+            if (!isWeaponAvailable(weaponType)) {
+                alert(`Оружие "${getWeaponDisplayName(weaponType)}" недоступно. Изучите необходимую способность.`);
+                return;
+            }
+
+            log(`[selectWeapon] Weapon ${weaponType} is available, proceeding with selection`);
+
+            // Обновляем текущее оружие
+            currentWeapon = weaponType;
+            
+            // Закрываем выпадающий список
+            toggleDropdown();
+
+            // Принудительно обновляем отображение
+            setTimeout(() => {
+                updateWeaponDisplay();
+                log(`[selectWeapon] Weapon display updated for: ${weaponType}`);
+            }, 10);
+
+            // Синхронизируем с GameScene (если доступен)
+            if (window.syncWeaponWithGameScene) {
+                window.syncWeaponWithGameScene(weaponType);
+                log(`[selectWeapon] Weapon synced with GameScene`);
+            } else {
+                log('[selectWeapon] syncWeaponWithGameScene function not available');
+            }
+
+            const weaponData = getWeaponData(weaponType);
+            let message = `Выбрано оружие: ${weaponData.name}`;
+
+            // Показываем уникальную механику для штурмовой винтовки
+            if (weaponType === 'assault_rifle' && weaponData.description) {
+                message += `\n${weaponData.description}`;
+            }
+
+            alert(message);
+            
+            log(`[selectWeapon] Weapon selection completed for: ${weaponType}`);
+            updateStateDisplay();
+        }
+
+        function testWeaponSelection(weaponType) {
+            log(`[testWeaponSelection] Testing weapon selection: ${weaponType}`);
+            selectWeapon(weaponType);
+        }
+
+        function testSync() {
+            log('[testSync] Testing weapon synchronization');
+            
+            if (window.syncWeaponWithGameScene) {
+                window.syncWeaponWithGameScene(currentWeapon);
+                log('[testSync] Sync function called');
+            } else {
+                log('[testSync] syncWeaponWithGameScene function not available');
+            }
+        }
+
+        function updateStateDisplay() {
+            const stateElement = document.getElementById('state-display');
+            if (stateElement) {
+                stateElement.innerHTML = `
+                    <strong>Current Weapon:</strong> ${currentWeapon}<br>
+                    <strong>Weapon Name:</strong> ${getWeaponDisplayName(currentWeapon)}<br>
+                    <strong>Dropdown Visible:</strong> ${weaponDropdownVisible}<br>
+                    <strong>Weapon Available:</strong> ${isWeaponAvailable(currentWeapon)}<br>
+                    <strong>Weapon Data:</strong> ${JSON.stringify(getWeaponData(currentWeapon), null, 2)}<br>
+                    <strong>Learned Abilities:</strong> ${JSON.stringify(mockAbilitiesData.learnedAbilities)}<br>
+                `;
+            }
+        }
+
+        function clearLog() {
+            const logElement = document.getElementById('log');
+            if (logElement) {
+                logElement.innerHTML = '';
+            }
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            log('[Debug] Weapon system initialized');
+            updateWeaponDisplay();
+            updateWeaponAvailability();
+            updateStateDisplay();
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const weaponSlot = document.querySelector('.weapon-slot');
+            const dropdown = document.getElementById('weapon-dropdown');
+
+            if (weaponSlot && dropdown && !weaponSlot.contains(event.target)) {
+                if (weaponDropdownVisible) {
+                    weaponDropdownVisible = false;
+                    dropdown.classList.remove('show');
+                }
+            }
+        });
+
+        // Mock GameScene functions for testing
+        window.game = {
+            scene: {
+                getScene: function(sceneName) {
+                    if (sceneName === 'Game') {
+                        return {
+                            getCurrentWeapon: function() {
+                                log('[Mock GameScene] getCurrentWeapon called');
+                                return 'pistol'; // Mock default weapon
+                            },
+                            setCurrentWeapon: function(weapon) {
+                                log(`[Mock GameScene] setCurrentWeapon called with: ${weapon}`);
+                                return true;
+                            }
+                        };
+                    }
+                    return null;
+                }
+            }
+        };
+
+        // Mock sync function for testing
+        window.syncWeaponWithGameScene = function(weaponType) {
+            log(`[Mock] syncWeaponWithGameScene called with: ${weaponType}`);
+            
+            if (window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene && typeof gameScene.setCurrentWeapon === 'function') {
+                    // Преобразуем ID оружия из инвентаря в ID для GameScene
+                    let gameSceneWeaponType;
+                    switch (weaponType) {
+                        case 'pistol':
+                            gameSceneWeaponType = 'pistol';
+                            break;
+                        case 'shotgun':
+                            gameSceneWeaponType = 'shotgun';
+                            break;
+                        case 'assault_rifle':
+                            gameSceneWeaponType = 'ar';
+                            break;
+                        case 'sniper_rifle':
+                            gameSceneWeaponType = 'sniper';
+                            break;
+                        default:
+                            gameSceneWeaponType = 'pistol';
+                    }
+                    
+                    log(`[Mock] Setting GameScene weapon to: ${gameSceneWeaponType}`);
+                    gameScene.setCurrentWeapon(gameSceneWeaponType);
+                    
+                    // Проверяем, что оружие действительно установлено
+                    setTimeout(() => {
+                        const actualWeapon = gameScene.getCurrentWeapon();
+                        log(`[Mock] GameScene weapon confirmed: ${actualWeapon}`);
+                    }, 50);
+                } else {
+                    log('[Mock] GameScene or setCurrentWeapon not available');
+                }
+            } else {
+                log('[Mock] window.game not available');
+            }
+        };
+    </script>
+</body>
+</html>

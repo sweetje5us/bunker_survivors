@@ -1285,6 +1285,13 @@ export class SimpleBunkerView {
     const storageCount = this.getStorageRoomCount();
     console.log(`[bunkerView] Storage rooms count changed: ${storageCount} (triggering inventory update)`);
 
+    // Показываем уведомление об изменении инвентаря
+    if (storageCount > 0) {
+      this.showNotification(`Инвентарь расширен до ${storageCount + 1} строк`, 'success');
+    } else {
+      this.showNotification(`Инвентарь сокращен до 1 строки`, 'warning');
+    }
+
     // Уведомляем игровую сцену об изменении
     if (window.game && window.game.scene) {
       const gameScene = window.game.scene.getScene('Game') as any;
@@ -2005,6 +2012,9 @@ export class SimpleBunkerView {
     }
 
     console.log('[bunkerView] Room removed successfully')
+    
+    // Показываем уведомление об удалении комнаты
+    this.showNotification(`Уничтожена комната: ${roomName}`, 'warning')
   }
 
   private handleResidentsAfterRoomRemoval(removedRoomIndex: number): void {
@@ -2782,6 +2792,9 @@ export class SimpleBunkerView {
     
     console.log(`Добавлена комната: ${roomType} в позицию (${pos.x}, ${pos.y})`)
 
+    // Показываем уведомление о добавлении комнаты
+    this.showNotification(`Построена комната: ${roomType}`, 'success')
+
     // Проверяем, была ли добавлена комната склада
     if (roomType === 'Склад') {
       this.notifyStorageRoomChange()
@@ -3154,6 +3167,23 @@ export class SimpleBunkerView {
    */
   public getRoomIndexByName(roomName: string): number {
     return this.roomNames.indexOf(roomName)
+  }
+
+  // Функция для показа уведомлений через HTML
+  private showNotification(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
+    if (typeof window !== 'undefined' && (window as any).addGameNotification) {
+      // Получаем текущий день из GameScene
+      let currentDay = 1
+      try {
+        if (this.scene && (this.scene as any).dayNumber) {
+          currentDay = (this.scene as any).dayNumber
+        }
+      } catch (error) {
+        console.warn('[bunkerView] Could not get current day:', error)
+      }
+      
+      (window as any).addGameNotification(message, type, currentDay)
+    }
   }
   
   /**
@@ -5234,14 +5264,7 @@ export class SimpleBunkerView {
                   console.log(`[bunkerView] Житель ${target.profession} (ID: ${target.id}) убит врагом ${agent.enemyType}!`)
                             
                             // Показываем уведомление о убийстве
-                            try {
-                              const gameScene = this.scene as any
-                              if (gameScene.announce) {
-                                gameScene.announce(`${agent.enemyType} убил ${target.profession}`)
-                              }
-                            } catch (e) {
-                              console.warn(`[bunkerView] Не удалось показать уведомление о убийстве:`, e)
-                            }
+                            this.showNotification(`${agent.enemyType} убил ${target.profession}`, 'error')
                             
                             // Воспроизводим dead анимацию перед уничтожением
                             this.setDeadAnimation(target)
@@ -5599,7 +5622,7 @@ export class SimpleBunkerView {
             }
             ;(agent as any).away = true
               ;(agent as any)._surfacePending = false
-              try { (this.scene as any).announce?.(`${agent.profession} ушел на поверхность`) } catch {}
+              this.showNotification(`${agent.profession} ушел на поверхность`, 'info')
             }
           }
         }
@@ -5626,7 +5649,7 @@ export class SimpleBunkerView {
             agent.rect.setPosition(cx, cy)
           }
           ;(agent as any).away = false
-          try { (this.scene as any).announce?.(`${agent.profession} вернулся`) } catch {}
+          this.showNotification(`${agent.profession} вернулся`, 'success')
           
           // Перерисовываем шкалу здоровья при возвращении с поверхности
           this.drawHealthBar(agent)

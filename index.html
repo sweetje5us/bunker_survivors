@@ -55,13 +55,27 @@
   <script>
     // Global functions for UI overlay button clicks
     window.openInventory = function() {
+      console.log('[openInventory] Opening inventory modal');
+      
       // Open modal first
       openModal('inventory-modal');
 
       // Initialize weapon system when inventory is opened
       setTimeout(() => {
+        console.log('[openInventory] Initializing weapon system...');
+        
         if (window.initializeWeaponSystem) {
           window.initializeWeaponSystem();
+        } else {
+          console.warn('[openInventory] initializeWeaponSystem function not found');
+        }
+
+        // Принудительно синхронизируем оружие
+        if (window.forceWeaponSync) {
+          setTimeout(() => {
+            window.forceWeaponSync();
+            console.log('[openInventory] Weapon sync completed');
+          }, 50);
         }
 
         // Обновляем инвентарь на основе текущего состояния GameScene
@@ -69,18 +83,203 @@
           const gameScene = window.game.scene.getScene('Game');
           if (gameScene && gameScene.inventoryRows) {
             console.log(`[openInventory] Refreshing inventory with ${gameScene.inventoryRows} rows from GameScene`);
-            const sampleInventory = [
-              { icon: '🍎', quantity: 5 },
-              { icon: '💊', quantity: 3 },
-              { icon: '🔧', quantity: 1 },
-              { icon: '🧰', quantity: 2 },
-              { icon: '💡', quantity: 7 },
-              { icon: '📦', quantity: 12 }
-            ];
-            populateInventoryModal(sampleInventory, gameScene.inventoryRows);
+
+            // Используем реальный инвентарь из GameScene если доступен
+            let inventoryData = [];
+            if (gameScene.getDefaultInventory) {
+              inventoryData = gameScene.getDefaultInventory();
+            }
+
+            populateInventoryModal(inventoryData, gameScene.inventoryRows);
           }
         }
+        
+        console.log('[openInventory] Inventory modal setup completed');
       }, 100);
+    };
+
+    // Функция для открытия журнала уведомлений
+    window.openJournal = function() {
+      console.log('[openJournal] Opening journal modal');
+      
+      // Заполняем журнал уведомлениями
+      if (window.populateJournalModal) {
+        window.populateJournalModal();
+      }
+      
+      // Открываем модальное окно
+      openModal('journal-modal');
+    };
+
+        // Функция для заполнения журнала уведомлений
+    window.populateJournalModal = function() {
+      const journalContent = document.getElementById('journal-content');
+      if (!journalContent) {
+        return;
+      }
+
+      // Ждем небольшой задержки, чтобы убедиться, что модальное окно полностью загружено
+      setTimeout(() => {
+        // Инициализируем фильтры по меткам
+        window.initializeTagFilters();
+
+        // Продолжаем с остальной логикой
+        continuePopulateJournal();
+      }, 100);
+
+      function continuePopulateJournal() {
+
+        // Получаем все уведомления
+        const notifications = window.gameNotifications.getAll();
+
+        if (notifications.length === 0) {
+          journalContent.innerHTML = '<div class="no-notifications">Пока нет уведомлений</div>';
+          return;
+        }
+
+        // Применяем фильтры
+        const filteredNotifications = window.gameNotifications.applyFilters(notifications);
+
+        // Группируем отфильтрованные уведомления по дням
+        const notificationsByDay = {};
+        filteredNotifications.forEach(notification => {
+          if (!notificationsByDay[notification.day]) {
+            notificationsByDay[notification.day] = [];
+          }
+          notificationsByDay[notification.day].push(notification);
+        });
+
+        // Сортируем дни по убыванию
+        const sortedDays = Object.keys(notificationsByDay).sort((a, b) => parseInt(b) - parseInt(a));
+
+        let journalHTML = '';
+
+        sortedDays.forEach(day => {
+          const dayNotifications = notificationsByDay[day];
+
+          journalHTML += `
+            <div class="journal-day">
+              <h3 class="day-header">День ${day}</h3>
+              <div class="day-notifications">
+          `;
+
+          dayNotifications.forEach(notification => {
+            const typeClass = notification.type || 'info';
+            const readClass = notification.read ? 'read' : 'unread';
+
+            // Формируем HTML для меток
+            const tagsHTML = notification.tags && notification.tags.length > 0 ?
+              `<div class="notification-tags">
+                ${notification.tags.map(tag => `<span class="notification-tag ${tag}">${window.getTagLabel(tag)}</span>`).join('')}
+              </div>` : '';
+
+            journalHTML += `
+              <div class="notification-item ${typeClass} ${readClass}" data-id="${notification.id}">
+                <div class="notification-content">
+                  <div class="notification-message">${notification.message}</div>
+                  <div class="notification-meta">
+                    <span class="notification-time">${notification.timestamp}</span>
+                    <span class="notification-type">${window.getTypeLabel(notification.type)}</span>
+                  </div>
+                  ${tagsHTML}
+                </div>
+                <div class="notification-actions">
+                  <button class="mark-read-btn" onclick="window.markNotificationAsRead('${notification.id}')"
+                          ${notification.read ? 'disabled' : ''}>
+                    ${notification.read ? '✓' : 'Отметить прочитанным'}
+                  </button>
+                </div>
+              </div>
+            `;
+          });
+
+          journalHTML += `
+              </div>
+            </div>
+          `;
+        });
+
+        journalContent.innerHTML = journalHTML;
+
+        // Обновляем статистику
+        const totalElement = document.getElementById('total-notifications');
+        const unreadElement = document.getElementById('unread-notifications');
+
+        if (totalElement) {
+          totalElement.textContent = filteredNotifications.length;
+        }
+        if (unreadElement) {
+          unreadElement.textContent = window.gameNotifications.getUnreadCount();
+        }
+
+        // Обновляем счетчик непрочитанных
+        window.gameNotifications.updateNotificationCounter();
+
+
+      }
+    };
+
+    // Функция для получения метки типа уведомления
+    window.getTypeLabel = function(type) {
+      const labels = {
+        'info': 'Информация',
+        'success': 'Успех',
+        'warning': 'Предупреждение',
+        'error': 'Ошибка'
+      };
+      return labels[type] || 'Информация';
+    };
+
+    // Функция для получения метки метки
+    window.getTagLabel = function(tag) {
+      const labels = {
+        'resident': 'Жители',
+        'enemy': 'Враги',
+        'resource': 'Ресурсы',
+        'building': 'Строительство',
+        'combat': 'Бой',
+        'system': 'Система',
+        'negative': 'Негативные'
+      };
+      return labels[tag] || tag;
+    };
+
+    // Функция для отметки уведомления как прочитанного
+    window.markNotificationAsRead = function(id) {
+      window.gameNotifications.markAsRead(id);
+      
+      // Обновляем UI
+      const notificationElement = document.querySelector(`[data-id="${id}"]`);
+      if (notificationElement) {
+        notificationElement.classList.remove('unread');
+        notificationElement.classList.add('read');
+        
+        // Обновляем кнопку
+        const button = notificationElement.querySelector('.mark-read-btn');
+        if (button) {
+          button.textContent = '✓';
+          button.disabled = true;
+        }
+      }
+      
+      // Обновляем счетчик
+      window.gameNotifications.updateNotificationCounter();
+    };
+
+    // Функции для интеграции с Phaser
+    window.addGameNotification = function(message, type = 'info', day = null, tags = []) {
+      window.gameNotifications.add(message, type, day, tags);
+    };
+
+    // Функция для получения текущего дня игры
+    window.getCurrentGameDay = function() {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.dayNumber) {
+          return gameScene.dayNumber;
+        }
+      }
+      return 1; // fallback
     };
 
     window.openAbilities = function() {
@@ -102,6 +301,98 @@
     window.currentWeapon = 'pistol';
     window.weaponDropdownVisible = false;
 
+    // Функция для синхронизации оружия с GameScene
+    window.syncWeaponWithGameScene = function(weaponType) {
+      console.log(`[syncWeaponWithGameScene] Syncing weapon: ${weaponType}`);
+      
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && typeof gameScene.setCurrentWeapon === 'function') {
+          // Преобразуем ID оружия из инвентаря в ID для GameScene
+          let gameSceneWeaponType;
+          switch (weaponType) {
+            case 'pistol':
+              gameSceneWeaponType = 'pistol';
+              break;
+            case 'shotgun':
+              gameSceneWeaponType = 'shotgun';
+              break;
+            case 'assault_rifle':
+              gameSceneWeaponType = 'ar';
+              break;
+            case 'sniper_rifle':
+              gameSceneWeaponType = 'sniper';
+              break;
+            default:
+              gameSceneWeaponType = 'pistol';
+          }
+          
+          console.log(`[syncWeaponWithGameScene] Setting GameScene weapon to: ${gameSceneWeaponType}`);
+          gameScene.setCurrentWeapon(gameSceneWeaponType);
+          
+          // Проверяем, что оружие действительно установлено
+          setTimeout(() => {
+            const actualWeapon = gameScene.getCurrentWeapon();
+            console.log(`[syncWeaponWithGameScene] GameScene weapon confirmed: ${actualWeapon}`);
+          }, 50);
+        } else {
+          console.warn('[syncWeaponWithGameScene] GameScene or setCurrentWeapon not available');
+        }
+      } else {
+        console.warn('[syncWeaponWithGameScene] window.game not available');
+      }
+    };
+
+    // Функция для получения текущего оружия из GameScene
+    window.getCurrentWeaponFromGameScene = function() {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && typeof gameScene.getCurrentWeapon === 'function') {
+          const gameSceneWeapon = gameScene.getCurrentWeapon();
+          console.log(`[getCurrentWeaponFromGameScene] GameScene weapon: ${gameSceneWeapon}`);
+          return gameSceneWeapon;
+        }
+      }
+      console.warn('[getCurrentWeaponFromGameScene] GameScene not available');
+      return 'pistol'; // fallback
+    };
+
+    // Функция для принудительной синхронизации оружия между инвентарем и GameScene
+    window.forceWeaponSync = function() {
+      console.log('[forceWeaponSync] Forcing weapon synchronization');
+      
+      // Получаем оружие из GameScene
+      const gameSceneWeapon = window.getCurrentWeaponFromGameScene();
+      
+      // Преобразуем в ID для инвентаря
+      let inventoryWeaponType;
+      switch (gameSceneWeapon) {
+        case 'pistol':
+          inventoryWeaponType = 'pistol';
+          break;
+        case 'shotgun':
+          inventoryWeaponType = 'shotgun';
+          break;
+        case 'ar':
+          inventoryWeaponType = 'assault_rifle';
+          break;
+        case 'sniper':
+          inventoryWeaponType = 'sniper_rifle';
+          break;
+        default:
+          inventoryWeaponType = 'pistol';
+      }
+      
+      // Обновляем инвентарь
+      if (window.currentWeapon !== inventoryWeaponType) {
+        console.log(`[forceWeaponSync] Updating inventory weapon from ${window.currentWeapon} to ${inventoryWeaponType}`);
+        window.currentWeapon = inventoryWeaponType;
+        window.updateWeaponDisplay(inventoryWeaponType);
+      }
+      
+      console.log(`[forceWeaponSync] Weapon sync completed. Inventory: ${window.currentWeapon}, GameScene: ${gameSceneWeapon}`);
+    };
+
     window.toggleWeaponDropdown = function() {
       const dropdown = document.getElementById('weapon-dropdown');
       if (dropdown) {
@@ -116,20 +407,50 @@
     };
 
     window.selectWeapon = function(weaponType) {
+      console.log(`[selectWeapon] Selecting weapon: ${weaponType}`);
+      
       if (window.isWeaponAvailable && !window.isWeaponAvailable(weaponType)) {
         if (window.showToast) window.showToast('Это оружие требует изучения способности!');
         return;
       }
 
+      // Обновляем текущее оружие в инвентаре
       window.currentWeapon = weaponType;
-      if (window.updateWeaponDisplay) window.updateWeaponDisplay(weaponType);
+      console.log(`[selectWeapon] Inventory weapon updated to: ${weaponType}`);
+      
+      // Обновляем отображение в инвентаре
+      if (window.updateWeaponDisplay) {
+        window.updateWeaponDisplay(weaponType);
+        console.log(`[selectWeapon] Weapon display updated in inventory`);
+      }
+      
+      // Закрываем выпадающий список
       window.weaponDropdownVisible = false;
       const dropdown = document.getElementById('weapon-dropdown');
       if (dropdown) {
         dropdown.classList.remove('show');
       }
 
-      if (window.showToast) window.showToast(`Выбрано оружие: ${window.getWeaponDisplayName ? window.getWeaponDisplayName(weaponType) : weaponType}`);
+      // Синхронизируем с GameScene
+      if (window.syncWeaponWithGameScene) {
+        window.syncWeaponWithGameScene(weaponType);
+        console.log(`[selectWeapon] Weapon synced with GameScene`);
+      }
+
+      // Показываем уведомление
+      if (window.showToast) {
+        const weaponName = window.getWeaponDisplayName ? window.getWeaponDisplayName(weaponType) : weaponType;
+        let message = `Выбрано оружие: ${weaponName}`;
+        
+        // Показываем уникальную механику для штурмовой винтовки
+        if (weaponType === 'assault_rifle') {
+          message += '\nКлик - одиночный выстрел, удерживание - автоматический огонь (3 выстрела/сек)';
+        }
+        
+        window.showToast(message);
+      }
+      
+      console.log(`[selectWeapon] Weapon selection completed for: ${weaponType}`);
     };
 
     window.getWeaponData = function(weaponType) {
@@ -240,44 +561,468 @@
     };
 
     window.initializeWeaponSystem = function() {
+      console.log('[initializeWeaponSystem] Starting weapon system initialization');
+      
+      // Синхронизируем с GameScene, если доступен
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && typeof gameScene.getCurrentWeapon === 'function') {
+          const gameSceneWeapon = gameScene.getCurrentWeapon();
+          console.log(`[initializeWeaponSystem] GameScene weapon: ${gameSceneWeapon}`);
+          
+          // Преобразуем ID оружия из GameScene в ID для инвентаря
+          let inventoryWeaponType;
+          switch (gameSceneWeapon) {
+            case 'pistol':
+              inventoryWeaponType = 'pistol';
+              break;
+            case 'shotgun':
+              inventoryWeaponType = 'shotgun';
+              break;
+            case 'ar':
+              inventoryWeaponType = 'assault_rifle';
+              break;
+            case 'sniper':
+              inventoryWeaponType = 'sniper_rifle';
+              break;
+            default:
+              inventoryWeaponType = 'pistol';
+          }
+          
+          // Обновляем текущее оружие в инвентаре, если оно отличается
+          if (inventoryWeaponType !== window.currentWeapon) {
+            console.log(`[initializeWeaponSystem] Syncing inventory weapon from ${window.currentWeapon} to ${inventoryWeaponType}`);
+            window.currentWeapon = inventoryWeaponType;
+          }
+        } else {
+          console.log('[initializeWeaponSystem] GameScene not available, using default weapon');
+        }
+      } else {
+        console.log('[initializeWeaponSystem] window.game not available, using default weapon');
+      }
+      
+      console.log(`[initializeWeaponSystem] Final inventory weapon: ${window.currentWeapon}`);
+      
+      // Обновляем отображение и доступность
       window.updateWeaponDisplay(window.currentWeapon);
       window.updateWeaponAvailability();
+      
+      console.log('[initializeWeaponSystem] Weapon system initialization completed');
     };
 
-    window.showToast = function(message) {
-      const toast = document.createElement('div');
-      toast.className = 'toast-notification';
-      toast.textContent = message;
-      toast.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 5px;
-        z-index: 10000;
-        font-size: 12px;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.3s ease;
-      `;
+    // Система уведомлений и журнала
+    window.gameNotifications = {
+      notifications: [],
+      maxDays: 3,
+      
+      // Добавить уведомление
+      add: function(message, type = 'info', day = null, tags = []) {
+        const currentDay = day || (window.game && window.game.scene ? 
+          window.game.scene.getScene('Game')?.dayNumber || 1 : 1);
+        
+        // Автоматически определяем метки на основе сообщения и типа
+        const autoTags = this.autoDetectTags(message, type);
+        const allTags = [...new Set([...tags, ...autoTags])];
+        
+        const notification = {
+          id: Date.now() + Math.random(),
+          message: message,
+          type: type, // 'info', 'success', 'warning', 'error'
+          day: currentDay,
+          timestamp: new Date().toLocaleTimeString(),
+          read: false,
+          tags: allTags
+        };
+        
+        this.notifications.push(notification);
+        
+        // Очищаем старые дни
+        this.cleanupOldDays();
+        
+        // Показываем toast уведомление
+        this.showToast(message, type);
+        
+        // Обновляем счетчик непрочитанных уведомлений
+        this.updateNotificationCounter();
+        
 
-      document.body.appendChild(toast);
+      },
+      
+      // Автоматическое определение меток на основе сообщения
+      autoDetectTags: function(message, type) {
+        const tags = [];
+        const lowerMessage = message.toLowerCase();
 
-      setTimeout(() => {
-        toast.style.opacity = '1';
-      }, 10);
+        // Метки по типу события
+        if (type === 'error') {
+          tags.push('combat', 'negative');
+        }
+        if (type === 'warning') {
+          tags.push('negative');
+        }
 
-      setTimeout(() => {
-        toast.style.opacity = '0';
+        // Метки по содержимому сообщения
+        if (lowerMessage.includes('житель') || lowerMessage.includes('посетитель') || lowerMessage.includes('принят') || lowerMessage.includes('отказано')) {
+          tags.push('resident');
+        }
+        if (lowerMessage.includes('враг') || lowerMessage.includes('мародер') || lowerMessage.includes('зомби') || lowerMessage.includes('мутант') || lowerMessage.includes('солдат')) {
+          tags.push('enemy');
+        }
+        if (lowerMessage.includes('еда') || lowerMessage.includes('вода') || lowerMessage.includes('патрон') || lowerMessage.includes('деньги') || lowerMessage.includes('ресурс')) {
+          tags.push('resource');
+        }
+        if (lowerMessage.includes('комната') || lowerMessage.includes('построена') || lowerMessage.includes('уничтожена') || lowerMessage.includes('склад')) {
+          tags.push('building');
+        }
+        if (lowerMessage.includes('убил') || lowerMessage.includes('погиб') || lowerMessage.includes('атака') || lowerMessage.includes('бой')) {
+          tags.push('combat');
+        }
+        if (lowerMessage.includes('день') || lowerMessage.includes('ночь') || lowerMessage.includes('уровень') || lowerMessage.includes('инвентарь')) {
+          tags.push('system');
+        }
+
+        return tags;
+      },
+      
+      // Показать toast уведомление
+      showToast: function(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast-notification toast-${type}`;
+        toast.textContent = message;
+        
+        // Определяем цвет в зависимости от типа
+        let bgColor, textColor;
+        switch (type) {
+          case 'success':
+            bgColor = 'rgba(76, 175, 80, 0.9)'; // Зеленый
+            textColor = 'white';
+            break;
+          case 'warning':
+            bgColor = 'rgba(255, 152, 0, 0.9)'; // Оранжевый
+            textColor = 'white';
+            break;
+          case 'error':
+            bgColor = 'rgba(244, 67, 54, 0.9)'; // Красный
+            textColor = 'white';
+            break;
+          default:
+            bgColor = 'rgba(0, 0, 0, 0.9)'; // Черный
+            textColor = 'white';
+        }
+        
+        toast.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: ${bgColor};
+          color: ${textColor};
+          padding: 12px 20px;
+          border-radius: 8px;
+          z-index: 10000;
+          font-size: 14px;
+          font-weight: 500;
+          pointer-events: none;
+          opacity: 0;
+          transition: all 0.3s ease;
+          max-width: 400px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          transform: translateX(100%);
+        `;
+
+        document.body.appendChild(toast);
+
+        // Анимация появления
         setTimeout(() => {
-          if (toast.parentNode) {
-            toast.parentNode.removeChild(toast);
+          toast.style.opacity = '1';
+          toast.style.transform = 'translateX(0)';
+        }, 10);
+
+        // Автоматическое скрытие
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(100%)';
+          setTimeout(() => {
+            if (toast.parentNode) {
+              toast.parentNode.removeChild(toast);
+            }
+          }, 300);
+        }, 4000);
+      },
+      
+      // Очистить уведомления старше maxDays
+      cleanupOldDays: function() {
+        if (!window.game || !window.game.scene) return;
+        
+        const gameScene = window.game.scene.getScene('Game');
+        if (!gameScene || !gameScene.dayNumber) return;
+        
+        const currentDay = gameScene.dayNumber;
+        const cutoffDay = currentDay - this.maxDays;
+        
+        this.notifications = this.notifications.filter(n => n.day > cutoffDay);
+
+      },
+      
+      // Получить уведомления для определенного дня
+      getByDay: function(day) {
+        return this.notifications.filter(n => n.day === day);
+      },
+      
+      // Получить все уведомления
+      getAll: function() {
+        return this.notifications.slice().reverse(); // Новые сверху
+      },
+      
+      // Отметить уведомление как прочитанное
+      markAsRead: function(id) {
+        const notification = this.notifications.find(n => n.id === id);
+        if (notification) {
+          notification.read = true;
+        }
+      },
+      
+      // Получить количество непрочитанных уведомлений
+      getUnreadCount: function() {
+        return this.notifications.filter(n => !n.read).length;
+      },
+      
+      // Обновить счетчик непрочитанных уведомлений
+      updateNotificationCounter: function() {
+        const counter = document.getElementById('notification-counter');
+        if (counter) {
+          const count = this.getUnreadCount();
+          counter.textContent = count > 0 ? count : '';
+          counter.style.display = count > 0 ? 'block' : 'none';
+        }
+      },
+      
+      // Применить фильтры к уведомлениям
+      applyFilters: function(notifications) {
+        const activeTags = window.getActiveTagFilters();
+        const activeTypes = window.getActiveTypeFilters();
+
+        const filtered = notifications.filter(notification => {
+          // Фильтр по типу - если нет активных фильтров по типу, показываем все
+          if (activeTypes.length > 0) {
+            if (!activeTypes.includes(notification.type)) {
+              return false;
+            }
           }
-        }, 300);
-      }, 2000);
+
+          // Фильтр по меткам - если нет активных фильтров по меткам, показываем все
+          if (activeTags.length > 0) {
+            const hasMatchingTag = notification.tags && notification.tags.some(tag => activeTags.includes(tag));
+            if (!hasMatchingTag) {
+              return false;
+            }
+          }
+
+          return true;
+        });
+
+        return filtered;
+      },
+      
+      // Отметить все уведомления дня как прочитанные
+      markAllDayAsRead: function(day) {
+        const targetDay = day || window.getCurrentGameDay();
+        this.notifications.forEach(notification => {
+          if (notification.day === targetDay) {
+            notification.read = true;
+          }
+        });
+        this.updateNotificationCounter();
+        window.populateJournalModal();
+      }
+    };
+
+    // Алиас для обратной совместимости
+    window.showToast = function(message, type = 'info') {
+      window.gameNotifications.showToast(message, type);
+    };
+
+    // Глобальное состояние активных фильтров по меткам
+    if (!window.activeTagFilters) {
+      window.activeTagFilters = [];
+    }
+
+    // Функции для работы с фильтрами журнала
+    window.getActiveTagFilters = function() {
+      // Убеждаемся, что массив существует
+      if (!window.activeTagFilters) {
+        window.activeTagFilters = [];
+      }
+      return window.activeTagFilters;
+    };
+
+        window.getActiveTypeFilters = function() {
+      const activeFilters = [];
+      const typeFilters = document.querySelectorAll('.type-filters input[type="checkbox"]:checked');
+      const allCheckbox = document.querySelector('.type-filters input[value="all"]');
+
+      // Если выбран "Все", возвращаем пустой массив (показываем все типы)
+      if (allCheckbox && allCheckbox.checked) {
+        return [];
+      }
+
+      // Иначе возвращаем только выбранные конкретные типы
+      typeFilters.forEach(filter => {
+        if (filter.value !== 'all') {
+          activeFilters.push(filter.value);
+        }
+      });
+
+      return activeFilters;
+    };
+
+        window.toggleTagFilter = function(tag) {
+      // Инициализируем глобальный массив, если он не существует
+      if (!window.activeTagFilters) {
+        window.activeTagFilters = [];
+      }
+
+      const filterElement = document.querySelector(`[data-tag="${tag}"]`);
+      if (filterElement) {
+        const wasActive = filterElement.classList.contains('active');
+        filterElement.classList.toggle('active');
+        const isActive = filterElement.classList.contains('active');
+
+        // Обновляем глобальное состояние активных фильтров
+        if (isActive) {
+          if (!window.activeTagFilters.includes(tag)) {
+            window.activeTagFilters.push(tag);
+          }
+        } else {
+          window.activeTagFilters = window.activeTagFilters.filter(t => t !== tag);
+        }
+
+        window.populateJournalModal();
+      }
+    };
+
+    window.markAllDayAsRead = function() {
+      const currentDay = window.getCurrentGameDay();
+      window.gameNotifications.markAllDayAsRead(currentDay);
+    };
+
+        window.clearAllFilters = function() {
+      // Сбрасываем глобальное состояние фильтров по меткам
+      if (!window.activeTagFilters) {
+        window.activeTagFilters = [];
+      }
+      window.activeTagFilters = [];
+
+      // Сбрасываем фильтры по меткам в DOM
+      const activeTagFilters = document.querySelectorAll('.tag-filter.active');
+      activeTagFilters.forEach(filter => {
+        filter.classList.remove('active');
+      });
+
+      // Сбрасываем фильтры по типу
+      const typeCheckboxes = document.querySelectorAll('.type-filters input[type="checkbox"]');
+      typeCheckboxes.forEach(checkbox => {
+        checkbox.checked = true;
+      });
+
+      window.populateJournalModal();
+    };
+
+
+
+    window.initializeTagFilters = function() {
+      const tagFiltersContainer = document.getElementById('tag-filters');
+      if (!tagFiltersContainer) {
+        return;
+      }
+
+      // Используем глобальное состояние активных фильтров
+      const previouslyActiveTags = window.activeTagFilters;
+
+      // Получаем все уникальные метки из уведомлений
+      const allTags = new Set();
+      const notifications = window.gameNotifications.getAll();
+
+      notifications.forEach(notification => {
+        if (notification.tags) {
+          notification.tags.forEach(tag => allTags.add(tag));
+        }
+      });
+
+      // Создаем фильтры для каждой метки
+      tagFiltersContainer.innerHTML = '';
+      Array.from(allTags).sort().forEach(tag => {
+        const filterElement = document.createElement('div');
+        filterElement.className = 'tag-filter';
+        filterElement.dataset.tag = tag;
+        filterElement.textContent = window.getTagLabel(tag);
+
+        // Восстанавливаем активное состояние фильтра
+        if (previouslyActiveTags.includes(tag)) {
+          filterElement.classList.add('active');
+        }
+
+        filterElement.onclick = (event) => {
+          event.stopPropagation();
+          window.toggleTagFilter(tag);
+        };
+        tagFiltersContainer.appendChild(filterElement);
+      });
+
+            // Добавляем обработчики для фильтров по типу с задержкой
+      setTimeout(() => {
+        const typeFilters = document.querySelectorAll('.type-filters input[type="checkbox"]');
+
+        if (typeFilters.length === 0) {
+          setTimeout(() => {
+            const retryTypeFilters = document.querySelectorAll('.type-filters input[type="checkbox"]');
+            setupTypeFilterHandlers(retryTypeFilters);
+          }, 100);
+          return;
+        }
+
+        setupTypeFilterHandlers(typeFilters);
+      }, 50);
+
+      // Вспомогательная функция для настройки обработчиков
+      function setupTypeFilterHandlers(typeFilters) {
+        typeFilters.forEach(checkbox => {
+          checkbox.addEventListener('change', () => {
+            // Если сняли галочку с "Все", убираем все остальные
+            if (checkbox.value === 'all' && !checkbox.checked) {
+              typeFilters.forEach(cb => {
+                if (cb.value !== 'all') {
+                  cb.checked = false;
+                }
+              });
+            }
+            // Если поставили галочку на "Все", убираем все остальные
+            if (checkbox.value === 'all' && checkbox.checked) {
+              typeFilters.forEach(cb => {
+                if (cb.value !== 'all') {
+                  cb.checked = false;
+                }
+              });
+            }
+            // Если поставили галочку на конкретный тип, убираем "Все"
+            if (checkbox.value !== 'all' && checkbox.checked) {
+              const allCheckbox = document.querySelector('.type-filters input[value="all"]');
+              if (allCheckbox) {
+                allCheckbox.checked = false;
+              }
+            }
+            // Если сняли все галочки, ставим "Все"
+            const checkedTypes = Array.from(typeFilters).filter(cb => cb.checked);
+            if (checkedTypes.length === 0) {
+              const allCheckbox = document.querySelector('.type-filters input[value="all"]');
+              if (allCheckbox) {
+                allCheckbox.checked = true;
+              }
+            }
+
+            window.populateJournalModal();
+          });
+        });
+      }
     };
 
     // Close weapon dropdown when clicking outside
@@ -935,6 +1680,43 @@
     };
 
     // Inventory functions
+    // Функция для получения предмета по ID
+    window.getItemById = function(id) {
+      // Загружаем справочник предметов из GameScene если доступен
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.getItemById) {
+          return gameScene.getItemById(id);
+        }
+      }
+
+      // Fallback: создаем базовые предметы если справочник недоступен
+      const fallbackItems = {
+        'food': { id: 'food', name: 'Еда', spritePath: 'src/sprites/items/food.png', description: 'Восстанавливает здоровье', price: 10 },
+        'water': { id: 'water', name: 'Вода', spritePath: 'src/sprites/items/water.png', description: 'Необходима для выживания', price: 8 },
+        'medicine': { id: 'medicine', name: 'Лекарство', spritePath: 'src/sprites/items/medicine.png', description: 'Восстанавливает здоровье', price: 40 },
+        'ammo': { id: 'ammo', name: 'Патроны', spritePath: 'src/sprites/items/ammo.png', description: 'Боеприпасы для оружия', price: 15 },
+        'multi_tool': { id: 'multi_tool', name: 'Мультитул', spritePath: 'src/sprites/items/multi_tool.png', description: 'Набор инструментов', price: 75 },
+        'flashlight': { id: 'flashlight', name: 'Фонарик', spritePath: 'src/sprites/items/flashlight.png', description: 'Источник света', price: 35 },
+        'bottle': { id: 'bottle', name: 'Бутылка', spritePath: 'src/sprites/items/bottle.png', description: 'Пустая бутылка', price: 5 },
+        'compass': { id: 'compass', name: 'Компас', spritePath: 'src/sprites/items/compass.png', description: 'Помогает ориентироваться', price: 45 },
+        'map': { id: 'map', name: 'Карта', spritePath: 'src/sprites/items/map.png', description: 'Помогает ориентироваться', price: 30 },
+        'backpack': { id: 'backpack', name: 'Рюкзак', spritePath: 'src/sprites/items/backpack.png', description: 'Увеличивает вместимость', price: 50 },
+        'battery': { id: 'battery', name: 'Батарейка', spritePath: 'src/sprites/items/battery.png', description: 'Источник энергии', price: 12 },
+        'lighter': { id: 'lighter', name: 'Зажигалка', spritePath: 'src/sprites/items/lighter.png', description: 'Для разжигания огня', price: 15 },
+        'matches': { id: 'matches', name: 'Спички', spritePath: 'src/sprites/items/matches.png', description: 'Для разжигания огня', price: 10 },
+        'coal': { id: 'coal', name: 'Уголь', spritePath: 'src/sprites/items/coal.png', description: 'Топливо', price: 8 },
+        'wood': { id: 'wood', name: 'Дерево', spritePath: 'src/sprites/items/wood.png', description: 'Материал для строительства', price: 12 },
+        'metal': { id: 'metal', name: 'Металл', spritePath: 'src/sprites/items/metal.png', description: 'Материал для крафта', price: 20 },
+        'glass': { id: 'glass', name: 'Стекло', spritePath: 'src/sprites/items/glass.png', description: 'Материал для крафта', price: 12 },
+        'nails': { id: 'nails', name: 'Гвозди', spritePath: 'src/sprites/items/nails.png', description: 'Материал для строительства', price: 10 },
+        'tape': { id: 'tape', name: 'Скотч', spritePath: 'src/sprites/items/tape.png', description: 'Для склеивания', price: 8 },
+        'paper': { id: 'paper', name: 'Бумага', spritePath: 'src/sprites/items/paper.png', description: 'Материал для записей', price: 5 }
+      };
+
+      return fallbackItems[id] || null;
+    };
+
     window.populateInventoryModal = function(inventory, inventoryRows = 1) {
       console.log(`[populateInventoryModal] Called with inventoryRows: ${inventoryRows}, inventory length: ${inventory ? inventory.length : 0}`);
 
@@ -950,6 +1732,7 @@
       // Create inventory slots (6 columns × inventoryRows)
       const totalSlots = 6 * inventoryRows;
       console.log(`[populateInventoryModal] Creating ${totalSlots} slots (6 columns × ${inventoryRows} rows)`);
+
       for (let i = 0; i < totalSlots; i++) {
         const slot = document.createElement('div');
         slot.className = 'inventory-slot';
@@ -958,9 +1741,30 @@
         const item = inventory ? inventory[i] : null;
         if (item) {
           slot.classList.add('occupied');
+
+          // Проверяем формат данных: новый (с id) или старый (с icon)
+          let itemDisplay = '';
+          let itemQuantity = item.quantity || 1;
+
+          if (item.id) {
+            // Новый формат: ищем предмет в справочнике
+            const itemData = window.getItemById(item.id);
+            if (itemData) {
+              itemDisplay = `<img src="${itemData.spritePath}" alt="${itemData.name}" style="width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;">`;
+            } else {
+              itemDisplay = `❓`; // Неизвестный предмет
+            }
+          } else if (item.icon) {
+            // Старый формат: используем иконку
+            itemDisplay = item.icon;
+          } else {
+            // Fallback
+            itemDisplay = '📦';
+          }
+
           slot.innerHTML = `
-            <div class="item">${item.icon || '📦'}</div>
-            <div class="quantity">${item.quantity || 1}</div>
+            <div class="item">${itemDisplay}</div>
+            <div class="quantity">${itemQuantity}</div>
           `;
         }
 

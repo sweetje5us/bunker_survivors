@@ -1366,6 +1366,328 @@
                 font-size: 0.8em;
             }
         }
+
+        /* Стили для журнала уведомлений */
+        .journal-container {
+            padding: 20px;
+        }
+
+        .journal-info {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #555;
+        }
+
+        .journal-info p {
+            margin-bottom: 15px;
+            color: #ccc;
+            font-size: 0.9em;
+        }
+
+        .journal-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            color: #ddd;
+            font-size: 0.8em;
+        }
+
+        .journal-day {
+            margin-bottom: 25px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .day-header {
+            background: linear-gradient(135deg, #4a4a4a, #2a2a2a);
+            color: #fff;
+            padding: 12px 20px;
+            margin: 0;
+            font-size: 1.1em;
+            border-bottom: 1px solid #555;
+        }
+
+        .day-notifications {
+            background: #1a1a1a;
+        }
+
+        .notification-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notification-item:last-child {
+            border-bottom: none;
+        }
+
+        .notification-item:hover {
+            background: #2a2a2a;
+        }
+
+        .notification-item.unread {
+            background: rgba(76, 175, 80, 0.1);
+            border-left: 4px solid #4CAF50;
+        }
+
+        .notification-item.read {
+            opacity: 0.7;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-message {
+            color: #fff;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .notification-meta {
+            display: flex;
+            gap: 15px;
+        }
+
+        /* Стили для фильтров журнала */
+        .journal-filters {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #555;
+        }
+
+        .filter-section {
+            margin-bottom: 20px;
+        }
+
+        .filter-section h4 {
+            color: #fff;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .tag-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .tag-filter {
+            background: #444;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            cursor: pointer;
+            border: 1px solid #666;
+            transition: all 0.2s ease;
+        }
+
+        .tag-filter:hover {
+            background: #555;
+        }
+
+        .tag-filter.active {
+            background: var(--bunker-gold);
+            color: #000;
+            border-color: var(--bunker-gold);
+        }
+
+        .type-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #ccc;
+            font-size: 0.8em;
+            cursor: pointer;
+        }
+
+        .filter-checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--bunker-gold);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-secondary {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #555;
+            border-color: #777;
+        }
+
+        /* Стили для меток уведомлений */
+        .notification-tags {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .notification-tag {
+            background: #444;
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            border: 1px solid #666;
+        }
+
+        .notification-tag.resident {
+            background: #2e7d32;
+            border-color: #2e7d32;
+        }
+
+        .notification-tag.enemy {
+            background: #c62828;
+            border-color: #c62828;
+        }
+
+        .notification-tag.resource {
+            background: #1565c0;
+            border-color: #1565c0;
+        }
+
+        .notification-tag.building {
+            background: #6a1b9a;
+            border-color: #6a1b9a;
+        }
+
+        .notification-tag.combat {
+            background: #d84315;
+            border-color: #d84315;
+        }
+
+        .notification-tag.system {
+            background: #424242;
+            border-color: #424242;
+        }
+
+        /* Негативные события */
+        .notification-item.error {
+            border-left-color: var(--bunker-red);
+            background: rgba(244, 67, 54, 0.15);
+            border-left-width: 6px;
+        }
+
+        .notification-item.warning {
+            border-left-color: #ff9800;
+            background: rgba(255, 152, 0, 0.15);
+            border-left-width: 6px;
+        }
+
+        .notification-item.negative {
+            border-left-color: #d32f2f;
+            background: rgba(211, 47, 47, 0.1);
+        }
+            font-size: 0.7em;
+            color: #aaa;
+        }
+
+        .notification-type {
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: #444;
+            color: #ddd;
+        }
+
+        .notification-actions {
+            margin-left: 15px;
+        }
+
+        .mark-read-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.7em;
+            transition: all 0.2s ease;
+        }
+
+        .mark-read-btn:hover:not(:disabled) {
+            background: #45a049;
+        }
+
+        .mark-read-btn:disabled {
+            background: #666;
+            cursor: default;
+        }
+
+        .no-notifications {
+            text-align: center;
+            color: #888;
+            padding: 40px;
+            font-size: 1.1em;
+        }
+
+        /* Стили для типов уведомлений */
+        .notification-item.success {
+            border-left-color: #4CAF50;
+        }
+
+        .notification-item.warning {
+            border-left-color: #FF9800;
+        }
+
+        .notification-item.error {
+            border-left-color: #f44336;
+        }
+
+        .notification-item.info {
+            border-left-color: #2196F3;
+        }
+
+        /* Счетчик уведомлений */
+        .notification-counter {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #f44336;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -1375,6 +1697,10 @@
             <div class="action-buttons">
                 <button class="btn inventory-btn" id="inventory-btn" onclick="openInventory()">📦 INV</button>
                 <button class="btn" id="abilities-btn" onclick="openAbilities()">ABILITIES</button>
+                <button class="btn journal-btn" id="journal-btn" onclick="openJournal()" style="position: relative;">
+                    📖 ЖУРНАЛ
+                    <span id="notification-counter" class="notification-counter" style="display: none;"></span>
+                </button>
                 <button class="btn" id="pause-btn" onclick="togglePause()">PAUSE</button>
             </div>
         </div>
@@ -1690,20 +2016,52 @@
         };
 
         window.selectWeapon = function(weaponType) {
+            console.log(`[game-overlay] selectWeapon called with: ${weaponType}`);
+            
             if (window.isWeaponAvailable && !window.isWeaponAvailable(weaponType)) {
                 if (window.showToast) window.showToast('Это оружие требует изучения способности!');
                 return;
             }
 
+            // Обновляем текущее оружие в инвентаре
             currentWeapon = weaponType;
-            if (window.updateWeaponDisplay) window.updateWeaponDisplay(weaponType);
+            console.log(`[game-overlay] Inventory weapon updated to: ${weaponType}`);
+            
+            // Обновляем отображение в инвентаре
+            if (window.updateWeaponDisplay) {
+                window.updateWeaponDisplay(weaponType);
+                console.log(`[game-overlay] Weapon display updated in inventory`);
+            }
+            
+            // Закрываем выпадающий список
             weaponDropdownVisible = false;
             const dropdown = document.getElementById('weapon-dropdown');
             if (dropdown) {
                 dropdown.classList.remove('show');
             }
 
-            if (window.showToast) window.showToast(`Выбрано оружие: ${window.getWeaponDisplayName ? window.getWeaponDisplayName(weaponType) : weaponType}`);
+            // Синхронизируем с GameScene через функцию из index.html
+            if (window.syncWeaponWithGameScene) {
+                window.syncWeaponWithGameScene(weaponType);
+                console.log(`[game-overlay] Weapon synced with GameScene`);
+            } else {
+                console.warn('[game-overlay] syncWeaponWithGameScene function not available');
+            }
+
+            // Показываем уведомление
+            if (window.showToast) {
+                const weaponName = window.getWeaponDisplayName ? window.getWeaponDisplayName(weaponType) : weaponType;
+                let message = `Выбрано оружие: ${weaponName}`;
+                
+                // Показываем уникальную механику для штурмовой винтовки
+                if (weaponType === 'assault_rifle') {
+                    message += '\nКлик - одиночный выстрел, удерживание - автоматический огонь (3 выстрела/сек)';
+                }
+                
+                window.showToast(message);
+            }
+            
+            console.log(`[game-overlay] Weapon selection completed for: ${weaponType}`);
         };
 
         // Define supporting functions
@@ -1941,7 +2299,84 @@
             }
         }
 
+        // Функция для открытия журнала уведомлений
+        function openJournal() {
+            console.log('Opening journal...');
+            if (window.openJournal) {
+                window.openJournal();
+            }
+        }
 
     </script>
+
+    <!-- Модальное окно журнала уведомлений -->
+    <div id="journal-modal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h2>📖 Журнал событий</h2>
+                <button class="close-btn" onclick="closeModal('journal-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="journal-container">
+                    <div class="journal-info">
+                        <p>Здесь отображаются все игровые события за последние 3 дня.</p>
+                        <div class="journal-stats">
+                            <span class="stat-item">
+                                <strong>Всего уведомлений:</strong> 
+                                <span id="total-notifications">0</span>
+                            </span>
+                            <span class="stat-item">
+                                <strong>Непрочитанных:</strong> 
+                                <span id="unread-notifications">0</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Фильтры по меткам -->
+                    <div class="journal-filters">
+                        <div class="filter-section">
+                            <h4>Фильтр по меткам:</h4>
+                            <div class="tag-filters" id="tag-filters">
+                                <!-- Фильтры будут добавлены динамически -->
+                            </div>
+                        </div>
+                        <div class="filter-section">
+                            <h4>Фильтр по типу:</h4>
+                            <div class="type-filters">
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" value="all" checked> Все
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" value="info" checked> Информация
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" value="success" checked> Успех
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" value="warning" checked> Предупреждения
+                                </label>
+                                <label class="filter-checkbox">
+                                    <input type="checkbox" value="error" checked> Ошибки
+                                </label>
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn btn-secondary" onclick="window.markAllDayAsRead()">
+                                Прочитать все события дня
+                            </button>
+                            <button class="btn btn-secondary" onclick="window.clearAllFilters()">
+                                Сбросить фильтры
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="journal-content" id="journal-content">
+                        <!-- Уведомления будут загружены здесь -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

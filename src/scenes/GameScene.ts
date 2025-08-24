@@ -6,6 +6,7 @@ import type { Difficulty } from './DifficultyScene'
 import { ParallaxBackground } from '../core/parallax'
 import { SimpleBunkerView, RoomState } from '../core/bunkerView'
 import { createCharacterSprite, pickSkinForGender, ensureCharacterAnimations, pickClothingSetForGender, pickHairForGender, ensureSpecialistAnimations, getSpecialistSpriteKey, isSpecialistSprite } from '../core/characters'
+import { ITEMS_DATABASE, Item } from '../core/items'
 
 type Phase = 'day' | 'night'
 
@@ -69,14 +70,20 @@ export class GameScene extends Phaser.Scene {
   private personPreviewPants?: Phaser.GameObjects.Sprite
   private personPreviewFootwear?: Phaser.GameObjects.Sprite
   private personPreviewHair?: Phaser.GameObjects.Sprite
+  private personPreviewInventory?: Phaser.GameObjects.Container
   private gunSprite?: Phaser.GameObjects.Image
   private gunAnimTimer?: Phaser.Time.TimerEvent
+  private autoFireTimer?: Phaser.Time.TimerEvent
+  private clickTimer?: Phaser.Time.TimerEvent
+  private isAutoFiring = false
+  private isClickMode = false
+  private pointerDownTime = 0
   private enemyHpBg?: Phaser.GameObjects.Rectangle
   private enemyHpFg?: Phaser.GameObjects.Rectangle
   private currentWeapon: 'melee' | 'pistol' | 'shotgun' | 'ar' | 'sniper' = 'pistol'
   private lastHourTick: number = -1
   private sessionSeed: number = 0
-  private personCache: Map<number, { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; loot: { ammo: number; food: number; water: number; money: number } }> = new Map()
+  private personCache: Map<number, { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; loot: { ammo: number; food: number; water: number; money: number }; inventory: Array<{ id: string; quantity: number }> }> = new Map()
   private noSpaceLabel?: Phaser.GameObjects.Text
   private personNameText?: Phaser.GameObjects.Text
   private personDetailsText?: Phaser.GameObjects.Text
@@ -110,6 +117,7 @@ export class GameScene extends Phaser.Scene {
     profession: string
     skills: Array<{ text: string; positive: boolean }>
     itemsText: string
+    inventory: Array<{ id: string; quantity: number }>
     admittedAt: number
     status?: string
     // Потребности 0..100 (100 = полно/здоров/энергичен)
@@ -212,13 +220,232 @@ export class GameScene extends Phaser.Scene {
       this.gunSprite.setTexture(f.key)
       i += 1
       if (i >= seq.length) {
-        // Вернуть на первый кадр
-        this.gunSprite.setTexture('pistol_f00')
+        // Вернуть на начальную текстуру текущего оружия
+        this.gunSprite.setTexture(this.getWeaponInitialTexture())
         return
       }
       this.gunAnimTimer = this.time.delayedCall(seq[i].d, step)
     }
     step()
+  }
+
+  private playShotgunOnce(): void {
+    if (!this.gunSprite) return
+    this.gunAnimTimer?.remove(false)
+    const seq: Array<{ key: string; d: number }> = [
+      { key: 'shotgun_f00', d: 400 },
+      { key: 'shotgun_f01', d: 20 },
+      { key: 'shotgun_f02', d: 20 },
+      { key: 'shotgun_f03', d: 40 },
+      { key: 'shotgun_f04', d: 50 },
+      { key: 'shotgun_f05', d: 60 },
+      { key: 'shotgun_f06', d: 50 },
+      { key: 'shotgun_f07', d: 40 },
+      { key: 'shotgun_f08', d: 50 },
+      { key: 'shotgun_f09', d: 50 },
+      { key: 'shotgun_f10', d: 50 },
+      { key: 'shotgun_f11', d: 50 },
+      { key: 'shotgun_f12', d: 50 },
+      { key: 'shotgun_f13', d: 50 }
+    ]
+    let i = 0
+    const step = () => {
+      if (!this.gunSprite) return
+      const f = seq[i]
+      this.gunSprite.setTexture(f.key)
+      i += 1
+      if (i >= seq.length) {
+        // Вернуть на начальную текстуру текущего оружия
+        this.gunSprite.setTexture(this.getWeaponInitialTexture())
+        return
+      }
+      this.gunAnimTimer = this.time.delayedCall(seq[i].d, step)
+    }
+    step()
+  }
+
+  private playAssaultRifleOnce(): void {
+    if (!this.gunSprite) return
+    this.gunAnimTimer?.remove(false)
+    const seq: Array<{ key: string; d: number }> = [
+      { key: 'assault_rifle_f00', d: 400 },
+      { key: 'assault_rifle_f01', d: 20 },
+      { key: 'assault_rifle_f02', d: 20 },
+      { key: 'assault_rifle_f03', d: 20 },
+      { key: 'assault_rifle_f04', d: 20 },
+      { key: 'assault_rifle_f05', d: 20 },
+      { key: 'assault_rifle_f06', d: 20 },
+      { key: 'assault_rifle_f07', d: 20 },
+      { key: 'assault_rifle_f08', d: 20 },
+      { key: 'assault_rifle_f09', d: 40 },
+      { key: 'assault_rifle_f10', d: 40 },
+      { key: 'assault_rifle_f11', d: 40 },
+      { key: 'assault_rifle_f12', d: 50 },
+      { key: 'assault_rifle_f13', d: 70 },
+      { key: 'assault_rifle_f14', d: 70 },
+      { key: 'assault_rifle_f15', d: 50 }
+    ]
+    let i = 0
+    const step = () => {
+      if (!this.gunSprite) return
+      const f = seq[i]
+      this.gunSprite.setTexture(f.key)
+      i += 1
+      if (i >= seq.length) {
+        // Вернуть на начальную текстуру текущего оружия
+        this.gunSprite.setTexture(this.getWeaponInitialTexture())
+        return
+      }
+      this.gunAnimTimer = this.time.delayedCall(seq[i].d, step)
+    }
+    step()
+  }
+
+  private playSniperRifleOnce(): void {
+    if (!this.gunSprite) return
+    this.gunAnimTimer?.remove(false)
+    const seq: Array<{ key: string; d: number }> = [
+      { key: 'sniper_rifle_f00', d: 400 },
+      { key: 'sniper_rifle_f01', d: 20 },
+      { key: 'sniper_rifle_f02', d: 20 },
+      { key: 'sniper_rifle_f03', d: 20 },
+      { key: 'sniper_rifle_f04', d: 20 },
+      { key: 'sniper_rifle_f05', d: 30 },
+      { key: 'sniper_rifle_f06', d: 30 },
+      { key: 'sniper_rifle_f07', d: 30 },
+      { key: 'sniper_rifle_f08', d: 30 },
+      { key: 'sniper_rifle_f09', d: 40 },
+      { key: 'sniper_rifle_f10', d: 40 },
+      { key: 'sniper_rifle_f11', d: 80 },
+      { key: 'sniper_rifle_f12', d: 80 },
+      { key: 'sniper_rifle_f13', d: 80 },
+      { key: 'sniper_rifle_f14', d: 80 },
+      { key: 'sniper_rifle_f15', d: 80 },
+      { key: 'sniper_rifle_f16', d: 80 },
+      { key: 'sniper_rifle_f17', d: 40 },
+      { key: 'sniper_rifle_f18', d: 40 },
+      { key: 'sniper_rifle_f19', d: 40 },
+      { key: 'sniper_rifle_f20', d: 40 },
+      { key: 'sniper_rifle_f21', d: 40 },
+      { key: 'sniper_rifle_f22', d: 40 },
+      { key: 'sniper_rifle_f23', d: 40 },
+      { key: 'sniper_rifle_f24', d: 40 },
+      { key: 'sniper_rifle_f25', d: 40 },
+      { key: 'sniper_rifle_f26', d: 40 },
+      { key: 'sniper_rifle_f27', d: 40 }
+    ]
+    let i = 0
+    const step = () => {
+      if (!this.gunSprite) return
+      const f = seq[i]
+      this.gunSprite.setTexture(f.key)
+      i += 1
+      if (i >= seq.length) {
+        // Вернуть на начальную текстуру текущего оружия
+        this.gunSprite.setTexture(this.getWeaponInitialTexture())
+        return
+      }
+      this.gunAnimTimer = this.time.delayedCall(seq[i].d, step)
+    }
+    step()
+  }
+
+  private getWeaponInitialTexture(): string {
+    switch (this.currentWeapon) {
+      case 'pistol': return 'pistol_f00'
+      case 'shotgun': return 'shotgun_f00'
+      case 'ar': return 'assault_rifle_f00'
+      case 'sniper': return 'sniper_rifle_f00'
+      case 'melee': return 'pistol_f00' // По умолчанию для melee
+      default: return 'pistol_f00'
+    }
+  }
+
+  private getWeaponDisplaySize(): { width: number; height: number } {
+    switch (this.currentWeapon) {
+      case 'pistol':
+        // 64x32 -> сохраняем пропорции (64:32 = 2:1)
+        // Масштабируем по высоте до 64, ширина = 64 * 2 = 128
+        return { width: 128, height: 64 }
+      case 'shotgun':
+        // 160x32 -> сохраняем пропорции (160:32 = 5:1)
+        // Масштабируем по высоте до 64, ширина = 64 * 5 = 320
+        return { width: 320, height: 64 }
+      case 'ar':
+        // 128x48 -> сохраняем пропорции (128:48 ≈ 2.67:1)
+        // Масштабируем по высоте до 72, ширина = 72 * 2.67 ≈ 192
+        return { width: 192, height: 72 }
+      case 'sniper':
+        // 128x32 -> сохраняем пропорции (128:32 = 4:1)
+        // Масштабируем по высоте до 64, ширина = 64 * 4 = 256
+        return { width: 256, height: 64 }
+      case 'melee':
+        return { width: 320, height: 64 }
+      default:
+        return { width: 320, height: 64 }
+    }
+  }
+
+  public setCurrentWeapon(weapon: 'melee' | 'pistol' | 'shotgun' | 'ar' | 'sniper'): void {
+    // Останавливаем все связанные с AR взаимодействия при смене оружия
+    if (weapon !== 'ar') {
+      if (this.isAutoFiring) {
+        this.stopAutoFire()
+      }
+      if (this.clickTimer) {
+        this.clickTimer.remove(false)
+        this.clickTimer = undefined
+      }
+      this.isClickMode = false
+    }
+
+    this.currentWeapon = weapon
+    console.log(`[GameScene] Weapon changed to: ${weapon}`)
+
+    // Обновляем текстуру и размер оружия, если оно уже создано
+    if (this.gunSprite) {
+      const newTexture = this.getWeaponInitialTexture()
+      const newSize = this.getWeaponDisplaySize()
+
+      this.gunSprite.setTexture(newTexture)
+      this.gunSprite.setDisplaySize(newSize.width, newSize.height)
+
+      console.log(`[GameScene] Updated weapon sprite: texture=${newTexture}, size=${newSize.width}x${newSize.height}`)
+    }
+  }
+
+  public getCurrentWeapon(): 'melee' | 'pistol' | 'shotgun' | 'ar' | 'sniper' {
+    return this.currentWeapon
+  }
+
+  private startAutoFire(): void {
+    if (this.isAutoFiring) return
+
+    this.isAutoFiring = true
+    console.log('[GameScene] Started auto-fire for assault rifle')
+
+    // Запускаем автоматический огонь - 3 выстрела в секунду
+    this.autoFireTimer = this.time.addEvent({
+      delay: 333, // 1000ms / 3 выстрела = 333ms между выстрелами
+      callback: () => {
+        if (this.isAutoFiring && this.currentWeapon === 'ar') {
+          this.fireWeaponOnce()
+        }
+      },
+      loop: true
+    })
+  }
+
+  private stopAutoFire(): void {
+    if (!this.isAutoFiring) return
+
+    this.isAutoFiring = false
+    console.log('[GameScene] Stopped auto-fire for assault rifle')
+
+    if (this.autoFireTimer) {
+      this.autoFireTimer.remove(false)
+      this.autoFireTimer = undefined
+    }
   }
 
   private ensureMarauderAnimations(): void {
@@ -395,8 +622,14 @@ export class GameScene extends Phaser.Scene {
       this.ammo = Math.max(0, this.ammo - 1)
       this.updateResourcesText()
     }
-    // Анимация выстрела пистолета (пока только пистолет)
-    if (this.currentWeapon === 'pistol') this.playPistolOnce()
+    // Анимация выстрела в зависимости от текущего оружия
+    switch (this.currentWeapon) {
+      case 'pistol': this.playPistolOnce(); break
+      case 'shotgun': this.playShotgunOnce(); break
+      case 'ar': this.playAssaultRifleOnce(); break
+      case 'sniper': this.playSniperRifleOnce(); break
+      case 'melee': /* Нет анимации для melee */ break
+    }
 
     // Урон по первому врагу в очереди
     const enemy = this.enemyQueueItems[0] as any
@@ -724,7 +957,7 @@ export class GameScene extends Phaser.Scene {
     })
     
     // Уведомление о проникновении
-    this.announce(`${enemy.type} проник в бункер!`)
+    this.showToast(`${enemy.type} проник в бункер!`)
   }
 
   private spawnEnemyInBunker(enemy: any): void {
@@ -1097,11 +1330,27 @@ export class GameScene extends Phaser.Scene {
     this.personNameText = this.add.text(0, 0, `${t('name')}: ???`, { fontFamily: THEME.fonts.body, fontSize: '10px', color: THEME.colors.textMuted })
     this.personDetailsText = this.add.text(0, 0, `${t('age')}: ??\nПОЛ: ??\n${t('specialty')}: ??\n${t('inventory')}: ??`, { fontFamily: THEME.fonts.body, fontSize: '10px', color: THEME.colors.textMuted })
     this.personSkillText = this.add.text(0, 0, `${t('skill')}: ???`, { fontFamily: THEME.fonts.body, fontSize: '10px', color: THEME.colors.textMuted })
+
+    // Создаем сетку инвентаря 3x1 для превью персонажа
+    this.personPreviewInventory = this.add.container(0, 0)
+    const inventorySlots: Phaser.GameObjects.Container[] = []
+    for (let i = 0; i < 3; i++) {
+      const slot = this.add.container(0, 0)
+      const bg = this.add.rectangle(0, 0, 24, 24, 0x333333, 0.8).setOrigin(0.5)
+      const itemSprite = this.add.sprite(0, 0, undefined as unknown as string).setVisible(false)
+      const quantityText = this.add.text(8, 8, '', { fontFamily: THEME.fonts.body, fontSize: '8px', color: '#ffffff' }).setOrigin(0.5)
+      slot.add([bg, itemSprite, quantityText])
+      inventorySlots.push(slot)
+    }
+    this.personPreviewInventory.add(inventorySlots)
+    this.personPreviewInventory.setVisible(false)
+
     // Изначально скрываем детали персонажа
     this.personNameText.setVisible(false)
     this.personDetailsText.setVisible(false)
     this.personSkillText.setVisible(false)
-    this.personBottom.add([this.personNameText, this.personDetailsText, this.personSkillText])
+    this.personPreviewInventory.setVisible(false)
+    this.personBottom.add([this.personNameText, this.personDetailsText, this.personSkillText, this.personPreviewInventory])
 
     this.personArea.add([this.personTop, this.personBottom])
     this.updatePersonInfoFromQueue()
@@ -1355,19 +1604,94 @@ export class GameScene extends Phaser.Scene {
     const wantGun = hasEnemies
     if (wantGun) {
       if (!this.gunSprite) {
-        this.gunSprite = this.add.image(0, 0, 'pistol_f00').setOrigin(0, 1)
-        this.gunSprite.setDisplaySize(128, 64)
+        // Получаем начальную текстуру в зависимости от текущего оружия
+        const initialTexture = this.getWeaponInitialTexture()
+        this.gunSprite = this.add.image(0, 0, initialTexture).setOrigin(0, 1)
         this.gunSprite.setInteractive({ useHandCursor: true })
-        this.gunSprite.on('pointerdown', () => this.fireWeaponOnce())
+
+        // Обработчик нажатия для всех оружий
+        this.gunSprite.on('pointerdown', () => {
+          if (this.currentWeapon === 'ar') {
+            // Для штурмовой винтовки - начинаем отсчет времени для определения клика или удерживания
+            this.pointerDownTime = this.time.now
+            this.isClickMode = true
+
+            // Запускаем таймер для определения типа взаимодействия (200мс)
+            this.clickTimer = this.time.delayedCall(200, () => {
+              if (this.isClickMode && this.currentWeapon === 'ar') {
+                // Если кнопка все еще удерживается через 200мс - переключаемся в режим автоматического огня
+                this.isClickMode = false
+                this.startAutoFire()
+              }
+            })
+          } else {
+            // Для других оружий - одиночный выстрел
+            this.fireWeaponOnce()
+          }
+        })
+
+        // Обработчик отпускания для всех оружий
+        this.gunSprite.on('pointerup', () => {
+          if (this.currentWeapon === 'ar') {
+            // Останавливаем таймер клика
+            if (this.clickTimer) {
+              this.clickTimer.remove(false)
+              this.clickTimer = undefined
+            }
+
+            // Если был быстрый клик - делаем одиночный выстрел
+            if (this.isClickMode) {
+              this.isClickMode = false
+              this.fireWeaponOnce()
+            } else {
+              // Если был режим автоматического огня - останавливаем его
+              this.stopAutoFire()
+            }
+          }
+        })
+
+        // Также останавливаем огонь при уходе курсора с оружия
+        this.gunSprite.on('pointerout', () => {
+          if (this.currentWeapon === 'ar') {
+            // Останавливаем таймер клика
+            if (this.clickTimer) {
+              this.clickTimer.remove(false)
+              this.clickTimer = undefined
+            }
+
+            // Останавливаем автоматический огонь
+            if (!this.isClickMode) {
+              this.stopAutoFire()
+            }
+            this.isClickMode = false
+          }
+        })
+
         this.personTop?.add(this.gunSprite)
       }
+
+      // Обновляем размер спрайта в зависимости от текущего оружия
+      const displaySize = this.getWeaponDisplaySize()
+      this.gunSprite.setDisplaySize(displaySize.width, displaySize.height)
       const gx = pad
       const gy = topH - pad
       this.gunSprite.setPosition(gx, gy)
       this.gunSprite.setVisible(true)
     } else {
       // Скрываем, но оставляем объект, чтобы появлялся снова при новых врагах
-      if (this.gunSprite) this.gunSprite.setVisible(false)
+      if (this.gunSprite) {
+        // Останавливаем все взаимодействия с AR при скрытии оружия
+        if (this.isAutoFiring) {
+          this.stopAutoFire()
+        }
+        if (this.clickTimer) {
+          this.clickTimer.remove(false)
+          this.clickTimer = undefined
+        }
+        this.isClickMode = false
+
+        this.gunSprite.setVisible(false)
+      }
     }
 
     // Превью текущего персонажа или врага
@@ -1489,6 +1813,7 @@ export class GameScene extends Phaser.Scene {
       this.personNameText.setVisible(showPersonDetails)
       this.personDetailsText.setVisible(showPersonDetails)
       this.personSkillText.setVisible(showPersonDetails)
+      if (this.personPreviewInventory) this.personPreviewInventory.setVisible(showPersonDetails && !isNight)
       const nameFont = fs(this, 12)
       const detailsFont = fs(this, 11)
       this.personNameText.setFontSize(nameFont)
@@ -1499,6 +1824,23 @@ export class GameScene extends Phaser.Scene {
       this.personSkillText.setFontSize(detailsFont)
       this.personSkillText.setPosition(pad, this.personDetailsText.y + this.personDetailsText.height + 6)
       this.personSkillText.setWordWrapWidth(Math.max(1, rect.width - pad * 2))
+
+      // Позиционирование инвентаря
+      if (this.personPreviewInventory) {
+        const inventoryY = this.personSkillText.y + this.personSkillText.height + 8
+        this.personPreviewInventory.setPosition(pad, inventoryY)
+
+        // Позиционирование слотов инвентаря
+        const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
+        const slotSpacing = 4
+        const slotSize = 24
+
+        inventorySlots.forEach((slot, index) => {
+          const slotX = index * (slotSize + slotSpacing)
+          const slotY = 0
+          slot.setPosition(slotX, slotY)
+        })
+      }
     }
     
     // Рамка превью скрыта, не отображаем отладочную информацию
@@ -1603,11 +1945,14 @@ export class GameScene extends Phaser.Scene {
     if (!this.surfaceQueue) return null
     const id = this.nextVisitorId++
     console.log('[enqueueVisitor] id=', id, 'day=', this.dayNumber, 'clock=', this.getClockText())
+    
+    // Показываем уведомление о прибытии посетителя
+    const data = this.getPersonData(id)
+    this.showToast(`Прибыл посетитель: ${data.name} (${data.profession})`)
     const box = this.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0, 1)
     box.setStrokeStyle(2, 0x4fc3f7, 1.0)
     box.setVisible(true)
     // Создаем спрайт по специализации или оставляем рамку
-    const data = this.getPersonData(id)
     const profession = data.profession.toLowerCase()
     const specialistSpriteKey = getSpecialistSpriteKey(profession)
     
@@ -1987,6 +2332,9 @@ export class GameScene extends Phaser.Scene {
     if (!this.surfaceEnemyQueue) return null
     const id = this.nextEnemyId++
     const type = this.pickEnemyType()
+    
+    // Показываем уведомление о появлении врага в очереди
+    this.showToast(`Враг ${type} появился в очереди`)
     const box = this.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0, 1)
     // Убираем красную рамку для врагов - делаем невидимой
     box.setVisible(false)
@@ -2151,6 +2499,9 @@ export class GameScene extends Phaser.Scene {
       // Отмечаем что первый враг достиг позиции
       if (item === this.enemyQueueItems[0]) {
         (item as any).arrivedAtPosition = true
+        
+        // Показываем уведомление о прибытии врага
+        this.showToast(`Прибыл враг: ${item.type}`)
       }
       
       // Обновляем превью только после завершения анимации прибытия
@@ -2176,10 +2527,14 @@ export class GameScene extends Phaser.Scene {
       if (canAccept) {
         const personData = this.getPersonData(first.id)
         this.addResidentToBunker(first.id, personData)
-        // Игровое уведомление в зоне уведомлений
-        this.announce(`принят ${personData.name} ${personData.profession}`)
+        // Показываем уведомление о принятии жителя
+        this.showToast(`Принят житель: ${personData.name} (${personData.profession})`)
+        
         // Перенос ресурсов персонажа в бункер, защищённый от повторного начисления
         this.claimVisitorLoot(first.id)
+
+        // Перенос предметов из инвентаря персонажа в инвентарь бункера
+        this.transferPersonInventoryToBunker(personData)
         // 1) Превью: приподнять и скрыть (спрайт или рамку)
         ;(this as any)._previewBusy = true
         if (this.personPreviewSprite && this.personPreviewSprite.visible) {
@@ -2214,6 +2569,11 @@ export class GameScene extends Phaser.Scene {
         } })
       } else {
         // Покажем плашку "нет мест" и оставим человека в очереди (не выкидываем)
+        
+        // Показываем уведомление о том, что нет мест
+        const personData = this.getPersonData(first.id)
+        this.showToast(`Нет мест в бункере! ${personData.name} остается в очереди`)
+        
         this.updatePersonInfoFromQueue()
         // Мест нет — уходит влево (как отказ)
         // Убираем выкидывание: возвращаем кандидата в очередь, чтобы игрок мог дождаться мест
@@ -2225,6 +2585,11 @@ export class GameScene extends Phaser.Scene {
       }
     } else {
       // Отказ: анимация выхода влево для превью + очереди
+      
+      // Показываем уведомление об отказе в жителе
+      const personData = this.getPersonData(first.id)
+      this.showToast(`Отказано в жителе: ${personData.name} (${personData.profession})`)
+      
       ;(this as any)._previewBusy = true
       // 1) Превью: уход влево с исчезновением (спрайт или рамка)
       if (this.personPreviewSprite && this.personPreviewSprite.visible) {
@@ -2321,6 +2686,7 @@ export class GameScene extends Phaser.Scene {
         if (this.personNameText) this.personNameText.setText(`ВРАГ: ID-${e.id}`)
         if (this.personDetailsText) this.personDetailsText.setText(`ТИП: ${e.type}`)
         if (this.personSkillText) this.personSkillText.setText(`${t('skill')}: —`)
+        if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
         return
       }
       this._previewCurrentIsEnemy = true
@@ -2328,6 +2694,7 @@ export class GameScene extends Phaser.Scene {
       if (this.personNameText) this.personNameText.setText(`ВРАГ: ID-${e.id}`)
       if (this.personDetailsText) this.personDetailsText.setText(`ТИП: ${e.type}`)
       if (this.personSkillText) this.personSkillText.setText(`${t('skill')}: —`)
+      if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
       // Превью врага: мародёр — слои персонажа, иначе — красный прямоугольник
       if (this.personPreview && this.personPreviewSprite) {
         if (e.type === 'МАРОДЕР') {
@@ -2475,6 +2842,7 @@ export class GameScene extends Phaser.Scene {
       this.personPreviewPants?.setVisible(false)
       this.personPreviewFootwear?.setVisible(false)
       this.personPreviewHair?.setVisible(false)
+      if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
       this.updateUIVisibility()
       if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
       return
@@ -2508,6 +2876,60 @@ export class GameScene extends Phaser.Scene {
       const col = firstSkill && typeof firstSkill.positive === 'boolean' ? (firstSkill.positive ? '#81c784' : '#e57373') : THEME.colors.text
       this.personSkillText.setColor(col)
     }
+    // Показываем инвентарь в превью
+    if (this.personPreviewInventory && data.inventory) {
+      const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
+      // Скрываем все слоты
+      inventorySlots.forEach(slot => {
+        const children = slot.list as Phaser.GameObjects.GameObject[]
+        const bg = children[0] as Phaser.GameObjects.Rectangle
+        const itemSprite = children[1] as Phaser.GameObjects.Sprite
+        const quantityText = children[2] as Phaser.GameObjects.Text
+
+        itemSprite.setVisible(false)
+        quantityText.setText('')
+        quantityText.setVisible(false)
+        bg.setFillStyle(0x333333, 0.8)
+      })
+
+      // Показываем предметы из инвентаря
+      data.inventory.forEach((item: { id: string; quantity: number }, index: number) => {
+        if (index < 3 && inventorySlots[index]) {
+          const slot = inventorySlots[index]
+          const children = slot.list as Phaser.GameObjects.GameObject[]
+          const bg = children[0] as Phaser.GameObjects.Rectangle
+          const itemSprite = children[1] as Phaser.GameObjects.Sprite
+          const quantityText = children[2] as Phaser.GameObjects.Text
+
+          const itemData = this.getItemById(item.id)
+          if (itemData) {
+            // Показываем спрайт предмета
+            // Извлекаем имя файла без пути и расширения
+            const textureKey = itemData.spritePath.split('/').pop()?.replace('.png', '') || item.id
+            try {
+              itemSprite.setTexture(textureKey)
+              itemSprite.setVisible(true)
+            } catch (error) {
+              console.warn(`[updatePersonInfoFromQueue] Не удалось загрузить текстуру для ${item.id}:`, error)
+              // Показываем запасной текст
+              itemSprite.setVisible(false)
+            }
+
+            // Показываем количество если > 1
+            if (item.quantity > 1) {
+              quantityText.setText(item.quantity.toString())
+              quantityText.setVisible(true)
+            }
+
+            // Подсвечиваем слот
+            bg.setFillStyle(0x555555, 0.9)
+          }
+        }
+      })
+
+      this.personPreviewInventory.setVisible(true)
+    }
+
     // Проверяем специализацию и отображаем соответствующий спрайт или рамку
     const profession = data.profession.toLowerCase()
     const specialistSpriteKey = getSpecialistSpriteKey(profession)
@@ -2601,7 +3023,65 @@ export class GameScene extends Phaser.Scene {
     if (this.personSkillText) this.personSkillText.setVisible(showPersonDetails)
   }
 
-  private generatePersonData(seed: number): { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; loot: { ammo: number; food: number; water: number; money: number } } {
+  private generatePersonInventory(profession: string): Array<{ id: string; quantity: number }> {
+    const inventory: Array<{ id: string; quantity: number }> = []
+
+    // Определяем количество предметов (0-3)
+    const itemCount = Math.floor(Math.random() * 4) // 0-3 предмета
+
+    // Список доступных предметов для генерации
+    const availableItems = [
+      // Ресурсы (могут быть в количестве 1-25)
+      'food', 'water', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass',
+      // Оборудование (только 1 шт)
+      'backpack', 'compass', 'map', 'flashlight', 'bottle', 'lighter', 'matches',
+      'multi_tool', 'laptop', 'phone', 'radio', 'gps', 'transmitter',
+      // Одежда (только 1 шт)
+      'shirt', 'shirt2', 'pants', 'pants3', 'jacket1', 'jacket2', 'boots', 'hat', 'cap',
+      // Медицина (только 1 шт)
+      'medicine', 'medicine2', 'med_backpack'
+    ]
+
+    // Бездомные получают на 50% больше предметов
+    const isHomeless = profession === 'бездомный'
+    const bonusMultiplier = isHomeless ? 1.5 : 1
+
+    for (let i = 0; i < itemCount; i++) {
+      const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)]
+      const itemData = this.getItemById(randomItem)
+
+      if (itemData) {
+        const isStackable = ['food', 'water', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(randomItem)
+        const quantity = isStackable
+          ? Math.floor(Math.random() * 25) + 1 * bonusMultiplier // 1-25 * bonusMultiplier
+          : Math.floor(1 * bonusMultiplier) // 1 * bonusMultiplier
+
+        // Проверяем, есть ли уже такой предмет в инвентаре
+        const existingItem = inventory.find(item => item.id === randomItem)
+        if (existingItem) {
+          existingItem.quantity += quantity
+        } else {
+          inventory.push({ id: randomItem, quantity: Math.floor(quantity) })
+        }
+      }
+    }
+
+    return inventory
+  }
+
+  private generateInventoryText(inventory: Array<{ id: string; quantity: number }>): string {
+    if (inventory.length === 0) {
+      return 'пусто'
+    }
+
+    return inventory.map(item => {
+      const itemData = this.getItemById(item.id)
+      const name = itemData ? itemData.name : item.id
+      return `${name} x${item.quantity}`
+    }).join(', ')
+  }
+
+  private generatePersonData(seed: number): { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; loot: { ammo: number; food: number; water: number; money: number }; inventory: Array<{ id: string; quantity: number }> } {
     let s = (seed ^ this.sessionSeed) >>> 0
     const rng = (min: number, max: number) => {
       // Xorshift32
@@ -2675,9 +3155,15 @@ export class GameScene extends Phaser.Scene {
       water: rng(1, 10),
       money: rng(1, 100)
     }
-    const itemsText = `патроны x${loot.ammo}, еда x${loot.food}, вода x${loot.water}, деньги x${loot.money}`
 
-    return { name, gender, age, profession, openSkill, allSkills, itemsText, loot }
+    // Генерируем инвентарь персонажа
+    const inventory = this.generatePersonInventory(profession)
+
+    // Формируем текстовое описание инвентаря
+    const inventoryText = this.generateInventoryText(inventory)
+    const itemsText = `патроны x${loot.ammo}, еда x${loot.food}, вода x${loot.water}, деньги x${loot.money}${inventoryText !== 'пусто' ? ', ' + inventoryText : ''}`
+
+    return { name, gender, age, profession, openSkill, allSkills, itemsText, loot, inventory }
   }
 
   private getPersonData(id: number) {
@@ -2697,6 +3183,7 @@ export class GameScene extends Phaser.Scene {
       profession: personData.profession,
       skills: personData.allSkills,
       itemsText: personData.itemsText,
+      inventory: personData.inventory || [],
       admittedAt: this.time.now,
       status: 'отдыхает',
       hunger: 100,
@@ -2752,6 +3239,58 @@ export class GameScene extends Phaser.Scene {
     this.claimedLootIds.add(id)
     this.updateResourcesText()
     this.showToast(`+${addAmmo} патр., +${addFood} еды, +${addWater} воды, +${addMoney} ден.`)
+  }
+
+  private transferPersonInventoryToBunker(personData: ReturnType<typeof this.generatePersonData>): void {
+    if (!personData.inventory || personData.inventory.length === 0) {
+      console.log('[transferPersonInventoryToBunker] Персонаж не имеет предметов')
+      return
+    }
+
+    console.log(`[transferPersonInventoryToBunker] Перенос ${personData.inventory.length} предметов от ${personData.name}`)
+
+    // Получаем текущий инвентарь бункера
+    const currentInventory = this.getDefaultInventory()
+    let inventoryChanged = false
+
+    // Обрабатываем каждый предмет из инвентаря персонажа
+    for (const personItem of personData.inventory) {
+      const itemData = this.getItemById(personItem.id)
+      if (!itemData) {
+        console.warn(`[transferPersonInventoryToBunker] Предмет ${personItem.id} не найден в справочнике`)
+        continue
+      }
+
+      // Ищем такой же предмет в инвентаре бункера
+      const existingItem = currentInventory.find(item => item.id === personItem.id)
+
+      if (existingItem) {
+        // Если предмет уже есть, увеличиваем количество
+        existingItem.quantity += personItem.quantity
+        console.log(`[transferPersonInventoryToBunker] Увеличено количество ${itemData.name}: +${personItem.quantity}`)
+      } else {
+        // Если предмета нет, добавляем его
+        currentInventory.push({ id: personItem.id, quantity: personItem.quantity })
+        console.log(`[transferPersonInventoryToBunker] Добавлен новый предмет: ${itemData.name} x${personItem.quantity}`)
+      }
+
+      inventoryChanged = true
+    }
+
+    if (inventoryChanged) {
+      // Обновляем инвентарь бункера (сохраняем только существующие предметы)
+      const existingItems = currentInventory.filter(item => {
+        const itemData = this.getItemById(item.id)
+        return itemData !== undefined
+      })
+
+      // Обновляем все модальные окна инвентаря
+      if (typeof window.populateInventoryModal === 'function') {
+        window.populateInventoryModal(existingItems, this.inventoryRows)
+      }
+
+      this.showToast(`Получено ${personData.inventory.length} предметов от ${personData.name}`)
+    }
   }
 
   // Обновление статуса жителя из bunkerView
@@ -2867,12 +3406,16 @@ export class GameScene extends Phaser.Scene {
       this.bunkerExperience -= this.maxExperienceForLevel
       this.bunkerLevel++
       this.maxExperienceForLevel = Math.floor(this.maxExperienceForLevel * 1.2) // Увеличиваем требуемый опыт
-      this.announce(`Бункер повышен до уровня ${this.bunkerLevel}!`)
+      this.showToast(`Бункер повышен до уровня ${this.bunkerLevel}!`)
     }
   }
   public killOneEnemyFromQueue(): void {
     if (this.enemyQueueItems.length === 0) return
     const it = this.enemyQueueItems.shift()!
+    
+    // Показываем уведомление о том, что враг убит
+    this.showToast(`Враг ${it.type} убит!`)
+    
     it.exiting = true
     const tweenTargets: any[] = [it.rect]
     if (it.sprite) tweenTargets.push(it.sprite)
@@ -3302,7 +3845,7 @@ export class GameScene extends Phaser.Scene {
     this.buildPersonPlaceholders()
     this.buildBunkerPlaceholders()
     this.layout()
-    this.announce(`${t('day')} ${this.dayNumber}`)
+    this.showToast(`Наступил новый день: ${this.dayNumber}`)
   }
 
   private startDayPhase(resetCycleStart: boolean): void {
@@ -3315,7 +3858,7 @@ export class GameScene extends Phaser.Scene {
     this.phaseEndsAt = this.dayCycleStartAt + this.DAY_DURATION_MS
     this.dayText?.setText(`${t('day')}: ${this.dayNumber} • ${t('dayPhase')} • ${this.getClockText()}`)
     this.parallax?.setPhase('day')
-    this.announce(t('dayPhase'))
+    this.showToast(`Наступил день ${this.dayNumber}`)
     // Если первый день — создаём 3 посетителей
     if (this.dayNumber === 1 && !this.initialQueueSeeded) {
       this.initialQueueSeeded = true
@@ -3338,7 +3881,7 @@ export class GameScene extends Phaser.Scene {
     this.phaseEndsAt = this.dayCycleStartAt + this.DAY_DURATION_MS + this.NIGHT_DURATION_MS
     this.dayText?.setText(`${t('day')}: ${this.dayNumber} • ${t('nightPhase')} • ${this.getClockText()}`)
     this.parallax?.setPhase('night')
-    this.announce(t('nightComing'))
+    this.showToast(`Наступила ночь ${this.dayNumber}`)
     // Ночью очередь людей расходится
     this.arrivalEvent?.remove(false)
     this.disperseQueue()
@@ -3402,7 +3945,7 @@ export class GameScene extends Phaser.Scene {
         // Суточная экономика в полночь
         this.processDailyResources()
         this.dayNumber += 1
-        this.announce(`${t('day')} ${this.dayNumber}`)
+        this.showToast(`Наступил новый день: ${this.dayNumber}`)
         this.midnightHandled = true
         // Ночью при новом дне — враги продолжают стоять, люди не приходят
         if (this.phase === 'night') this.scheduleEnemyArrival()
@@ -3468,47 +4011,23 @@ export class GameScene extends Phaser.Scene {
   // Очистка привязана к событию SHUTDOWN
 
   private showToast(text: string): void {
-    const toast = this.add.text(this.scale.width / 2, 64, text, {
-      fontFamily: THEME.fonts.body,
-      fontSize: '12px',
-      color: '#ffffff',
-      backgroundColor: '#424242'
-    }).setOrigin(0.5)
-    this.tweens.add({ targets: toast, alpha: 0, duration: 1200, ease: 'Sine.easeOut', onComplete: () => toast.destroy() })
+    // Используем HTML уведомления вместо Phaser
+    if (typeof window !== 'undefined' && (window as any).addGameNotification) {
+      const currentDay = this.dayNumber;
+      (window as any).addGameNotification(text, 'info', currentDay);
+    } else {
+      // Fallback к Phaser уведомлениям если HTML недоступен
+      const toast = this.add.text(this.scale.width / 2, 64, text, {
+        fontFamily: THEME.fonts.body,
+        fontSize: '12px',
+        color: '#ffffff',
+        backgroundColor: '#424242'
+      }).setOrigin(0.5)
+      this.tweens.add({ targets: toast, alpha: 0, duration: 1200, ease: 'Sine.easeOut', onComplete: () => toast.destroy() })
+    }
   }
 
-  private announce(text: string): void {
-    // Очередь игровых уведомлений, чтобы показывать их по одному
-    const self: any = this as any
-    if (!self._notifQueue) self._notifQueue = []
-    if (!self._notifBusy) self._notifBusy = false
-    self._notifQueue.push(text)
-    if (self._notifBusy) return
-    const runNext = () => {
-      if (self._notifQueue.length === 0) { self._notifBusy = false; return }
-      const msg: string = self._notifQueue.shift()
-      self._notifBusy = true
-    const s = uiScale(this)
-      const yBase = Math.round(80 * s)
-      const container = this.add.container(this.scale.width / 2, yBase)
-      container.setDepth(2000)
-      const bgPadding = 8
-      const label = this.add.text(0, 0, msg, {
-      fontFamily: THEME.fonts.heading,
-      fontSize: fs(this, 18),
-        color: '#ffffff'
-    }).setOrigin(0.5)
-      const bg = this.add.rectangle(0, 0, Math.ceil(label.width + bgPadding * 2), Math.ceil(label.height + bgPadding * 2), 0x000000, 0.4).setOrigin(0.5)
-      container.add([bg, label])
-      container.setAlpha(0)
-      this.tweens.add({ targets: container, alpha: 1, y: yBase + 10, duration: 400, ease: 'Sine.easeOut', onComplete: () => {
-        this.time.delayedCall(1400, () => {
-          this.tweens.add({ targets: container, alpha: 0, y: yBase + 20, duration: 500, ease: 'Sine.easeIn', onComplete: () => { container.destroy(); runNext() } })
-      })
-    } })
-    }
-    runNext()
-  }
+
 
   // ========= HTML UI Overlay Methods =========
 
@@ -3639,17 +4158,15 @@ export class GameScene extends Phaser.Scene {
     console.log('[GameScene] Old Phaser UI elements shown (fallback)');
   }
 
+  private getDefaultInventory(): { id: string; quantity: number }[] {
+    // Возвращаем пустой инвентарь - предметы будут добавляться только при принятии жителей
+    return [];
+  }
+
   private initializeModals(): void {
-    // Initialize inventory with sample data
+    // Initialize inventory with real items from database
     if (typeof window.populateInventoryModal === 'function') {
-      const sampleInventory = [
-        { icon: '🍎', quantity: 5 },
-        { icon: '💊', quantity: 3 },
-        { icon: '🔧', quantity: 1 },
-        { icon: '🧰', quantity: 2 },
-        { icon: '💡', quantity: 7 },
-        { icon: '📦', quantity: 12 }
-      ];
+      const initialInventory = this.getDefaultInventory();
 
       // Если bunkerView доступен, используем актуальное количество складов
       if (this.simpleBunker && this.simpleBunker.getStorageRoomCount) {
@@ -3661,8 +4178,13 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
-      console.log(`[GameScene] Initializing inventory with ${this.inventoryRows} rows`);
-      window.populateInventoryModal(sampleInventory, this.inventoryRows);
+      console.log(`[GameScene] Initializing inventory with ${this.inventoryRows} rows and ${initialInventory.length} items`);
+      // Используем только существующие предметы, без заглушек
+      const existingItems = initialInventory.filter(item => {
+        const itemData = this.getItemById(item.id);
+        return itemData !== undefined;
+      });
+      window.populateInventoryModal(existingItems, this.inventoryRows);
     }
 
     // Initialize abilities with sample data
@@ -3714,6 +4236,11 @@ export class GameScene extends Phaser.Scene {
     this.initializeModals();
   }
 
+  // Public method to get item by ID from the database
+  public getItemById(id: string): Item | undefined {
+    return ITEMS_DATABASE.find(item => item.id === id);
+  }
+
   // Public method to update inventory rows based on storage room count
   public updateInventoryRows(storageCount: number): void {
     console.log(`[GameScene] updateInventoryRows called with storageCount: ${storageCount}`);
@@ -3733,15 +4260,13 @@ export class GameScene extends Phaser.Scene {
         console.log(`[GameScene] Inventory modal is open, refreshing immediately after room removal`);
         this.time.delayedCall(100, () => {
           if (typeof window.populateInventoryModal === 'function') {
-            const sampleInventory = [
-              { icon: '🍎', quantity: 5 },
-              { icon: '💊', quantity: 3 },
-              { icon: '🔧', quantity: 1 },
-              { icon: '🧰', quantity: 2 },
-              { icon: '💡', quantity: 7 },
-              { icon: '📦', quantity: 12 }
-            ];
-            window.populateInventoryModal(sampleInventory, this.inventoryRows);
+            const defaultInventory = this.getDefaultInventory();
+            // Используем только существующие предметы, без заглушек
+            const existingItems = defaultInventory.filter(item => {
+              const itemData = this.getItemById(item.id);
+              return itemData !== undefined;
+            });
+            window.populateInventoryModal(existingItems, this.inventoryRows);
             console.log(`[GameScene] Immediate inventory refresh with ${this.inventoryRows} rows after room removal`);
           }
         });
@@ -3750,15 +4275,13 @@ export class GameScene extends Phaser.Scene {
       // Также обновляем глобальное состояние инвентаря с задержкой
       this.time.delayedCall(200, () => {
         if (typeof window.populateInventoryModal === 'function') {
-          const sampleInventory = [
-            { icon: '🍎', quantity: 5 },
-            { icon: '💊', quantity: 3 },
-            { icon: '🔧', quantity: 1 },
-            { icon: '🧰', quantity: 2 },
-            { icon: '💡', quantity: 7 },
-            { icon: '📦', quantity: 12 }
-          ];
-          window.populateInventoryModal(sampleInventory, this.inventoryRows);
+          const defaultInventory = this.getDefaultInventory();
+          // Используем только существующие предметы, без заглушек
+          const existingItems = defaultInventory.filter(item => {
+            const itemData = this.getItemById(item.id);
+            return itemData !== undefined;
+          });
+          window.populateInventoryModal(existingItems, this.inventoryRows);
           console.log(`[GameScene] Inventory updated with ${this.inventoryRows} rows via delayed call`);
 
           // Принудительно обновляем интерфейс инвентаря если модальное окно открыто
@@ -3767,7 +4290,13 @@ export class GameScene extends Phaser.Scene {
             console.log(`[GameScene] Forcing inventory UI refresh`);
             this.time.delayedCall(100, () => {
               if (typeof window.populateInventoryModal === 'function') {
-                window.populateInventoryModal(sampleInventory, this.inventoryRows);
+                const defaultInventory = this.getDefaultInventory();
+                // Используем только существующие предметы, без заглушек
+                const existingItems = defaultInventory.filter(item => {
+                  const itemData = this.getItemById(item.id);
+                  return itemData !== undefined;
+                });
+                window.populateInventoryModal(existingItems, this.inventoryRows);
               }
             });
           }
@@ -3781,15 +4310,13 @@ export class GameScene extends Phaser.Scene {
         console.log(`[GameScene] Inventory modal is open, refreshing even though no change needed`);
         this.time.delayedCall(100, () => {
           if (typeof window.populateInventoryModal === 'function') {
-            const sampleInventory = [
-              { icon: '🍎', quantity: 5 },
-              { icon: '💊', quantity: 3 },
-              { icon: '🔧', quantity: 1 },
-              { icon: '🧰', quantity: 2 },
-              { icon: '💡', quantity: 7 },
-              { icon: '📦', quantity: 12 }
-            ];
-            window.populateInventoryModal(sampleInventory, this.inventoryRows);
+            const defaultInventory = this.getDefaultInventory();
+            // Используем только существующие предметы, без заглушек
+            const existingItems = defaultInventory.filter(item => {
+              const itemData = this.getItemById(item.id);
+              return itemData !== undefined;
+            });
+            window.populateInventoryModal(existingItems, this.inventoryRows);
             console.log(`[GameScene] Inventory refresh with ${this.inventoryRows} rows (no change in count)`);
           }
         });
