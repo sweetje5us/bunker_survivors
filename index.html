@@ -1739,7 +1739,8 @@
         slot.onclick = () => selectInventorySlot(i);
 
         const item = inventory ? inventory[i] : null;
-        if (item) {
+        // Проверяем, что предмет существует и не является пустым
+        if (item && item.id && item.id.trim() !== '' && item.quantity > 0) {
           slot.classList.add('occupied');
 
           // Проверяем формат данных: новый (с id) или старый (с icon)
@@ -1766,17 +1767,205 @@
             <div class="item">${itemDisplay}</div>
             <div class="quantity">${itemQuantity}</div>
           `;
+        } else {
+          // Пустой слот - очищаем содержимое
+          slot.classList.remove('occupied');
+          slot.innerHTML = '';
         }
 
         grid.appendChild(slot);
       }
 
       console.log(`[populateInventoryModal] Successfully created ${totalSlots} inventory slots`);
+
+      // Initialize drag and drop after creating slots
+      setTimeout(() => {
+        if (window.initializeInventoryDragAndDrop) {
+          window.initializeInventoryDragAndDrop();
+        }
+      }, 100);
     };
 
     window.selectInventorySlot = function(index) {
       console.log('Selected inventory slot:', index);
       // This will be implemented for item interactions
+    };
+
+    // Drag and Drop functionality for inventory
+    let draggedItem = null;
+    let draggedItemIndex = -1;
+    let dragGhost = null;
+    let dropTarget = null;
+
+    // Initialize drag and drop for inventory slots
+    window.initializeInventoryDragAndDrop = function() {
+      const slots = document.querySelectorAll('.inventory-slot');
+      slots.forEach((slot, index) => {
+        // Make slots draggable
+        slot.draggable = true;
+
+        // Drag start event
+        slot.addEventListener('dragstart', function(e) {
+          e.dataTransfer.effectAllowed = 'move';
+          draggedItemIndex = index;
+          draggedItem = slot.cloneNode(true);
+
+          // Create drag ghost
+          dragGhost = slot.cloneNode(true);
+          dragGhost.style.position = 'absolute';
+          dragGhost.style.opacity = '0.5';
+          dragGhost.style.pointerEvents = 'none';
+          dragGhost.style.zIndex = '1000';
+          dragGhost.style.transform = 'rotate(5deg)';
+          document.body.appendChild(dragGhost);
+
+          // Update ghost position
+          function updateGhost(e) {
+            if (dragGhost) {
+              dragGhost.style.left = (e.clientX - 20) + 'px';
+              dragGhost.style.top = (e.clientY - 20) + 'px';
+            }
+          }
+
+          document.addEventListener('drag', updateGhost);
+
+          // Clean up ghost after drag ends
+          slot.addEventListener('dragend', function() {
+            if (dragGhost) {
+              document.body.removeChild(dragGhost);
+              dragGhost = null;
+            }
+            document.removeEventListener('drag', updateGhost);
+          }, { once: true });
+
+          console.log(`[Inventory] Started dragging item from slot ${index}`);
+        });
+
+        // Drag over event
+        slot.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+
+          // Highlight drop target
+          if (dropTarget) {
+            dropTarget.classList.remove('drag-over');
+          }
+          slot.classList.add('drag-over');
+          dropTarget = slot;
+        });
+
+        // Drag leave event
+        slot.addEventListener('dragleave', function(e) {
+          slot.classList.remove('drag-over');
+        });
+
+        // Drop event
+        slot.addEventListener('drop', function(e) {
+          e.preventDefault();
+          slot.classList.remove('drag-over');
+
+          const targetIndex = index;
+
+          if (draggedItemIndex !== -1 && draggedItemIndex !== targetIndex) {
+            console.log(`[Inventory] Dropped item from slot ${draggedItemIndex} to slot ${targetIndex}`);
+            swapInventoryItems(draggedItemIndex, targetIndex);
+          }
+
+          draggedItem = null;
+          draggedItemIndex = -1;
+        });
+      });
+
+      console.log('[Inventory] Drag and drop initialized for all slots');
+    };
+
+    // Swap items between inventory slots
+    window.swapInventoryItems = function(fromSlot, toSlot) {
+      if (fromSlot === toSlot || fromSlot < 0 || toSlot < 0) return false;
+
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.swapInventoryItems) {
+          const success = gameScene.swapInventoryItems(fromSlot, toSlot);
+          if (success) {
+            // Refresh inventory display
+            refreshInventoryDisplay();
+            console.log(`[Inventory] Successfully swapped items between slots ${fromSlot} and ${toSlot}`);
+            return true;
+          }
+        }
+      }
+
+      console.warn(`[Inventory] Failed to swap items between slots ${fromSlot} and ${toSlot}`);
+      return false;
+    };
+
+    // Move item from one slot to another
+    window.moveInventoryItem = function(fromSlot, toSlot) {
+      if (fromSlot === toSlot || fromSlot < 0 || toSlot < 0) return false;
+
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.moveInventoryItem) {
+          const success = gameScene.moveInventoryItem(fromSlot, toSlot);
+          if (success) {
+            // Refresh inventory display
+            refreshInventoryDisplay();
+            console.log(`[Inventory] Successfully moved item from slot ${fromSlot} to slot ${toSlot}`);
+            return true;
+          }
+        }
+      }
+
+      console.warn(`[Inventory] Failed to move item from slot ${fromSlot} to slot ${toSlot}`);
+      return false;
+    };
+
+    // Refresh inventory display after changes
+    function refreshInventoryDisplay() {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.getDefaultInventory && typeof window.populateInventoryModal === 'function') {
+          const inventory = gameScene.getDefaultInventory();
+          const inventoryRows = gameScene.inventoryRows || 1;
+          window.populateInventoryModal(inventory, inventoryRows);
+        }
+      }
+    }
+
+    // Get item from inventory slot
+    window.getInventoryItem = function(slot) {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.getInventoryItem) {
+          return gameScene.getInventoryItem(slot);
+        }
+      }
+      return null;
+    };
+
+    // Set item in inventory slot
+    window.setInventoryItem = function(slot, item) {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.setInventoryItem) {
+          gameScene.setInventoryItem(slot, item);
+          refreshInventoryDisplay();
+        }
+      }
+    };
+
+    // Remove item from inventory slot
+    window.removeInventoryItem = function(slot) {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.removeInventoryItem) {
+          const removedItem = gameScene.removeInventoryItem(slot);
+          refreshInventoryDisplay();
+          return removedItem;
+        }
+      }
+      return null;
     };
 
     // Abilities system

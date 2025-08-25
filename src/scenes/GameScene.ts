@@ -84,6 +84,12 @@ export class GameScene extends Phaser.Scene {
   private lastHourTick: number = -1
   private sessionSeed: number = 0
   private personCache: Map<number, { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; loot: { ammo: number; food: number; water: number; money: number }; inventory: Array<{ id: string; quantity: number }> }> = new Map()
+  // Инвентарь бункера - хранит все предметы, добавленные жителями
+  private bunkerInventory: Array<{ id: string; quantity: number } | undefined> = []
+
+  // Drag and drop состояние
+  private draggedItem: { id: string; quantity: number; fromSlot: number } | null = null
+  private dragGhost?: Phaser.GameObjects.Image
   private noSpaceLabel?: Phaser.GameObjects.Text
   private personNameText?: Phaser.GameObjects.Text
   private personDetailsText?: Phaser.GameObjects.Text
@@ -1813,7 +1819,12 @@ export class GameScene extends Phaser.Scene {
       this.personNameText.setVisible(showPersonDetails)
       this.personDetailsText.setVisible(showPersonDetails)
       this.personSkillText.setVisible(showPersonDetails)
-      if (this.personPreviewInventory) this.personPreviewInventory.setVisible(showPersonDetails && !isNight)
+
+      // Инвентарь показываем только когда есть конкретный житель для показа
+      const hasCurrentPerson = this.queueItems.length > 0 || this.enemyQueueItems.length > 0
+      if (this.personPreviewInventory) {
+        this.personPreviewInventory.setVisible(showPersonDetails && !isNight && hasCurrentPerson)
+      }
       const nameFont = fs(this, 12)
       const detailsFont = fs(this, 11)
       this.personNameText.setFontSize(nameFont)
@@ -1827,19 +1838,52 @@ export class GameScene extends Phaser.Scene {
 
       // Позиционирование инвентаря
       if (this.personPreviewInventory) {
-        const inventoryY = this.personSkillText.y + this.personSkillText.height + 8
-        this.personPreviewInventory.setPosition(pad, inventoryY)
+        const minSpacing = 12 // Минимальное расстояние между элементами
+        const inventoryHeight = 24 // Высота одного слота
+        const skillTextBottom = this.personSkillText.y + this.personSkillText.height
+        const availableHeight = rect.height - pad - skillTextBottom - minSpacing
 
-        // Позиционирование слотов инвентаря
-        const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
-        const slotSpacing = 4
-        const slotSize = 24
+        // Проверяем, есть ли достаточно места для инвентаря
+        if (availableHeight >= inventoryHeight) {
+          // Инвентарь помещается, устанавливаем позицию
+          const inventoryY = skillTextBottom + minSpacing
+          this.personPreviewInventory.setPosition(pad, inventoryY)
+          this.personPreviewInventory.setVisible(true)
 
-        inventorySlots.forEach((slot, index) => {
-          const slotX = index * (slotSize + slotSpacing)
-          const slotY = 0
-          slot.setPosition(slotX, slotY)
-        })
+          // Позиционирование слотов инвентаря
+          const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
+          const slotSpacing = 4
+          const slotSize = 24
+          const availableWidth = rect.width - pad * 2
+
+          // Рассчитываем, сколько слотов поместится в одну строку
+          const maxSlotsPerRow = Math.floor((availableWidth + slotSpacing) / (slotSize + slotSpacing))
+
+          inventorySlots.forEach((slot, index) => {
+            // Определяем ряд и позицию в ряду
+            const row = Math.floor(index / maxSlotsPerRow)
+            const col = index % maxSlotsPerRow
+
+            // Слоты позиционируются относительно контейнера инвентаря,
+            // который уже имеет правильную позицию в блоке
+            const slotX = col * (slotSize + slotSpacing)
+            const slotY = row * (slotSize + slotSpacing)
+
+            // Проверяем, что слот помещается в блок
+            const fitsInWidth = slotX + slotSize <= availableWidth
+            const fitsInHeight = slotY + slotSize <= inventoryHeight
+
+            if (fitsInWidth && fitsInHeight) {
+              slot.setPosition(slotX, slotY)
+              slot.setVisible(true)
+            } else {
+              slot.setVisible(false)
+            }
+          })
+        } else {
+          // Инвентарь не помещается, скрываем его
+          this.personPreviewInventory.setVisible(false)
+        }
       }
     }
     
@@ -2686,6 +2730,7 @@ export class GameScene extends Phaser.Scene {
         if (this.personNameText) this.personNameText.setText(`ВРАГ: ID-${e.id}`)
         if (this.personDetailsText) this.personDetailsText.setText(`ТИП: ${e.type}`)
         if (this.personSkillText) this.personSkillText.setText(`${t('skill')}: —`)
+        // Инвентарь не показываем для врагов
         if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
         return
       }
@@ -2694,6 +2739,7 @@ export class GameScene extends Phaser.Scene {
       if (this.personNameText) this.personNameText.setText(`ВРАГ: ID-${e.id}`)
       if (this.personDetailsText) this.personDetailsText.setText(`ТИП: ${e.type}`)
       if (this.personSkillText) this.personSkillText.setText(`${t('skill')}: —`)
+      // Инвентарь не показываем для врагов
       if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
       // Превью врага: мародёр — слои персонажа, иначе — красный прямоугольник
       if (this.personPreview && this.personPreviewSprite) {
@@ -2834,7 +2880,7 @@ export class GameScene extends Phaser.Scene {
       this._previewCurrentIsEnemy = false
       this._previewCurrentId = null
       if (this.personNameText) this.personNameText.setText(`${t('name')}: —`)
-      if (this.personDetailsText) this.personDetailsText.setText(`${t('age')}: —\nПОЛ: —\n${t('specialty')}: —\nРЕСУРСЫ: —`)
+      if (this.personDetailsText) this.personDetailsText.setText(`${t('age')}: —\nПОЛ: —\n${t('specialty')}: —`)
       if (this.personSkillText) this.personSkillText.setText(`${t('skill')}: —`)
       if (this.personPreview) this.personPreview.setVisible(false)
       if (this.personPreviewSprite) this.personPreviewSprite.setVisible(false)
@@ -2842,6 +2888,7 @@ export class GameScene extends Phaser.Scene {
       this.personPreviewPants?.setVisible(false)
       this.personPreviewFootwear?.setVisible(false)
       this.personPreviewHair?.setVisible(false)
+      // Инвентарь скрываем всегда, когда нет жителей
       if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
       this.updateUIVisibility()
       if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
@@ -2851,7 +2898,7 @@ export class GameScene extends Phaser.Scene {
     if (!this._previewCurrentIsEnemy && this._previewCurrentId === first.id) {
       const dataSame = this.getPersonData(first.id)
       if (this.personNameText) this.personNameText.setText(`${t('name')}: ${dataSame.name}`)
-      if (this.personDetailsText) this.personDetailsText.setText(`${t('age')}: ${dataSame.age}\nПОЛ: ${dataSame.gender}\n${t('specialty')}: ${dataSame.profession}\nРЕСУРСЫ: ${dataSame.itemsText}`)
+      if (this.personDetailsText) this.personDetailsText.setText(`${t('age')}: ${dataSame.age}\nПОЛ: ${dataSame.gender}\n${t('specialty')}: ${dataSame.profession}`)
       if (this.personSkillText) {
         const skills = (dataSame as any).allSkills as Array<{ text: string; positive: boolean }> | undefined
         const firstSkill = Array.isArray(skills) && skills.length > 0 ? skills[0] : undefined
@@ -2867,7 +2914,7 @@ export class GameScene extends Phaser.Scene {
     this._previewCurrentId = first.id
     const data = this.getPersonData(first.id)
     if (this.personNameText) this.personNameText.setText(`${t('name')}: ${data.name}`)
-    if (this.personDetailsText) this.personDetailsText.setText(`${t('age')}: ${data.age}\nПОЛ: ${data.gender}\n${t('specialty')}: ${data.profession}\nРЕСУРСЫ: ${data.itemsText}`)
+    if (this.personDetailsText) this.personDetailsText.setText(`${t('age')}: ${data.age}\nПОЛ: ${data.gender}\n${t('specialty')}: ${data.profession}`)
     if (this.personSkillText) {
       const skills = (data as any).allSkills as Array<{ text: string; positive: boolean }> | undefined
       const firstSkill = Array.isArray(skills) && skills.length > 0 ? skills[0] : undefined
@@ -3249,8 +3296,6 @@ export class GameScene extends Phaser.Scene {
 
     console.log(`[transferPersonInventoryToBunker] Перенос ${personData.inventory.length} предметов от ${personData.name}`)
 
-    // Получаем текущий инвентарь бункера
-    const currentInventory = this.getDefaultInventory()
     let inventoryChanged = false
 
     // Обрабатываем каждый предмет из инвентаря персонажа
@@ -3262,7 +3307,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Ищем такой же предмет в инвентаре бункера
-      const existingItem = currentInventory.find(item => item.id === personItem.id)
+      const existingItem = this.bunkerInventory.find(item => item && item.id === personItem.id)
 
       if (existingItem) {
         // Если предмет уже есть, увеличиваем количество
@@ -3270,7 +3315,7 @@ export class GameScene extends Phaser.Scene {
         console.log(`[transferPersonInventoryToBunker] Увеличено количество ${itemData.name}: +${personItem.quantity}`)
       } else {
         // Если предмета нет, добавляем его
-        currentInventory.push({ id: personItem.id, quantity: personItem.quantity })
+        this.bunkerInventory.push({ id: personItem.id, quantity: personItem.quantity })
         console.log(`[transferPersonInventoryToBunker] Добавлен новый предмет: ${itemData.name} x${personItem.quantity}`)
       }
 
@@ -3278,19 +3323,115 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (inventoryChanged) {
-      // Обновляем инвентарь бункера (сохраняем только существующие предметы)
-      const existingItems = currentInventory.filter(item => {
-        const itemData = this.getItemById(item.id)
-        return itemData !== undefined
+      // Фильтруем только существующие предметы (на случай если какие-то предметы были удалены из справочника)
+      this.bunkerInventory = this.bunkerInventory.filter(item => {
+        return item && item.id && this.getItemById(item.id) !== undefined
       })
+
+      console.log(`[transferPersonInventoryToBunker] Обновленный инвентарь бункера: ${this.bunkerInventory.filter(item => item !== undefined).length} предметов`)
 
       // Обновляем все модальные окна инвентаря
       if (typeof window.populateInventoryModal === 'function') {
-        window.populateInventoryModal(existingItems, this.inventoryRows)
+        window.populateInventoryModal(this.getDefaultInventory(), this.inventoryRows)
       }
 
       this.showToast(`Получено ${personData.inventory.length} предметов от ${personData.name}`)
     }
+  }
+
+  // Функции для drag and drop инвентаря
+  public swapInventoryItems(slot1: number, slot2: number): boolean {
+    if (slot1 === slot2 || slot1 < 0 || slot2 < 0) return false
+
+    const totalSlots = 6 * this.inventoryRows
+    if (slot1 >= totalSlots || slot2 >= totalSlots) return false
+
+    // Расширяем массив до максимального индекса, используя undefined для пустых слотов
+    while (this.bunkerInventory.length <= Math.max(slot1, slot2)) {
+      this.bunkerInventory.push(undefined)
+    }
+
+    // Меняем местами предметы
+    const temp = this.bunkerInventory[slot1]
+    this.bunkerInventory[slot1] = this.bunkerInventory[slot2]
+    this.bunkerInventory[slot2] = temp
+
+    this.cleanupEmptySlots()
+    return true
+  }
+
+  public moveInventoryItem(fromSlot: number, toSlot: number): boolean {
+    if (fromSlot === toSlot || fromSlot < 0 || toSlot < 0) return false
+
+    const totalSlots = 6 * this.inventoryRows
+    if (fromSlot >= totalSlots || toSlot >= totalSlots) return false
+
+    // Если целевая ячейка пуста, просто перемещаем предмет
+    if (toSlot >= this.bunkerInventory.length || !this.bunkerInventory[toSlot] || this.bunkerInventory[toSlot].id === '') {
+      if (fromSlot < this.bunkerInventory.length && this.bunkerInventory[fromSlot]) {
+        const item = this.bunkerInventory[fromSlot]
+        this.bunkerInventory.splice(fromSlot, 1)
+        // Добавляем undefined слоты до целевой позиции
+        while (this.bunkerInventory.length < toSlot) {
+          this.bunkerInventory.push(undefined)
+        }
+        this.bunkerInventory[toSlot] = item
+        this.cleanupEmptySlots()
+        return true
+      }
+      return false
+    }
+
+    // Если в целевой ячейке есть предмет, меняем их местами
+    if (fromSlot < this.bunkerInventory.length) {
+      const fromItem = this.bunkerInventory[fromSlot]
+      const toItem = this.bunkerInventory[toSlot]
+
+      // Меняем местами
+      this.bunkerInventory[fromSlot] = toItem
+      this.bunkerInventory[toSlot] = fromItem
+
+      this.cleanupEmptySlots()
+      return true
+    }
+
+    return false
+  }
+
+  private cleanupEmptySlots(): void {
+    // Удаляем пустые слоты в конце массива
+    while (this.bunkerInventory.length > 0 &&
+          (!this.bunkerInventory[this.bunkerInventory.length - 1] ||
+           (this.bunkerInventory[this.bunkerInventory.length - 1] &&
+            (this.bunkerInventory[this.bunkerInventory.length - 1]!.id === '' ||
+             this.bunkerInventory[this.bunkerInventory.length - 1]!.quantity === 0)))) {
+      this.bunkerInventory.pop()
+    }
+  }
+
+  public getInventoryItem(slot: number): { id: string; quantity: number } | null {
+    if (slot < 0 || slot >= this.bunkerInventory.length) return null
+    return this.bunkerInventory[slot] || null
+  }
+
+  public setInventoryItem(slot: number, item: { id: string; quantity: number }): void {
+    const totalSlots = 6 * this.inventoryRows
+    if (slot < 0 || slot >= totalSlots) return
+
+    while (this.bunkerInventory.length <= slot) {
+      this.bunkerInventory.push(undefined)
+    }
+
+    this.bunkerInventory[slot] = item
+    this.cleanupEmptySlots()
+  }
+
+  public removeInventoryItem(slot: number): { id: string; quantity: number } | null {
+    if (slot < 0 || slot >= this.bunkerInventory.length) return null
+
+    const item = this.bunkerInventory[slot]
+    this.bunkerInventory.splice(slot, 1)
+    return item || null
   }
 
   // Обновление статуса жителя из bunkerView
@@ -4159,8 +4300,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getDefaultInventory(): { id: string; quantity: number }[] {
-    // Возвращаем пустой инвентарь - предметы будут добавляться только при принятии жителей
-    return [];
+    // Возвращаем текущий инвентарь бункера, фильтруя undefined значения
+    return this.bunkerInventory.filter(item => item !== undefined) as { id: string; quantity: number }[];
   }
 
   private initializeModals(): void {
