@@ -23,6 +23,13 @@ export class PreloadScene extends Phaser.Scene {
       this.load.image(`bg_night_${i}`, `src/sprites/2 Background/Night/${i}.png`)
     }
 
+    // Фоны поверхности с погодой
+    this.load.image('surface_day', 'src/sprites/surface/day.png')
+    this.load.image('surface_night', 'src/sprites/surface/night.png')
+    this.load.image('surface_day_rain', 'src/sprites/surface/day_rain.png')
+    this.load.image('surface_day_rain_lighting', 'src/sprites/surface/day_rain_lighting.png')
+    this.load.image('surface_day_acid_fog', 'src/sprites/surface/day_day_acid_fog.png')
+
     // Текстуры комнат
     this.load.image('room_bathroom', 'src/sprites/rooms/bathroom.png')
     this.load.image('room_bedroom', 'src/sprites/rooms/bedroom.png')

@@ -3,7 +3,7 @@ import { t } from '../core/i18n'
 import { onResize, isPortrait } from '../core/responsive'
 import { THEME, applyPanelBackground, uiScale, fs } from '../core/theme'
 import type { Difficulty } from './DifficultyScene'
-import { ParallaxBackground } from '../core/parallax'
+
 import { SimpleBunkerView, RoomState } from '../core/bunkerView'
 import { createCharacterSprite, pickSkinForGender, ensureCharacterAnimations, pickClothingSetForGender, pickHairForGender, ensureSpecialistAnimations, getSpecialistSpriteKey, isSpecialistSprite } from '../core/characters'
 import { ITEMS_DATABASE, Item } from '../core/items'
@@ -13,6 +13,8 @@ type Phase = 'day' | 'night'
 type MobilePanel = 'bunker' | 'info' | 'people' | 'resources'
 
 type EntranceState = 'normal' | 'broken' | 'accept' | 'deny'
+
+type WeatherState = 'clear' | 'rain' | 'lighting' | 'acid_fog'
 
 export class GameScene extends Phaser.Scene {
   private difficulty: Difficulty = 'normal'
@@ -56,7 +58,6 @@ export class GameScene extends Phaser.Scene {
   private uiUpdateInterval?: Phaser.Time.TimerEvent
 
   private surfaceArea?: Phaser.GameObjects.Container
-  private parallax?: ParallaxBackground
   private personArea?: Phaser.GameObjects.Container
   private peopleArea?: Phaser.GameObjects.Container
   private resourcesArea?: Phaser.GameObjects.Container
@@ -119,6 +120,14 @@ export class GameScene extends Phaser.Scene {
   // Состояние двери для превью входа
   private entranceState: EntranceState = 'normal'
   private entranceStateTimer?: Phaser.Time.TimerEvent
+
+  // Состояние погоды для поверхности
+  private weatherState: WeatherState = 'clear'
+  private surfaceBackground?: Phaser.GameObjects.Image
+  private weatherTimer?: Phaser.Time.TimerEvent
+
+  // Плавный переход дня/ночи
+  private isTransitioning = false
   
   // Люди в бункере
   private bunkerResidents: Array<{
@@ -1038,16 +1047,18 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(5000, () => {
       console.log('=== Демонстрация системы электростанций ===')
       console.log('💡 Подсказка: Стройте комнаты и электростанции чтобы увидеть как работает система питания!')
-      
+
       // Объясняем систему иконок
       console.log('[Icons] Система иконок состояния комнат:')
       console.log('🚪/🚫 - Доступность | ⚙️/🚧 - Работоспособность | 💡/🌑 - Свет | ⚡/🔌 - Энергия | ✅/⚠️ - Безопасность')
       console.log('Иконки отображаются в заголовке каждой комнаты!')
-      
+
       console.log('[Power System] Стартовые комнаты (Вход, Спальня, Столовая, Туалет) всегда имеют питание')
       console.log('[Power System] Новые комнаты нуждаются в станциях: 1 станция = питание для 3 комнат + себя')
       console.log('[Power System] Попробуйте построить комнаты без станций, а потом добавить станцию!')
     })
+
+    // Система погоды готова к использованию через публичные методы
 
     // Top bar - бункерный дизайн в стиле HTML прототипа
     this.topBar = this.add.container(0, 0)
@@ -1278,21 +1289,129 @@ export class GameScene extends Phaser.Scene {
     return Phaser.Math.Clamp(delta, -10, 6)
   }
 
+  private updateWeatherBackground(): void {
+    // Если surfaceArea не существует, выходим
+    if (!this.surfaceArea) return
+
+    // Проверяем, существует ли surfaceBackground и добавлен ли он в сцену
+    if (!this.surfaceBackground || !this.surfaceBackground.scene) {
+      // Создаем новый фон
+      this.surfaceBackground = this.add.image(0, 0, 'surface_day').setOrigin(0, 0)
+      this.surfaceBackground.setDepth(-1)
+
+      // Добавляем в surfaceArea
+      this.surfaceArea.add(this.surfaceBackground)
+      // Опускаем на задний план
+      this.surfaceArea.sendToBack(this.surfaceBackground)
+    }
+
+    let textureKey: string
+
+    // Определяем текстуру в зависимости от времени суток и погоды
+    switch (this.weatherState) {
+      case 'rain':
+        textureKey = this.phase === 'day' ? 'surface_day_rain' : 'surface_night'
+        break
+      case 'lighting':
+        // Молния показывается только днем
+        textureKey = 'surface_day_rain_lighting'
+        break
+      case 'acid_fog':
+        // Кислотный туман только днем
+        textureKey = 'surface_day_acid_fog'
+        break
+      default: // clear
+        textureKey = this.phase === 'day' ? 'surface_day' : 'surface_night'
+        break
+    }
+
+    // Обновляем текстуру изображения
+    try {
+      this.surfaceBackground.setTexture(textureKey)
+    } catch (error) {
+      console.warn('Failed to set weather background texture:', error)
+    }
+  }
+
+  private setWeatherState(state: WeatherState, duration?: number): void {
+    // Очищаем предыдущий таймер если он был
+    if (this.weatherTimer) {
+      this.weatherTimer.destroy()
+      this.weatherTimer = undefined
+    }
+
+    this.weatherState = state
+    this.updateWeatherBackground()
+
+    // Если указано время, устанавливаем таймер для возврата к ясной погоде
+    if (duration && duration > 0) {
+      this.weatherTimer = this.time.delayedCall(duration, () => {
+        this.setWeatherState('clear')
+      })
+    }
+  }
+
+  private startDayNightTransition(): void {
+    if (this.isTransitioning) return
+
+    this.isTransitioning = true
+
+    // Создаем временное изображение для перехода
+    const transitionBg = this.add.image(0, 0, 'surface_day').setOrigin(0, 0)
+    transitionBg.setDepth(-1)
+    transitionBg.setAlpha(0)
+
+    if (this.surfaceArea) {
+      this.surfaceArea.add(transitionBg)
+      // Опускаем на задний план
+      this.surfaceArea.sendToBack(transitionBg)
+    }
+
+    // Определяем целевую текстуру
+    const targetTexture = this.phase === 'day' ? 'surface_night' : 'surface_day'
+
+    // Устанавливаем правильную текстуру для перехода
+    transitionBg.setTexture(targetTexture)
+
+    // Плавный переход в течение 3 секунд
+    this.tweens.add({
+      targets: transitionBg,
+      alpha: 1,
+      duration: 3000,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        // После завершения перехода
+        this.isTransitioning = false
+
+        // Меняем основное изображение
+        if (this.surfaceBackground) {
+          this.surfaceBackground.setTexture(targetTexture)
+        }
+
+        // Удаляем временное изображение
+        transitionBg.destroy()
+      }
+    })
+  }
+
   private buildSurfacePlaceholders(): void {
     if (!this.surfaceArea) return
-    const oldLabel = this.surfaceArea.list.find(g => g.name === 'surfaceLabel') as Phaser.GameObjects.Text | undefined
-    if (oldLabel) oldLabel.destroy()
+
+    // Очищаем все содержимое области поверхности
+    this.surfaceArea.removeAll(true)
+
     const surfaceLabel = this.add.text(8, 8, t('surface').toUpperCase(), { fontFamily: THEME.fonts.heading, fontSize: '14px', color: '#b71c1c' })
     surfaceLabel.name = 'surfaceLabel'
-    this.surfaceArea.add([surfaceLabel])
-    if (!this.surfaceQueue) {
-      this.surfaceQueue = this.add.container(0, 0)
-      this.surfaceArea.add(this.surfaceQueue)
-    }
-    if (!this.surfaceEnemyQueue) {
-      this.surfaceEnemyQueue = this.add.container(0, 0)
-      this.surfaceArea.add(this.surfaceEnemyQueue)
-    }
+
+    // Создаем очереди для персонажей и врагов
+    this.surfaceQueue = this.add.container(0, 0)
+    this.surfaceEnemyQueue = this.add.container(0, 0)
+
+    // Добавляем элементы в область поверхности (без фона - он создается в updateWeatherBackground)
+    this.surfaceArea.add([surfaceLabel, this.surfaceQueue, this.surfaceEnemyQueue])
+
+    // Создаем и добавляем фон
+    this.updateWeatherBackground()
   }
 
   private buildPersonPlaceholders(): void {
@@ -1573,10 +1692,18 @@ export class GameScene extends Phaser.Scene {
     // Surface
     this.surfaceArea?.setVisible(true)
     this.layoutContainer(this.surfaceArea!, surfaceRect)
-    if (!this.parallax) this.parallax = new ParallaxBackground(this, this.surfaceArea!, surfaceRect, 5, isDay ? 'day' : 'night')
-    this.parallax.layout(surfaceRect)
-    this.parallax.setPhase(isDay ? 'day' : 'night')
-    // Поднимем над параллаксом
+
+    // Обновляем состояние погоды (это также создаст фон, если его нет)
+    this.updateWeatherBackground()
+
+    // Обновляем размеры и позицию фона поверхности
+    if (this.surfaceBackground && this.surfaceBackground.scene) {
+      this.surfaceBackground.setDisplaySize(surfaceRect.width, surfaceRect.height)
+      // Позиция относительно контейнера, а не глобальных координат
+      this.surfaceBackground.setPosition(0, 0)
+    }
+
+    // Поднимем элементы над фоном
     const surfLabel = this.surfaceArea?.list.find(g => g.name === 'surfaceLabel')
     if (surfLabel) this.surfaceArea?.bringToTop(surfLabel)
     if (this.surfaceQueue) this.surfaceArea?.bringToTop(this.surfaceQueue)
@@ -2064,7 +2191,7 @@ export class GameScene extends Phaser.Scene {
     // Показываем уведомление о прибытии посетителя
     const data = this.getPersonData(id)
     this.showToast(`Прибыл посетитель: ${data.name} (${data.profession})`)
-    const box = this.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0, 1)
+    const box = this.add.rectangle(0, 0, 84, 108, 0x000000, 0).setOrigin(0, 1)
     box.setStrokeStyle(2, 0x4fc3f7, 1.0)
     box.setVisible(true)
     // Создаем спрайт по специализации или оставляем рамку
@@ -2083,9 +2210,9 @@ export class GameScene extends Phaser.Scene {
       sprite = this.add.sprite(0, 0, specialistSpriteKey, 0).setOrigin(0, 1)
       sprite.setDepth(100) // Устанавливаем depth для спрайтов в очереди
       sprite.anims.play(`${profession}_idle`)
-      // Масштабируем спрайт 128x128 под размер рамки (28x36)
-      const scaleX = 28 / 128
-      const scaleY = 36 / 128  
+      // Масштабируем спрайт 128x128 под размер рамки (28x36), увеличенный в 3 раза
+      const scaleX = (28 / 128) * 4
+      const scaleY = (36 / 128) * 4
       sprite.setScale(scaleX, scaleY)
       this.surfaceQueue.add(sprite)
       // Скрываем рамку когда показываем спрайт
@@ -2101,9 +2228,9 @@ export class GameScene extends Phaser.Scene {
 
   private getQueuePositions(n: number, surfaceRect: Phaser.Geom.Rectangle): { x: number; y: number }[] {
     const pad = 10
-    const gap = 8
-    const w = 28
-    const h = 36
+    const gap = 24 // Увеличено в 3 раза (8 * 3)
+    const w = 84  // Увеличено в 3 раза (28 * 3)
+    const h = 108 // Увеличено в 3 раза (36 * 3)
     const rightmostX = surfaceRect.width - pad - w
     const y = surfaceRect.height - pad
     const pos: { x: number; y: number }[] = []
@@ -2282,8 +2409,8 @@ export class GameScene extends Phaser.Scene {
   // ======== Очередь врагов ========
   private getEnemyQueuePositions(n: number, surfaceRect: Phaser.Geom.Rectangle): { x: number; y: number }[] {
     const pad = 10
-    const gap = 8
-    const w = 28
+    const gap = 24 // Увеличено в 3 раза (8 * 3)
+    const w = 84  // Увеличено в 3 раза (28 * 3)
     const rightmostX = surfaceRect.width - pad - w
     // Располагем на том же уровне пола, что и люди
     const y = surfaceRect.height - pad
@@ -2450,7 +2577,7 @@ export class GameScene extends Phaser.Scene {
     
     // Показываем уведомление о появлении врага в очереди
     this.showToast(`Враг ${type} появился в очереди`)
-    const box = this.add.rectangle(0, 0, 28, 36, 0x000000, 0).setOrigin(0, 1)
+    const box = this.add.rectangle(0, 0, 84, 108, 0x000000, 0).setOrigin(0, 1)
     // Убираем красную рамку для врагов - делаем невидимой
     box.setVisible(false)
     const item: any = { id, rect: box, type }
@@ -2489,8 +2616,8 @@ export class GameScene extends Phaser.Scene {
       else sprite = this.add.sprite(0, 0, 'raider3_idle', 0)
       sprite.setOrigin(0, 1)
       sprite.setDepth(100) // Устанавливаем depth для спрайтов врагов
-      // Масштаб из 128x128 в 28x36, увеличенный в 1.5 раза
-      sprite.setScale((28 / 128) * 1.5, (36 / 128) * 1.5)
+      // Масштаб из 128x128 в 28x36, увеличенный в 4.5 раза (1.5 * 3)
+      sprite.setScale((28 / 128) * 4.5, (36 / 128) * 4.5)
       // Без отражения — мародеры смотрят вправо по умолчанию
       if (kind === 1) { try { sprite.anims.play('r1_idle', true) } catch {} }
       else if (kind === 2) { try { sprite.anims.play('r2_idle', true) } catch {} }
@@ -2512,8 +2639,8 @@ export class GameScene extends Phaser.Scene {
       else if (kind === 'man') sprite = this.add.sprite(0, 0, 'zombie_man_idle', 0)
       else sprite = this.add.sprite(0, 0, 'zombie_woman_idle', 0)
       sprite.setOrigin(0, 1)
-      // Масштаб из 96x96 в 28x36, увеличенный в 1.5 раза
-      sprite.setScale((28 / 96) * 1.5, (36 / 96) * 1.5)
+      // Масштаб из 96x96 в 28x36, увеличенный в 4.5 раза (1.5 * 3)
+      sprite.setScale((28 / 96) * 4.5, (36 / 96) * 4.5)
       // Без отражения — зомби смотрят вправо по умолчанию
       if (kind === 'wild') { try { sprite.anims.play('z_wild_idle', true) } catch {} }
       if (kind === 'man') { try { sprite.anims.play('z_man_idle', true) } catch {} }
@@ -2526,8 +2653,8 @@ export class GameScene extends Phaser.Scene {
       const kinds = [1,2,3,4] as const
       const kind = kinds[Math.floor(Math.random() * kinds.length)]
       const sprite = this.add.sprite(0, 0, `mutant${kind}_idle`, 0).setOrigin(0, 1)
-      // Масштаб под 28x36 с небольшим увеличением, т.к. размер 128
-      sprite.setScale((28 / 128) * 1.6, (36 / 128) * 1.6)
+      // Масштаб под 28x36 с увеличением в 4.8 раза (1.6 * 3)
+      sprite.setScale((28 / 128) * 4.8, (36 / 128) * 4.8)
       try { sprite.anims.play(`m${kind}_idle`, true) } catch {}
       this.surfaceEnemyQueue.add(sprite)
       ;(item as any).sprite = sprite
@@ -2535,7 +2662,7 @@ export class GameScene extends Phaser.Scene {
     } else if (type === 'СОЛДАТ') {
       this.ensureSoldierAnimations()
       const sprite = this.add.sprite(0, 0, 'soldier_idle', 0).setOrigin(0, 1)
-      sprite.setScale((28 / 128) * 1.6, (36 / 128) * 1.6)
+      sprite.setScale((28 / 128) * 4.8, (36 / 128) * 4.8)
       try { sprite.anims.play('sold_idle', true) } catch {}
       this.surfaceEnemyQueue.add(sprite)
       ;(item as any).sprite = sprite
@@ -4074,10 +4201,11 @@ export class GameScene extends Phaser.Scene {
     this.phase = 'day'
     this.phaseEndsAt = this.dayCycleStartAt + this.DAY_DURATION_MS
     this.dayText?.setText(`${t('day')}: ${this.dayNumber} • ${t('dayPhase')} • ${this.getClockText()}`)
-    this.parallax?.setPhase('day')
     this.showToast(`Наступил день ${this.dayNumber}`)
     // Обновляем фон двери при смене фазы
     this.updateEntranceBackground()
+    // Обновляем фон погоды при смене фазы
+    this.updateWeatherBackground()
     // Если первый день — создаём 3 посетителей
     if (this.dayNumber === 1 && !this.initialQueueSeeded) {
       this.initialQueueSeeded = true
@@ -4099,10 +4227,11 @@ export class GameScene extends Phaser.Scene {
     this.phase = 'night'
     this.phaseEndsAt = this.dayCycleStartAt + this.DAY_DURATION_MS + this.NIGHT_DURATION_MS
     this.dayText?.setText(`${t('day')}: ${this.dayNumber} • ${t('nightPhase')} • ${this.getClockText()}`)
-    this.parallax?.setPhase('night')
     this.showToast(`Наступила ночь ${this.dayNumber}`)
     // Обновляем фон двери при смене фазы
     this.updateEntranceBackground()
+    // Обновляем фон погоды при смене фазы
+    this.updateWeatherBackground()
     // Ночью очередь людей расходится
     this.arrivalEvent?.remove(false)
     this.disperseQueue()
@@ -4150,6 +4279,17 @@ export class GameScene extends Phaser.Scene {
     this.dayText?.setText(`${t('day')}: ${this.dayNumber} • ${t(isDay ? 'dayPhase' : 'nightPhase')} • ${this.getClockText()}`)
     // Смена фазы по времени часов: в 22:00 — ночь, в 06:00 — день
     const clock = this.getClockText()
+
+    // Плавный переход за 30 секунд до смены фазы
+    if (clock === '21:30' && this.phase === 'day' && !this.isTransitioning) {
+      console.log('🌙 Начинается закат - плавный переход к ночи через 30 секунд')
+      this.startDayNightTransition()
+    }
+    if (clock === '05:30' && this.phase === 'night' && !this.isTransitioning) {
+      console.log('🌅 Начинается рассвет - плавный переход к дню через 30 секунд')
+      this.startDayNightTransition()
+    }
+
     if (clock === '22:00' && this.phase !== 'night') {
       this.sendResidentsToRestRooms()
       this.startNightPhase()
@@ -4429,6 +4569,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Public method to get current residents data for HTML UI
+  // Методы управления погодой
+  public setWeather(weather: WeatherState, duration?: number): void {
+    this.setWeatherState(weather, duration)
+  }
+
+  public getCurrentWeather(): WeatherState {
+    return this.weatherState
+  }
+
+  public startRain(duration?: number): void {
+    this.setWeatherState('rain', duration)
+  }
+
+  public startLightingStorm(): void {
+    // Сначала показываем молнию на короткое время
+    this.setWeatherState('lighting', 200) // 0.2 секунды молния
+    // Затем дождь на 10 секунд
+    this.time.delayedCall(200, () => {
+      this.setWeatherState('rain', 10000)
+    })
+  }
+
+  public startAcidFog(duration?: number): void {
+    this.setWeatherState('acid_fog', duration)
+  }
+
+  public clearWeather(): void {
+    this.setWeatherState('clear')
+  }
+
   public getCurrentResidentsData(): any[] {
     console.log('[GameScene] getCurrentResidentsData called, residents count:', this.bunkerResidents.length);
 
