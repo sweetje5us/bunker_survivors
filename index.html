@@ -84,6 +84,11 @@
           if (gameScene && gameScene.inventoryRows) {
             console.log(`[openInventory] Refreshing inventory with ${gameScene.inventoryRows} rows from GameScene`);
 
+            // Обновляем ресурсы
+            if (window.updateAllResourceDisplays) {
+              window.updateAllResourceDisplays();
+            }
+
             // Используем реальный инвентарь из GameScene если доступен
             let inventoryData = [];
             if (gameScene.getDefaultInventory) {
@@ -1966,6 +1971,71 @@
         }
       }
       return null;
+    };
+
+    // Resource management functions
+    window.updateResourceDisplay = function(resource, amount) {
+      const element = document.getElementById(`resource-${resource}-quantity`);
+      if (element) {
+        element.textContent = amount.toString();
+      }
+    };
+
+    window.updateAllResourceDisplays = function() {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene) {
+          updateResourceDisplay('food', gameScene.food);
+          updateResourceDisplay('water', gameScene.water);
+          updateResourceDisplay('money', gameScene.money);
+          updateResourceDisplay('ammo', gameScene.ammo);
+          updateResourceDisplay('wood', gameScene.wood);
+          updateResourceDisplay('metal', gameScene.metal);
+        }
+      }
+    };
+
+    window.addResource = function(resource, amount) {
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene) {
+          switch (resource) {
+            case 'food':
+              gameScene.addFood(amount);
+              break;
+            case 'water':
+              gameScene.addWater(amount);
+              break;
+            case 'money':
+              gameScene.money = Math.max(0, gameScene.money + amount);
+              break;
+            case 'ammo':
+              gameScene.ammo = Math.max(0, gameScene.ammo + amount);
+              break;
+            case 'wood':
+              gameScene.wood = Math.max(0, gameScene.wood + amount);
+              break;
+            case 'metal':
+              gameScene.metal = Math.max(0, gameScene.metal + amount);
+              break;
+          }
+          updateAllResourceDisplays();
+          updateResourceUI(resource, gameScene[resource]);
+        }
+      }
+    };
+
+    window.updateResourceUI = function(resource, amount) {
+      const element = document.getElementById(resource);
+      if (element) {
+        // Обновляем текст, сохраняя иконку
+        const iconElement = element.querySelector('.resource-icon');
+        if (iconElement) {
+          element.innerHTML = `${iconElement.outerHTML} ${amount}`;
+        } else {
+          element.textContent = `${amount}`;
+        }
+      }
     };
 
     // Abilities system

@@ -83,7 +83,7 @@ export class GameScene extends Phaser.Scene {
   private currentWeapon: 'melee' | 'pistol' | 'shotgun' | 'ar' | 'sniper' = 'pistol'
   private lastHourTick: number = -1
   private sessionSeed: number = 0
-  private personCache: Map<number, { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; loot: { ammo: number; food: number; water: number; money: number }; inventory: Array<{ id: string; quantity: number }> }> = new Map()
+  private personCache: Map<number, { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> }> = new Map()
   // Инвентарь бункера - хранит все предметы, добавленные жителями
   private bunkerInventory: Array<{ id: string; quantity: number } | undefined> = []
 
@@ -169,8 +169,9 @@ export class GameScene extends Phaser.Scene {
   private food = 100
   private water = 100
   private money = 200
-  // Идентификаторы жителей, с которых уже были добавлены ресурсы (чтобы не терять и не дублировать)
-  private claimedLootIds: Set<number> = new Set()
+  private wood = 50
+  private metal = 25
+
   
   private hasSkill(skills: Array<{ text: string; positive: boolean }> | undefined, name: string): boolean {
     if (!Array.isArray(skills)) return false
@@ -2574,10 +2575,8 @@ export class GameScene extends Phaser.Scene {
         // Показываем уведомление о принятии жителя
         this.showToast(`Принят житель: ${personData.name} (${personData.profession})`)
         
-        // Перенос ресурсов персонажа в бункер, защищённый от повторного начисления
-        this.claimVisitorLoot(first.id)
-
         // Перенос предметов из инвентаря персонажа в инвентарь бункера
+        // (включая базовые ресурсы в специальные ячейки)
         this.transferPersonInventoryToBunker(personData)
         // 1) Превью: приподнять и скрыть (спрайт или рамку)
         ;(this as any)._previewBusy = true
@@ -2694,8 +2693,7 @@ export class GameScene extends Phaser.Scene {
       }})
     })
     this.queueItems = []
-    // Сброс защитного множителя лута на случай, если очередь опустела (на новых снова начислять)
-    this.claimedLootIds.clear()
+
     // Обновляем сразу после очистки массива
     this.updatePersonInfoFromQueue()
   }
@@ -3128,7 +3126,7 @@ export class GameScene extends Phaser.Scene {
     }).join(', ')
   }
 
-  private generatePersonData(seed: number): { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; loot: { ammo: number; food: number; water: number; money: number }; inventory: Array<{ id: string; quantity: number }> } {
+  private generatePersonData(seed: number): { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> } {
     let s = (seed ^ this.sessionSeed) >>> 0
     const rng = (min: number, max: number) => {
       // Xorshift32
@@ -3195,25 +3193,17 @@ export class GameScene extends Phaser.Scene {
     // Открытый навык — первый из списка
     const openSkill = allSkills[0]
     
-    // Ресурсы у персонажа
-    const loot = {
-      ammo: rng(1, 100),
-      food: rng(1, 10),
-      water: rng(1, 10),
-      money: rng(1, 100)
-    }
-
     // Генерируем инвентарь персонажа
     const inventory = this.generatePersonInventory(profession)
 
     // Формируем текстовое описание инвентаря
     const inventoryText = this.generateInventoryText(inventory)
-    const itemsText = `патроны x${loot.ammo}, еда x${loot.food}, вода x${loot.water}, деньги x${loot.money}${inventoryText !== 'пусто' ? ', ' + inventoryText : ''}`
+    const itemsText = inventoryText !== 'пусто' ? inventoryText : 'пусто'
 
-    return { name, gender, age, profession, openSkill, allSkills, itemsText, loot, inventory }
+    return { name, gender, age, profession, openSkill, allSkills, itemsText, inventory }
   }
 
-  private getPersonData(id: number) {
+  private getPersonData(id: number): { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> } {
     const cached = this.personCache.get(id)
     if (cached) return cached
     const data = this.generatePersonData(id)
@@ -3221,7 +3211,7 @@ export class GameScene extends Phaser.Scene {
     return data
   }
 
-  private addResidentToBunker(id: number, personData: ReturnType<typeof this.generatePersonData>): void {
+  private addResidentToBunker(id: number, personData: { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> }): void {
     this.bunkerResidents.push({
       id,
       name: personData.name,
@@ -3269,26 +3259,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private claimVisitorLoot(id: number): void {
-    if (this.claimedLootIds.has(id)) return
-    const personData = this.getPersonData(id)
-    const loot = personData?.loot
-    if (!loot) { this.claimedLootIds.add(id); return }
-    const addAmmo = Math.max(0, Math.floor(loot.ammo || 0))
-    const addFood = Math.max(0, Math.floor(loot.food || 0))
-    const addWater = Math.max(0, Math.floor(loot.water || 0))
-    const addMoney = Math.max(0, Math.floor(loot.money || 0))
-    // Добавляем ресурсы один раз
-    this.ammo = Math.max(0, this.ammo + addAmmo)
-    this.food = Math.max(0, this.food + addFood)
-    this.water = Math.max(0, this.water + addWater)
-    this.money = Math.max(0, this.money + addMoney)
-    this.claimedLootIds.add(id)
-    this.updateResourcesText()
-    this.showToast(`+${addAmmo} патр., +${addFood} еды, +${addWater} воды, +${addMoney} ден.`)
-  }
 
-  private transferPersonInventoryToBunker(personData: ReturnType<typeof this.generatePersonData>): void {
+
+  private transferPersonInventoryToBunker(personData: { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> }): void {
     if (!personData.inventory || personData.inventory.length === 0) {
       console.log('[transferPersonInventoryToBunker] Персонаж не имеет предметов')
       return
@@ -3297,6 +3270,8 @@ export class GameScene extends Phaser.Scene {
     console.log(`[transferPersonInventoryToBunker] Перенос ${personData.inventory.length} предметов от ${personData.name}`)
 
     let inventoryChanged = false
+    let resourceItems = 0
+    let regularItems = 0
 
     // Обрабатываем каждый предмет из инвентаря персонажа
     for (const personItem of personData.inventory) {
@@ -3306,22 +3281,35 @@ export class GameScene extends Phaser.Scene {
         continue
       }
 
-      // Ищем такой же предмет в инвентаре бункера
-      const existingItem = this.bunkerInventory.find(item => item && item.id === personItem.id)
+      // Проверяем, является ли предмет базовым ресурсом
+      const isBasicResource = ['food', 'water', 'ammo', 'money', 'wood', 'metal'].includes(personItem.id)
 
-      if (existingItem) {
-        // Если предмет уже есть, увеличиваем количество
-        existingItem.quantity += personItem.quantity
-        console.log(`[transferPersonInventoryToBunker] Увеличено количество ${itemData.name}: +${personItem.quantity}`)
+      if (isBasicResource) {
+        // Для базовых ресурсов обновляем их количество в специальных ячейках
+        if (typeof window !== 'undefined' && window.addResource) {
+          window.addResource(personItem.id, personItem.quantity)
+          console.log(`[transferPersonInventoryToBunker] Добавлено ${personItem.quantity} ${itemData.name} в ресурсы`)
+          resourceItems++
+        }
       } else {
-        // Если предмета нет, добавляем его
-        this.bunkerInventory.push({ id: personItem.id, quantity: personItem.quantity })
-        console.log(`[transferPersonInventoryToBunker] Добавлен новый предмет: ${itemData.name} x${personItem.quantity}`)
-      }
+        // Для остальных предметов добавляем в обычный инвентарь
+        const existingItem = this.bunkerInventory.find(item => item && item.id === personItem.id)
 
-      inventoryChanged = true
+        if (existingItem) {
+          // Если предмет уже есть, увеличиваем количество
+          existingItem.quantity += personItem.quantity
+          console.log(`[transferPersonInventoryToBunker] Увеличено количество ${itemData.name}: +${personItem.quantity}`)
+        } else {
+          // Если предмета нет, добавляем его
+          this.bunkerInventory.push({ id: personItem.id, quantity: personItem.quantity })
+          console.log(`[transferPersonInventoryToBunker] Добавлен новый предмет: ${itemData.name} x${personItem.quantity}`)
+        }
+        regularItems++
+        inventoryChanged = true
+      }
     }
 
+    // Обновляем обычный инвентарь если были добавлены предметы
     if (inventoryChanged) {
       // Фильтруем только существующие предметы (на случай если какие-то предметы были удалены из справочника)
       this.bunkerInventory = this.bunkerInventory.filter(item => {
@@ -3334,8 +3322,20 @@ export class GameScene extends Phaser.Scene {
       if (typeof window.populateInventoryModal === 'function') {
         window.populateInventoryModal(this.getDefaultInventory(), this.inventoryRows)
       }
+    }
 
-      this.showToast(`Получено ${personData.inventory.length} предметов от ${personData.name}`)
+    // Показываем уведомление с учетом ресурсов и предметов
+    let message = ''
+    if (resourceItems > 0 && regularItems > 0) {
+      message = `Получено ${resourceItems} ресурсов и ${regularItems} предметов от ${personData.name}`
+    } else if (resourceItems > 0) {
+      message = `Получено ${resourceItems} ресурсов от ${personData.name}`
+    } else if (regularItems > 0) {
+      message = `Получено ${regularItems} предметов от ${personData.name}`
+    }
+
+    if (message) {
+      this.showToast(message)
     }
   }
 
@@ -4232,6 +4232,8 @@ export class GameScene extends Phaser.Scene {
         food: this.food,
         water: this.water,
         money: this.money,
+        wood: this.wood,
+        metal: this.metal,
         enemies: this.bunkerEnemies.length,
         bunkerLevel: this.bunkerLevel,
         bunkerExperience: this.bunkerExperience,

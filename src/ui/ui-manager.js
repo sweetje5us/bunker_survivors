@@ -19,6 +19,8 @@ class GameUIManager {
             food: 100,
             water: 100,
             money: 200,
+            wood: 50,
+            metal: 25,
             enemies: 0,
             bunkerLevel: 1,
             bunkerExperience: 0,
@@ -108,7 +110,7 @@ class GameUIManager {
             }
 
             // Update resources
-            const resources = ['population', 'happiness', 'defense', 'ammo', 'comfort', 'food', 'water', 'money', 'enemies'];
+            const resources = ['population', 'happiness', 'defense', 'ammo', 'comfort', 'food', 'water', 'money', 'wood', 'metal', 'enemies'];
             resources.forEach(resource => {
                 const element = this.overlay.querySelector(`#${resource}`);
                 if (element) {
@@ -124,6 +126,19 @@ class GameUIManager {
                             break;
                         case 'enemies':
                             element.textContent = `👹 ${value}`;
+                            break;
+                        case 'food':
+                        case 'water':
+                        case 'money':
+                        case 'wood':
+                        case 'metal':
+                            // Для ресурсов с иконками сохраняем HTML структуру
+                            const iconElement = element.querySelector('.resource-icon');
+                            if (iconElement) {
+                                element.innerHTML = `${iconElement.outerHTML} ${value}`;
+                            } else {
+                                element.textContent = `${this.getResourceIcon(resource)} ${value}`;
+                            }
                             break;
                         default:
                             element.textContent = `${this.getResourceIcon(resource)} ${value}`;
@@ -171,9 +186,11 @@ class GameUIManager {
             defense: '🛡️',
             ammo: '🔫',
             comfort: '🛋️',
-            food: '🍖',
+            food: '🍎',
             water: '💧',
-            money: '💰'
+            money: '💰',
+            wood: '🪵',
+            metal: '⚙️'
         };
         return icons[resource] || '';
     }

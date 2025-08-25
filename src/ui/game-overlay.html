@@ -140,11 +140,23 @@
             padding: 2px 6px;
             font-size: 8px;
             color: var(--bunker-text);
-            min-width: 50px;
+            min-width: 60px;
             text-align: center;
             pointer-events: auto;
             cursor: pointer;
             transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .resource-item .resource-icon {
+            width: 16px;
+            height: 16px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            flex-shrink: 0;
         }
 
         .resource-item:hover {
@@ -778,6 +790,52 @@
             align-items: center;
             justify-content: center;
             font-size: 16px;
+        }
+
+        /* Resources Section Styles */
+        .resources-section {
+            margin-bottom: 20px;
+        }
+
+        .resources-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+        }
+
+        .resource-slot {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            position: relative;
+            padding: 4px;
+        }
+
+        .resource-slot .resource-icon {
+            width: 24px;
+            height: 24px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            margin-bottom: 2px;
+        }
+
+        .resource-slot .resource-quantity {
+            font-size: 10px;
+            color: var(--bunker-gold);
+            font-weight: bold;
+            margin-bottom: 1px;
+        }
+
+        .resource-slot .resource-name {
+            font-size: 7px;
+            color: #888;
+            text-align: center;
+            line-height: 1;
         }
 
         .inventory-slot .quantity {
@@ -1741,9 +1799,21 @@
                 <div class="resource-item defense" id="defense" onclick="handleResourceClick('defense')">🛡️ 0%</div>
                 <div class="resource-item ammo" id="ammo" onclick="handleResourceClick('ammo')">🔫 0</div>
                 <div class="resource-item comfort" id="comfort" onclick="handleResourceClick('comfort')">🛋️ 0%</div>
-                <div class="resource-item" id="food" onclick="handleResourceClick('food')">🍖 0</div>
-                <div class="resource-item" id="water" onclick="handleResourceClick('water')">💧 0</div>
-                <div class="resource-item" id="money" onclick="handleResourceClick('money')">💰 0</div>
+                <div class="resource-item" id="food" onclick="handleResourceClick('food')">
+                    <img src="src/sprites/items/food.png" alt="Food" class="resource-icon"> 0
+                </div>
+                <div class="resource-item" id="water" onclick="handleResourceClick('water')">
+                    <img src="src/sprites/items/water.png" alt="Water" class="resource-icon"> 0
+                </div>
+                <div class="resource-item" id="money" onclick="handleResourceClick('money')">
+                    <img src="src/sprites/items/money.png" alt="Money" class="resource-icon"> 0
+                </div>
+                <div class="resource-item" id="wood" onclick="handleResourceClick('wood')">
+                    <img src="src/sprites/items/wood.png" alt="Wood" class="resource-icon"> 0
+                </div>
+                <div class="resource-item" id="metal" onclick="handleResourceClick('metal')">
+                    <img src="src/sprites/items/metal.png" alt="Metal" class="resource-icon"> 0
+                </div>
                 <div class="resource-item enemies" id="enemies" onclick="handleResourceClick('enemies')">👹 0</div>
             </div>
 
@@ -1837,6 +1907,44 @@
                   <img src="src/sprites/guns/img/sniper_rifle.png" alt="Снайперская винтовка" class="weapon-option-icon">
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resources Section -->
+        <div class="resources-section">
+          <h3>Ресурсы</h3>
+          <div class="resources-grid" id="resources-grid">
+            <!-- 6 resource slots: food, water, money, ammo, wood, metal -->
+            <div class="resource-slot" data-resource="food" id="resource-food">
+              <img src="src/sprites/items/food.png" alt="Еда" class="resource-icon">
+              <div class="resource-quantity" id="resource-food-quantity">0</div>
+              <div class="resource-name">Еда</div>
+            </div>
+            <div class="resource-slot" data-resource="water" id="resource-water">
+              <img src="src/sprites/items/water.png" alt="Вода" class="resource-icon">
+              <div class="resource-quantity" id="resource-water-quantity">0</div>
+              <div class="resource-name">Вода</div>
+            </div>
+            <div class="resource-slot" data-resource="money" id="resource-money">
+              <img src="src/sprites/items/money.png" alt="Деньги" class="resource-icon">
+              <div class="resource-quantity" id="resource-money-quantity">0</div>
+              <div class="resource-name">Деньги</div>
+            </div>
+            <div class="resource-slot" data-resource="ammo" id="resource-ammo">
+              <img src="src/sprites/items/ammo.png" alt="Патроны" class="resource-icon">
+              <div class="resource-quantity" id="resource-ammo-quantity">0</div>
+              <div class="resource-name">Патроны</div>
+            </div>
+            <div class="resource-slot" data-resource="wood" id="resource-wood">
+              <img src="src/sprites/items/wood.png" alt="Дерево" class="resource-icon">
+              <div class="resource-quantity" id="resource-wood-quantity">0</div>
+              <div class="resource-name">Дерево</div>
+            </div>
+            <div class="resource-slot" data-resource="metal" id="resource-metal">
+              <img src="src/sprites/items/metal.png" alt="Металл" class="resource-icon">
+              <div class="resource-quantity" id="resource-metal-quantity">0</div>
+              <div class="resource-name">Металл</div>
             </div>
           </div>
         </div>
