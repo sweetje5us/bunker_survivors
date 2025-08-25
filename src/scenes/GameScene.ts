@@ -12,6 +12,8 @@ type Phase = 'day' | 'night'
 
 type MobilePanel = 'bunker' | 'info' | 'people' | 'resources'
 
+type EntranceState = 'normal' | 'broken' | 'accept' | 'deny'
+
 export class GameScene extends Phaser.Scene {
   private difficulty: Difficulty = 'normal'
   private dayNumber = 1
@@ -113,6 +115,10 @@ export class GameScene extends Phaser.Scene {
   private _previewCurrentId: number | null = null
   private _previewCurrentIsEnemy: boolean = false
   private lastPersonRect?: Phaser.Geom.Rectangle
+
+  // Состояние двери для превью входа
+  private entranceState: EntranceState = 'normal'
+  private entranceStateTimer?: Phaser.Time.TimerEvent
   
   // Люди в бункере
   private bunkerResidents: Array<{
@@ -798,7 +804,9 @@ export class GameScene extends Phaser.Scene {
       const d = damageByType((first as any).type || first.type)
       this.defense = Math.max(0, this.defense - d)
       this.updateResourcesText()
-      
+      // Обновляем фон двери при изменении защиты
+      this.updateEntranceBackground()
+
       // Проверяем: если защита упала до 0, враг заходит в бункер
       if (this.defense <= 0) {
         this.enemyEntersBunker(first)
@@ -824,7 +832,9 @@ export class GameScene extends Phaser.Scene {
       const it = this.enemyQueueItems[i] as any
       const d = damageByType(it.type)
       this.defense = Math.max(0, this.defense - d)
-      
+      // Обновляем фон двери при изменении защиты
+      this.updateEntranceBackground()
+
       // Также проигрываем анимацию атаки для врагов в очереди
       try {
         this.playEnemyAttackAnimation(it, it.sprite, it.shirt, it.pants, it.footwear, it.hair)
@@ -1295,8 +1305,10 @@ export class GameScene extends Phaser.Scene {
     // Фоновая подложка для обеспечения валидной области контейнера (перехватывает размеры)
     const topBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0).setOrigin(0)
     this.personTop.add(topBg)
-    const entranceImg = this.add.image(0, 0, 'room_entrance_out').setOrigin(0.5)
+    const entranceImg = this.add.image(0, 0, 'entrance_day').setOrigin(0.5)
     this.personEntranceImage = entranceImg
+    // Устанавливаем начальное состояние фона
+    this.updateEntranceBackground()
     // Превью текущего персонажа (спрайт + рамка)
     this.personPreviewSprite = this.add.sprite(0, 0, undefined as unknown as string)
     this.personPreviewSprite.setOrigin(0.5, 1)
@@ -1361,6 +1373,64 @@ export class GameScene extends Phaser.Scene {
 
     this.personArea.add([this.personTop, this.personBottom])
     this.updatePersonInfoFromQueue()
+  }
+
+  private updateEntranceBackground(): void {
+    if (!this.personEntranceImage) return
+
+    let textureKey: string
+
+    // Определяем текстуру в зависимости от состояния и времени суток
+    switch (this.entranceState) {
+      case 'broken':
+        textureKey = this.phase === 'day' ? 'entrance_day_broken' : 'entrance_night_broken'
+        break
+      case 'accept':
+        // Состояние accept: если защита сломана, используем специальный спрайт
+        if (this.defense <= 0) {
+          textureKey = 'entrance_day_broken_accept'
+        } else {
+          textureKey = 'entrance_day_accept'
+        }
+        break
+      case 'deny':
+        // Состояние deny: если защита сломана, используем специальный спрайт
+        if (this.defense <= 0) {
+          textureKey = 'entrance_day_broken_deny'
+        } else {
+          textureKey = 'entrance_day_deny'
+        }
+        break
+      default: // normal
+        // Проверяем защиту: если <= 0, показываем сломанное состояние
+        if (this.defense <= 0) {
+          textureKey = this.phase === 'day' ? 'entrance_day_broken' : 'entrance_night_broken'
+        } else {
+          textureKey = this.phase === 'day' ? 'entrance_day' : 'entrance_night'
+        }
+        break
+    }
+
+    // Обновляем текстуру изображения
+    this.personEntranceImage.setTexture(textureKey)
+  }
+
+  private setEntranceState(state: EntranceState, duration?: number): void {
+    this.entranceState = state
+    this.updateEntranceBackground()
+
+    // Очищаем предыдущий таймер если он был
+    if (this.entranceStateTimer) {
+      this.entranceStateTimer.destroy()
+      this.entranceStateTimer = undefined
+    }
+
+    // Если указано время, устанавливаем таймер для возврата к нормальному состоянию
+    if (duration && duration > 0) {
+      this.entranceStateTimer = this.time.delayedCall(duration, () => {
+        this.setEntranceState('normal')
+      })
+    }
   }
 
   private buildBunkerPlaceholders(): void {
@@ -2574,7 +2644,10 @@ export class GameScene extends Phaser.Scene {
         this.addResidentToBunker(first.id, personData)
         // Показываем уведомление о принятии жителя
         this.showToast(`Принят житель: ${personData.name} (${personData.profession})`)
-        
+
+        // Устанавливаем состояние accept на 1 секунду
+        this.setEntranceState('accept', 1000)
+
         // Перенос предметов из инвентаря персонажа в инвентарь бункера
         // (включая базовые ресурсы в специальные ячейки)
         this.transferPersonInventoryToBunker(personData)
@@ -2632,7 +2705,10 @@ export class GameScene extends Phaser.Scene {
       // Показываем уведомление об отказе в жителе
       const personData = this.getPersonData(first.id)
       this.showToast(`Отказано в жителе: ${personData.name} (${personData.profession})`)
-      
+
+      // Устанавливаем состояние deny на 1 секунду
+      this.setEntranceState('deny', 1000)
+
       ;(this as any)._previewBusy = true
       // 1) Превью: уход влево с исчезновением (спрайт или рамка)
       if (this.personPreviewSprite && this.personPreviewSprite.visible) {
@@ -4000,6 +4076,8 @@ export class GameScene extends Phaser.Scene {
     this.dayText?.setText(`${t('day')}: ${this.dayNumber} • ${t('dayPhase')} • ${this.getClockText()}`)
     this.parallax?.setPhase('day')
     this.showToast(`Наступил день ${this.dayNumber}`)
+    // Обновляем фон двери при смене фазы
+    this.updateEntranceBackground()
     // Если первый день — создаём 3 посетителей
     if (this.dayNumber === 1 && !this.initialQueueSeeded) {
       this.initialQueueSeeded = true
@@ -4023,6 +4101,8 @@ export class GameScene extends Phaser.Scene {
     this.dayText?.setText(`${t('day')}: ${this.dayNumber} • ${t('nightPhase')} • ${this.getClockText()}`)
     this.parallax?.setPhase('night')
     this.showToast(`Наступила ночь ${this.dayNumber}`)
+    // Обновляем фон двери при смене фазы
+    this.updateEntranceBackground()
     // Ночью очередь людей расходится
     this.arrivalEvent?.remove(false)
     this.disperseQueue()
