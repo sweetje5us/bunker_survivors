@@ -799,7 +799,7 @@
 
         .resources-grid {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 4px;
         }
 
@@ -1700,9 +1700,7 @@
             border-left-color: #d32f2f;
             background: rgba(211, 47, 47, 0.1);
         }
-            font-size: 0.7em;
-            color: #aaa;
-        }
+
 
         .notification-type {
             padding: 2px 8px;
@@ -1775,6 +1773,62 @@
             justify-content: center;
             font-weight: bold;
         }
+
+        /* Анимация черепа населения */
+        .population-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 24px; /* Фиксированная высота как у других resource-item */
+        }
+
+        .population-skull {
+            width: 16px;
+            height: 16px;
+            image-rendering: pixelated;
+            background-size: 16px 16px;
+            background-repeat: no-repeat;
+            background-position: center;
+            flex-shrink: 0;
+        }
+
+        .population-count {
+            color: var(--bunker-text);
+            font-size: 8px;
+            line-height: 1;
+            margin-top: 1px; /* Небольшой отступ для лучшего выравнивания */
+        }
+
+        /* Ключевые кадры анимации черепа */
+        @keyframes skull-to-dead {
+            0% { background-image: url('src/sprites/resources/people/skull001.png'); }
+            14% { background-image: url('src/sprites/resources/people/skull002.png'); }
+            28% { background-image: url('src/sprites/resources/people/skull003.png'); }
+            42% { background-image: url('src/sprites/resources/people/skull004.png'); }
+            57% { background-image: url('src/sprites/resources/people/skull005.png'); }
+            71% { background-image: url('src/sprites/resources/people/skull006.png'); }
+            100% { background-image: url('src/sprites/resources/people/skull007.png'); }
+        }
+
+        @keyframes skull-to-alive {
+            0% { background-image: url('src/sprites/resources/people/skull007.png'); }
+            14% { background-image: url('src/sprites/resources/people/skull006.png'); }
+            28% { background-image: url('src/sprites/resources/people/skull005.png'); }
+            42% { background-image: url('src/sprites/resources/people/skull004.png'); }
+            57% { background-image: url('src/sprites/resources/people/skull003.png'); }
+            71% { background-image: url('src/sprites/resources/people/skull002.png'); }
+            100% { background-image: url('src/sprites/resources/people/skull001.png'); }
+        }
+
+        .skull-dying {
+            animation: skull-to-dead 1s ease-in-out forwards;
+        }
+
+        .skull-reviving {
+            animation: skull-to-alive 1s ease-in-out forwards;
+        }
     </style>
 </head>
 <body>
@@ -1794,27 +1848,55 @@
 
         <div class="bottom-row">
             <div class="resources-section">
-                <div class="resource-item" id="population" onclick="handleResourceClick('residents')">👥 0/0</div>
-                <div class="resource-item happiness" id="happiness" onclick="handleResourceClick('happiness')">😊 0%</div>
-                <div class="resource-item defense" id="defense" onclick="handleResourceClick('defense')">🛡️ 0%</div>
-                <div class="resource-item ammo" id="ammo" onclick="handleResourceClick('ammo')">🔫 0</div>
-                <div class="resource-item comfort" id="comfort" onclick="handleResourceClick('comfort')">🛋️ 0%</div>
+                <div class="resource-item population-container" id="population" onclick="handleResourceClick('residents')">
+                    <div class="population-skull" id="population-skull"></div>
+                    <span class="population-count" id="population-count">0/0</span>
+                </div>
+                <div class="resource-item enemies" id="enemies" onclick="handleResourceClick('enemies')">
+                    <img src="src/sprites/resources/enemies.png" alt="Враги" class="resource-icon"> 0
+                </div>
+                <div class="resource-item happiness" id="happiness" onclick="handleResourceClick('happiness')">
+                    <img src="src/sprites/resources/happiness.png" alt="Счастье" class="resource-icon"> 0%
+                </div>
+                <div class="resource-item defense" id="defense" onclick="handleResourceClick('defense')">
+                    <img src="src/sprites/resources/defence.png" alt="Защита" class="resource-icon"> 0%
+                </div>
+                <div class="resource-item ammo" id="ammo" onclick="handleResourceClick('ammo')">
+                    <img src="src/sprites/resources/ammo.png" alt="Патроны" class="resource-icon"> 0
+                </div>
+                <div class="resource-item comfort" id="comfort" onclick="handleResourceClick('comfort')">
+                    <img src="src/sprites/resources/comfort.png" alt="Комфорт" class="resource-icon"> 0%
+                </div>
+                <div class="resource-item moral" id="moral" onclick="handleResourceClick('moral')">
+                    <img src="src/sprites/resources/moral.png" alt="Мораль" class="resource-icon"> 0%
+                </div>
                 <div class="resource-item" id="food" onclick="handleResourceClick('food')">
-                    <img src="src/sprites/items/food.png" alt="Food" class="resource-icon"> 0
+                    <img src="src/sprites/resources/food.png" alt="Еда" class="resource-icon"> 0
                 </div>
                 <div class="resource-item" id="water" onclick="handleResourceClick('water')">
-                    <img src="src/sprites/items/water.png" alt="Water" class="resource-icon"> 0
+                    <img src="src/sprites/resources/water.png" alt="Вода" class="resource-icon"> 0
                 </div>
                 <div class="resource-item" id="money" onclick="handleResourceClick('money')">
-                    <img src="src/sprites/items/money.png" alt="Money" class="resource-icon"> 0
+                    <img src="src/sprites/resources/money.png" alt="Деньги" class="resource-icon"> 0
                 </div>
                 <div class="resource-item" id="wood" onclick="handleResourceClick('wood')">
-                    <img src="src/sprites/items/wood.png" alt="Wood" class="resource-icon"> 0
+                    <img src="src/sprites/resources/wood.png" alt="Дерево" class="resource-icon"> 0
                 </div>
                 <div class="resource-item" id="metal" onclick="handleResourceClick('metal')">
-                    <img src="src/sprites/items/metal.png" alt="Metal" class="resource-icon"> 0
+                    <img src="src/sprites/resources/metal.png" alt="Металл" class="resource-icon"> 0
                 </div>
-                <div class="resource-item enemies" id="enemies" onclick="handleResourceClick('enemies')">👹 0</div>
+                <div class="resource-item" id="coal" onclick="handleResourceClick('coal')">
+                    <img src="src/sprites/resources/coal.png" alt="Уголь" class="resource-icon"> 0
+                </div>
+                <div class="resource-item" id="nails" onclick="handleResourceClick('nails')">
+                    <img src="src/sprites/resources/nails.png" alt="Гвозди" class="resource-icon"> 0
+                </div>
+                <div class="resource-item" id="paper" onclick="handleResourceClick('paper')">
+                    <img src="src/sprites/resources/paper.png" alt="Бумага" class="resource-icon"> 0
+                </div>
+                <div class="resource-item" id="glass" onclick="handleResourceClick('glass')">
+                    <img src="src/sprites/resources/glass.png" alt="Стекло" class="resource-icon"> 0
+                </div>
             </div>
 
             <div class="experience-section">
@@ -1946,6 +2028,26 @@
               <div class="resource-quantity" id="resource-metal-quantity">0</div>
               <div class="resource-name">Металл</div>
             </div>
+            <div class="resource-slot" data-resource="coal" id="resource-coal">
+              <img src="src/sprites/items/coal.png" alt="Уголь" class="resource-icon">
+              <div class="resource-quantity" id="resource-coal-quantity">0</div>
+              <div class="resource-name">Уголь</div>
+            </div>
+            <div class="resource-slot" data-resource="nails" id="resource-nails">
+              <img src="src/sprites/items/nails.png" alt="Гвозди" class="resource-icon">
+              <div class="resource-quantity" id="resource-nails-quantity">0</div>
+              <div class="resource-name">Гвозди</div>
+            </div>
+            <div class="resource-slot" data-resource="paper" id="resource-paper">
+              <img src="src/sprites/items/paper.png" alt="Бумага" class="resource-icon">
+              <div class="resource-quantity" id="resource-paper-quantity">0</div>
+              <div class="resource-name">Бумага</div>
+            </div>
+            <div class="resource-slot" data-resource="glass" id="resource-glass">
+              <img src="src/sprites/items/glass.png" alt="Стекло" class="resource-icon">
+              <div class="resource-quantity" id="resource-glass-quantity">0</div>
+              <div class="resource-name">Стекло</div>
+            </div>
           </div>
         </div>
 
@@ -2042,6 +2144,12 @@
                     food: 100,
                     water: 100,
                     money: 200,
+                    wood: 50,
+                    metal: 25,
+                    coal: 10,
+                    nails: 20,
+                    paper: 15,
+                    glass: 5,
                     enemies: 0,
                     bunkerLevel: 1,
                     bunkerExperience: 0,
@@ -2068,11 +2176,41 @@
                 document.getElementById('population').textContent = `👥 ${this.gameData.population}/${this.gameData.capacity}`;
                 document.getElementById('happiness').textContent = `😊 ${this.gameData.happiness}%`;
                 document.getElementById('defense').textContent = `🛡️ ${this.gameData.defense}%`;
-                document.getElementById('ammo').textContent = `🔫 ${this.gameData.ammo}`;
+                // Обновляем патроны с иконкой
+                const ammoElement = document.getElementById('ammo');
+                if (ammoElement) {
+                    const iconElement = ammoElement.querySelector('.resource-icon');
+                    if (iconElement) {
+                        ammoElement.innerHTML = `${iconElement.outerHTML} ${this.gameData.ammo}`;
+                    } else {
+                        // Если иконка не найдена, создаем её заново
+                        ammoElement.innerHTML = `<img src="src/sprites/items/ammo.png" alt="Патроны" class="resource-icon"> ${this.gameData.ammo}`;
+                    }
+                }
                 document.getElementById('comfort').textContent = `🛋️ ${this.gameData.comfort}%`;
-                document.getElementById('food').textContent = `🍖 ${this.gameData.food}`;
-                document.getElementById('water').textContent = `💧 ${this.gameData.water}`;
-                document.getElementById('money').textContent = `💰 ${this.gameData.money}`;
+                
+                // Обновляем ресурсы с иконками
+                const updateResourceWithIcon = (id, value) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        const iconElement = element.querySelector('.resource-icon');
+                        if (iconElement) {
+                            element.innerHTML = `${iconElement.outerHTML} ${value}`;
+                        } else {
+                            element.textContent = `${value}`;
+                        }
+                    }
+                };
+
+                updateResourceWithIcon('food', this.gameData.food);
+                updateResourceWithIcon('water', this.gameData.water);
+                updateResourceWithIcon('money', this.gameData.money);
+                updateResourceWithIcon('wood', this.gameData.wood);
+                updateResourceWithIcon('metal', this.gameData.metal);
+                updateResourceWithIcon('coal', this.gameData.coal);
+                updateResourceWithIcon('nails', this.gameData.nails);
+                updateResourceWithIcon('paper', this.gameData.paper);
+                updateResourceWithIcon('glass', this.gameData.glass);
                 document.getElementById('enemies').textContent = `👹 ${this.gameData.enemies}`;
 
                 // Update experience
@@ -2122,7 +2260,9 @@
 
             // Make functions globally available for Phaser
             window.updateGameUI = function(data) {
-                if (gameUI) gameUI.updateGameData(data);
+                if (gameUI) {
+                    gameUI.updateGameData(data);
+                }
             };
 
             window.showGameUI = function(visible) {

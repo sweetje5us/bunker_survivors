@@ -97,6 +97,7 @@ export class GameScene extends Phaser.Scene {
   private personNameText?: Phaser.GameObjects.Text
   private personDetailsText?: Phaser.GameObjects.Text
   private personSkillText?: Phaser.GameObjects.Text
+  private itemTooltipText?: Phaser.GameObjects.Text
   private bunkerArea?: Phaser.GameObjects.Container
   private simpleBunker?: SimpleBunkerView
 
@@ -147,6 +148,14 @@ export class GameScene extends Phaser.Scene {
     energy?: number
     health?: number
     patient?: boolean
+    insane?: boolean // Флаг безумия жителя
+    insaneSince?: number // Время с которого житель сошел с ума
+    intent?: string // Поведение: 'peaceful' (мирное) или 'hostile' (агрессивное)
+    skinColor?: number // Цвет кожи
+    shirtType?: number // Тип рубашки
+    pantsType?: number // Тип штанов
+    footwearType?: number // Тип обуви
+    hairType?: number // Тип волос
   }> = []
   
   // Враги в бункере (отдельная система)
@@ -171,6 +180,14 @@ export class GameScene extends Phaser.Scene {
     marauderKind?: number
     zombieKind?: string
     mutantKind?: number
+    insane?: boolean // Флаг безумия для бывших жителей
+    insaneSince?: number // Время с которого стал безумным
+    insaneKind?: number // Тип спрайта для безумных
+    skinColor?: number // Цвет кожи для правильного спрайта
+    shirtType?: number // Тип рубашки
+    pantsType?: number // Тип штанов
+    footwearType?: number // Тип обуви
+    hairType?: number // Тип волос
   }> = []
   
   private mobileActive: MobilePanel = 'info'
@@ -181,16 +198,310 @@ export class GameScene extends Phaser.Scene {
   private defense = 50
   private ammo = 100
   private comfort = 100
+  private moral = 50
   private food = 100
   private water = 100
   private money = 200
   private wood = 50
   private metal = 25
+  private coal = 10
+  private nails = 20
+  private paper = 15
+  private glass = 5
 
   
   private hasSkill(skills: Array<{ text: string; positive: boolean }> | undefined, name: string): boolean {
     if (!Array.isArray(skills)) return false
     return skills.some(s => s && typeof s.text === 'string' && s.text.toLowerCase() === name.toLowerCase())
+  }
+
+  /**
+   * Get current moral value
+   */
+  private getCurrentMoral(): number {
+    let moralValue: number
+    if (typeof (window as any).getMoral === 'function') {
+      moralValue = (window as any).getMoral();
+    } else {
+      moralValue = this.moral; // fallback to local value
+    }
+    console.log(`[GameScene] getCurrentMoral() возвращает: ${moralValue}`)
+    return moralValue
+  }
+
+  /**
+   * Check if resident should go insane based on moral level
+   */
+  private shouldResidentGoInsane(): boolean {
+    const moral = this.getCurrentMoral();
+    let insanityChance = 0;
+
+    console.log(`[GameScene] shouldResidentGoInsane: moral=${moral}`)
+
+    if (moral <= 0) {
+      console.log(`[GameScene] shouldResidentGoInsane: мораль <= 0, возвращаем true`)
+      return true; // 100% шанс при морали 0%
+    } else if (moral < 25) {
+      insanityChance = 0.15; // 15% шанс при морали < 25%
+      console.log(`[GameScene] shouldResidentGoInsane: мораль < 25, шанс=${insanityChance}`)
+    } else if (moral <= 35) {
+      insanityChance = 0.05; // 5% шанс при морали 25-35%
+      console.log(`[GameScene] shouldResidentGoInsane: мораль <= 35, шанс=${insanityChance}`)
+    } else {
+      console.log(`[GameScene] shouldResidentGoInsane: мораль > 35, шанс безумия = 0`)
+    }
+
+    const result = Math.random() < insanityChance;
+    console.log(`[GameScene] shouldResidentGoInsane: результат=${result}`)
+    return result;
+  }
+
+  /**
+   * Make resident insane
+   */
+  private makeResidentInsane(residentId: number): void {
+    const resident = this.bunkerResidents.find(r => r.id === residentId);
+    if (!resident) {
+      console.log(`[GameScene] makeResidentInsane: житель с ID ${residentId} не найден!`)
+      return;
+    }
+
+    if (!resident.insane) {
+      console.log(`[GameScene] makeResidentInsane: делаем жителя ${resident.name} (${resident.profession}) безумным`)
+
+      resident.insane = true;
+      resident.insaneSince = this.time.now;
+      resident.status = 'безумен';
+      resident.intent = 'hostile'; // Безумный житель ведет себя как враг
+
+      console.log(`[GameScene] Resident ${resident.name} (${resident.profession}) went insane!`);
+      console.log(`[GameScene] Установлены параметры: insane=${resident.insane}, intent=${resident.intent}`);
+
+      // Показать уведомление
+      this.showToast(`🚨 ${resident.name} сошел с ума и стал враждебным!`);
+
+      // Обновляем bunkerView - житель остается в списке, но теперь агрессивный
+      console.log(`[GameScene] Вызываем syncResidents для обновления bunkerView`)
+      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length);
+
+      // При морали 0% - начать бой между жителями
+      const currentMoral = this.getCurrentMoral();
+      if (currentMoral <= 0) {
+        console.log(`[GameScene] Мораль <= 0 (${currentMoral}), запускаем бой между жителями`)
+        this.startResidentFight();
+      } else {
+        console.log(`[GameScene] Мораль > 0 (${currentMoral}), бой не запускается`)
+      }
+    } else {
+      console.log(`[GameScene] makeResidentInsane: житель ${resident.name} уже безумный`)
+    }
+  }
+
+  /**
+   * Start fight between insane residents
+   */
+  private startResidentFight(): void {
+    console.log('[GameScene] Starting resident fight due to 0% moral!');
+    this.showToast('🚨 БУНТ В БУНКЕРЕ! Безумные жители дерутся!');
+
+    // Найти всех безумных жителей (с hostile intent)
+    const insaneResidents = this.bunkerResidents.filter(r => r.insane && r.intent === 'hostile');
+
+    if (insaneResidents.length >= 2) {
+      // Начать бой между двумя случайными безумными жителями
+      this.processResidentFight(insaneResidents);
+    }
+  }
+
+  /**
+   * Process fight between insane residents
+   */
+  private processResidentFight(insaneResidents: any[]): void {
+    if (insaneResidents.length < 2) {
+      console.log('[GameScene] Not enough insane residents to fight');
+      return;
+    }
+
+    console.log(`[GameScene] Starting fight between ${insaneResidents.length} insane residents`);
+
+    // Безумные жители уже помечены как агрессивные и будут автоматически
+    // искать цели среди других жителей через систему боя bunkerView
+
+    // Просто проверяем условия окончания боя через некоторое время
+    this.time.delayedCall(5000, () => {
+      this.checkResidentFightEnd();
+    });
+  }
+
+  /**
+   * Check if resident fight should end
+   */
+  private checkResidentFightEnd(): void {
+    const moral = this.getCurrentMoral();
+    const remainingInsane = this.bunkerResidents.filter(r => r.insane && r.intent === 'hostile');
+
+    // Бой заканчивается если:
+    // - Остался только один безумный житель
+    // - Мораль повысилась выше 25%
+    // - Мораль стала выше 0% (но ниже 25%)
+    if (remainingInsane.length <= 1 || moral > 25) {
+      console.log('[GameScene] Resident fight ended');
+      this.showToast('🎯 Драка прекратилась!');
+      return;
+    }
+
+    // Если мораль все еще 0% и есть безумные жители - продолжаем бой
+    if (moral <= 0 && remainingInsane.length >= 2) {
+      this.time.delayedCall(5000, () => {
+        this.checkResidentFightEnd();
+      });
+    }
+  }
+
+  /**
+   * Calculate resident power for fights
+   */
+  private calculateResidentPower(resident: any): number {
+    let power = resident.health || 100;
+
+    // Бонусы от навыков
+    if (this.hasSkill(resident.skills, 'герой')) power += 20;
+    if (this.hasSkill(resident.skills, 'лидер')) power += 15;
+    if (this.hasSkill(resident.skills, 'солдат')) power += 10;
+
+    // Штрафы от навыков
+    if (this.hasSkill(resident.skills, 'трус')) power -= 15;
+    if (this.hasSkill(resident.skills, 'группа инвалидности')) power -= 20;
+    if (this.hasSkill(resident.skills, 'неизлечимая болезнь')) power -= 25;
+
+    return Math.max(1, power);
+  }
+
+  /**
+   * Check residents for insanity based on moral
+   */
+  private checkResidentsForInsanity(): void {
+    const moral = this.getCurrentMoral();
+
+    // Инициализируем intent для существующих жителей
+    this.bunkerResidents.forEach(resident => {
+      if (!resident.intent) {
+        resident.intent = resident.insane ? 'hostile' : 'peaceful';
+      }
+    });
+
+    // При морали 0% - все жители сходят с ума
+    if (moral <= 0) {
+      this.bunkerResidents.forEach(resident => {
+        if (!resident.insane) {
+          this.makeResidentInsane(resident.id);
+        }
+      });
+      return;
+    }
+
+    // Для каждого жителя проверить шанс сойти с ума
+    this.bunkerResidents.forEach(resident => {
+      if (!resident.insane && this.shouldResidentGoInsane()) {
+        this.makeResidentInsane(resident.id);
+      }
+    });
+
+    // Также проверим, нужно ли остановить бой при повышении морали
+    if (moral > 25) {
+      const insaneResidents = this.bunkerResidents.filter(r => r.insane && r.intent === 'hostile');
+      if (insaneResidents.length > 0) {
+        console.log('[GameScene] Moral improved, stopping insane fights');
+      }
+    }
+  }
+
+  /**
+   * Restore sanity when moral improves
+   */
+  private restoreSanity(): void {
+    const moral = this.getCurrentMoral();
+
+    if (moral > 35) {
+      // Находим всех безумных жителей
+      const insaneResidents = this.bunkerResidents.filter(r => r.insane);
+
+      insaneResidents.forEach(insaneResident => {
+        insaneResident.insane = false;
+        insaneResident.insaneSince = undefined;
+        insaneResident.intent = 'peaceful'; // Возвращаем мирное поведение
+        insaneResident.status = 'отдыхает';
+
+        console.log(`[GameScene] Resident ${insaneResident.name} regained sanity!`);
+        this.showToast(`🧠 ${insaneResident.name} пришел в себя!`);
+      });
+
+      // Обновляем bunkerView если были изменения
+      if (insaneResidents.length > 0) {
+        this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length);
+      }
+    }
+  }
+
+  /**
+   * Calculate moral change based on resident decision
+   */
+  private calculateMoralChange(personData: { allSkills: Array<{ text: string; positive: boolean }> }, accepted: boolean): number {
+    let moralChange = 0;
+
+    // Base moral change
+    if (accepted) {
+      moralChange += 1; // +1% for accepting
+    } else {
+      moralChange -= 1; // -1% for rejecting
+    }
+
+    // Special skill modifiers
+    if (this.hasSkill(personData.allSkills, 'лидер') && accepted) {
+      moralChange += 10; // +10% for accepting leader
+    }
+
+    if (this.hasSkill(personData.allSkills, 'герой') && accepted) {
+      moralChange += 10; // +10% for accepting hero
+    }
+
+    if (this.hasSkill(personData.allSkills, 'слепой')) {
+      if (accepted) {
+        moralChange += 5; // +5% for accepting blind person
+      } else {
+        moralChange -= 10; // -10% for rejecting blind person
+      }
+    }
+
+    if (this.hasSkill(personData.allSkills, 'группа инвалидности')) {
+      if (accepted) {
+        moralChange += 5; // +5% for accepting disabled person
+      } else {
+        moralChange -= 10; // -10% for rejecting disabled person
+      }
+    }
+
+    if (this.hasSkill(personData.allSkills, 'неизлечимая болезнь')) {
+      if (accepted) {
+        moralChange += 5; // +5% for accepting sick person
+      } else {
+        moralChange -= 10; // -10% for rejecting sick person
+      }
+    }
+
+    return moralChange;
+  }
+
+  /**
+   * Apply moral change
+   */
+  private applyMoralChange(delta: number, reason: string): void {
+    if (typeof (window as any).changeMoral === 'function') {
+      const newMoral = (window as any).changeMoral(delta);
+      console.log(`[GameScene] Moral change: ${delta > 0 ? '+' : ''}${delta}% (${reason}) → ${newMoral}%`);
+    } else {
+      console.warn('[GameScene] changeMoral function not available');
+    }
   }
 
   private computeSoldierShotsPerHour(skills: Array<{ text: string; positive: boolean }> | undefined): number {
@@ -1263,6 +1574,9 @@ export class GameScene extends Phaser.Scene {
     const deltaH = this.computeDailyHappinessDelta(residents)
     this.happiness = Math.max(0, Math.min(100, this.happiness + deltaH))
 
+    // Восстановление разума при улучшении морали
+    this.restoreSanity()
+
     this.updateResourcesText()
   }
 
@@ -1519,21 +1833,34 @@ export class GameScene extends Phaser.Scene {
     const inventorySlots: Phaser.GameObjects.Container[] = []
     for (let i = 0; i < 3; i++) {
       const slot = this.add.container(0, 0)
-      const bg = this.add.rectangle(0, 0, 24, 24, 0x333333, 0.8).setOrigin(0.5)
+      const bg = this.add.rectangle(0, 0, 56, 56, 0x333333, 0.8).setOrigin(0.5)
       const itemSprite = this.add.sprite(0, 0, undefined as unknown as string).setVisible(false)
-      const quantityText = this.add.text(8, 8, '', { fontFamily: THEME.fonts.body, fontSize: '8px', color: '#ffffff' }).setOrigin(0.5)
+      const quantityText = this.add.text(20, 20, '', { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#ffffff' }).setOrigin(0.5)
       slot.add([bg, itemSprite, quantityText])
+
+      // Добавляем обработчик клика на фон слота (не на контейнер)
+      bg.setInteractive({ useHandCursor: true })
+      bg.on('pointerdown', () => {
+        this.showItemTooltip(i)
+      })
+
       inventorySlots.push(slot)
     }
     this.personPreviewInventory.add(inventorySlots)
     this.personPreviewInventory.setVisible(false)
+
+    // Создаем текст для подсказки предмета
+    console.log(`[buildPersonPlaceholders] Создаем текст подсказки предмета`)
+    this.itemTooltipText = this.add.text(0, 0, '', { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#ffff88', stroke: '#000000', strokeThickness: 2 }).setOrigin(0.5)
+    this.itemTooltipText.setVisible(false)
+    console.log(`[buildPersonPlaceholders] Текст подсказки создан успешно`)
 
     // Изначально скрываем детали персонажа
     this.personNameText.setVisible(false)
     this.personDetailsText.setVisible(false)
     this.personSkillText.setVisible(false)
     this.personPreviewInventory.setVisible(false)
-    this.personBottom.add([this.personNameText, this.personDetailsText, this.personSkillText, this.personPreviewInventory])
+    this.personBottom.add([this.personNameText, this.personDetailsText, this.personSkillText, this.personPreviewInventory, this.itemTooltipText])
 
     this.personArea.add([this.personTop, this.personBottom])
     this.updatePersonInfoFromQueue()
@@ -2127,45 +2454,46 @@ export class GameScene extends Phaser.Scene {
 
       // Позиционирование инвентаря
       if (this.personPreviewInventory) {
-        const minSpacing = 12 // Минимальное расстояние между элементами
-        const inventoryHeight = 24 // Высота одного слота
+        const minSpacing = 30 // Еще большее расстояние между элементами (margin-top)
+        const inventoryHeight = 64 // Высота одного слота (увеличена в 2 раза)
         const skillTextBottom = this.personSkillText.y + this.personSkillText.height
         const availableHeight = rect.height - pad - skillTextBottom - minSpacing
 
-        // Проверяем, есть ли достаточно места для инвентаря
+        // Проверяем, есть ли достаточно места для инвентаря (минимум 64px высоты)
         if (availableHeight >= inventoryHeight) {
-          // Инвентарь помещается, устанавливаем позицию
+          // Инвентарь помещается, устанавливаем позицию ниже текста навыков с margin-top
           const inventoryY = skillTextBottom + minSpacing
-          this.personPreviewInventory.setPosition(pad, inventoryY)
+
+          // Центрируем инвентарь по ширине контейнера
+          const slotSize = 56 // Увеличенный размер слота (в 2 раза)
+          const slotSpacing = 6 // Увеличенное расстояние между слотами
+          const totalSlotsWidth = 3 * slotSize + 2 * slotSpacing // Ширина всех слотов с отступами
+          const containerWidth = rect.width - pad * 2
+          const startX = pad + (containerWidth - totalSlotsWidth) / 2 // Центрируем по ширине
+
+          this.personPreviewInventory.setPosition(startX, inventoryY)
           this.personPreviewInventory.setVisible(true)
 
-          // Позиционирование слотов инвентаря
+          // Позиционирование слотов инвентаря в одну строку
           const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
-          const slotSpacing = 4
-          const slotSize = 24
-          const availableWidth = rect.width - pad * 2
-
-          // Рассчитываем, сколько слотов поместится в одну строку
-          const maxSlotsPerRow = Math.floor((availableWidth + slotSpacing) / (slotSize + slotSpacing))
 
           inventorySlots.forEach((slot, index) => {
-            // Определяем ряд и позицию в ряду
-            const row = Math.floor(index / maxSlotsPerRow)
-            const col = index % maxSlotsPerRow
+            if (index < 3) {
+              // Позиционируем слот в центрированной строке
+              const slotX = index * (slotSize + slotSpacing)
+              const slotY = 0
 
-            // Слоты позиционируются относительно контейнера инвентаря,
-            // который уже имеет правильную позицию в блоке
-            const slotX = col * (slotSize + slotSpacing)
-            const slotY = row * (slotSize + slotSpacing)
-
-            // Проверяем, что слот помещается в блок
-            const fitsInWidth = slotX + slotSize <= availableWidth
-            const fitsInHeight = slotY + slotSize <= inventoryHeight
-
-            if (fitsInWidth && fitsInHeight) {
               slot.setPosition(slotX, slotY)
               slot.setVisible(true)
+
+              // Устанавливаем правильный размер слота
+              const children = slot.list as Phaser.GameObjects.GameObject[]
+              const bg = children[0] as Phaser.GameObjects.Rectangle
+              if (bg) {
+                bg.setSize(slotSize, slotSize)
+              }
             } else {
+              // Скрываем лишние слоты
               slot.setVisible(false)
             }
           })
@@ -2174,8 +2502,17 @@ export class GameScene extends Phaser.Scene {
           this.personPreviewInventory.setVisible(false)
         }
       }
+
+      // Позиционирование текста подсказки предмета
+      if (this.itemTooltipText) {
+        console.log(`[layoutPersonArea] Позиционируем текст подсказки`)
+        this.itemTooltipText.setVisible(false) // Скрываем по умолчанию
+        console.log(`[layoutPersonArea] Текст подсказки скрыт, позиция: x=${this.itemTooltipText.x}, y=${this.itemTooltipText.y}`)
+      } else {
+        console.log(`[layoutPersonArea] itemTooltipText не найден`)
+      }
     }
-    
+
     // Рамка превью скрыта, не отображаем отладочную информацию
   }
 
@@ -2860,6 +3197,11 @@ export class GameScene extends Phaser.Scene {
       if (canAccept) {
         const personData = this.getPersonData(first.id)
         this.addResidentToBunker(first.id, personData)
+
+        // Применяем изменение морали за принятие жителя
+        const moralChange = this.calculateMoralChange(personData, true);
+        this.applyMoralChange(moralChange, `принят ${personData.name} (${personData.profession})`);
+
         // Показываем уведомление о принятии жителя
         this.showToast(`Принят житель: ${personData.name} (${personData.profession})`)
 
@@ -2903,11 +3245,15 @@ export class GameScene extends Phaser.Scene {
         } })
       } else {
         // Покажем плашку "нет мест" и оставим человека в очереди (не выкидываем)
-        
-        // Показываем уведомление о том, что нет мест
+
+        // Применяем изменение морали за отказ (нет мест)
         const personData = this.getPersonData(first.id)
+        const moralChange = this.calculateMoralChange(personData, false);
+        this.applyMoralChange(moralChange, `нет мест для ${personData.name} (${personData.profession})`);
+
+        // Показываем уведомление о том, что нет мест
         this.showToast(`Нет мест в бункере! ${personData.name} остается в очереди`)
-        
+
         this.updatePersonInfoFromQueue()
         // Мест нет — уходит влево (как отказ)
         // Убираем выкидывание: возвращаем кандидата в очередь, чтобы игрок мог дождаться мест
@@ -2919,9 +3265,13 @@ export class GameScene extends Phaser.Scene {
       }
     } else {
       // Отказ: анимация выхода влево для превью + очереди
-      
-      // Показываем уведомление об отказе в жителе
+
+      // Применяем изменение морали за отказ
       const personData = this.getPersonData(first.id)
+      const moralChange = this.calculateMoralChange(personData, false);
+      this.applyMoralChange(moralChange, `отказан ${personData.name} (${personData.profession})`);
+
+      // Показываем уведомление об отказе в жителе
       this.showToast(`Отказано в жителе: ${personData.name} (${personData.profession})`)
 
       // Устанавливаем состояние deny на 1 секунду
@@ -2990,6 +3340,212 @@ export class GameScene extends Phaser.Scene {
 
     // Обновляем сразу после очистки массива
     this.updatePersonInfoFromQueue()
+
+    // Также очищаем блок превью при наступлении ночи
+    this.dispersePreviewCitizens()
+  }
+
+  private dispersePreviewCitizens(): void {
+    // Проверяем, есть ли жители в блоке превью
+    if (!this._previewCurrentIsEnemy && this._previewCurrentId !== null) {
+      console.log('[dispersePreviewCitizens] Очищаем блок превью от жителей при наступлении ночи')
+
+      // Скрываем превью жителя с анимацией
+      if (this.personPreviewSprite && this.personPreviewSprite.visible) {
+        const riseAndFade = (targets: any[], toY: number, onDone?: () => void) => {
+          this.tweens.add({ targets, y: toY, alpha: 0, duration: 500, ease: 'Sine.easeIn', onComplete: onDone })
+        }
+
+        const currentY = this.personPreviewSprite.y
+        const fadeTargets = [this.personPreviewSprite]
+
+        // Добавляем слои одежды если они видны
+        if (this.personPreviewShirt?.visible) fadeTargets.push(this.personPreviewShirt)
+        if (this.personPreviewPants?.visible) fadeTargets.push(this.personPreviewPants)
+        if (this.personPreviewFootwear?.visible) fadeTargets.push(this.personPreviewFootwear)
+        if (this.personPreviewHair?.visible) fadeTargets.push(this.personPreviewHair)
+
+        riseAndFade(fadeTargets, currentY - 30, () => {
+          // После анимации скрываем все элементы превью
+          this.hideCitizenPreview()
+
+          // После скрытия жителей сразу проверяем, есть ли враги для показа
+          this.time.delayedCall(100, () => {
+            if (this.enemyQueueItems.length > 0) {
+              const firstEnemy = this.enemyQueueItems[0]
+              const enemyArrived = (firstEnemy as any).arrivedAtPosition || false
+              if (enemyArrived) {
+                console.log('[dispersePreviewCitizens] После очистки жителей показываем врага')
+                this.updatePersonInfoFromQueue()
+              }
+            }
+          })
+        })
+      } else {
+        // Если нет анимации, просто скрываем
+        this.hideCitizenPreview()
+
+        // После скрытия жителей сразу проверяем, есть ли враги для показа
+        this.time.delayedCall(100, () => {
+          if (this.enemyQueueItems.length > 0) {
+            const firstEnemy = this.enemyQueueItems[0]
+            const enemyArrived = (firstEnemy as any).arrivedAtPosition || false
+            if (enemyArrived) {
+              console.log('[dispersePreviewCitizens] После очистки жителей показываем врага')
+              this.updatePersonInfoFromQueue()
+            }
+          }
+        })
+      }
+    }
+  }
+
+  private clearInventorySlots(): void {
+    if (!this.personPreviewInventory) return
+
+    const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
+    inventorySlots.forEach(slot => {
+      const children = slot.list as Phaser.GameObjects.GameObject[]
+      const bg = children[0] as Phaser.GameObjects.Rectangle
+      const itemSprite = children[1] as Phaser.GameObjects.Sprite
+      const quantityText = children[2] as Phaser.GameObjects.Text
+
+      // Скрываем и очищаем спрайт предмета
+      itemSprite.setVisible(false)
+      itemSprite.setTexture('')
+      itemSprite.setScale(1.2, 1.2) // Устанавливаем масштаб по умолчанию для слотов
+
+      // Очищаем и скрываем текст количества
+      quantityText.setText('')
+      quantityText.setPosition(20, 20) // Сбрасываем позицию для больших слотов
+      quantityText.setVisible(false)
+
+      // Восстанавливаем фон слота
+      bg.setFillStyle(0x333333, 0.8)
+      bg.setSize(56, 56) // Размер по умолчанию для новых слотов
+
+      // Отключаем интерактивность
+      bg.disableInteractive()
+    })
+    this.personPreviewInventory.setVisible(false)
+
+    console.log('[clearInventorySlots] Инвентарь очищен')
+  }
+
+  private showItemTooltip(slotIndex: number): void {
+    console.log(`[showItemTooltip] Вызван для слота ${slotIndex}`)
+
+    if (!this.personPreviewInventory || !this.itemTooltipText) {
+      console.log(`[showItemTooltip] Отсутствует personPreviewInventory или itemTooltipText`)
+      return
+    }
+
+    // Получаем ID текущего персонажа из очереди
+    const currentPerson = this.queueItems.length > 0 ? this.queueItems[0] : null
+    if (!currentPerson) {
+      console.log(`[showItemTooltip] Нет текущего персонажа в очереди`)
+      return
+    }
+
+    console.log(`[showItemTooltip] Текущий персонаж ID: ${currentPerson.id}`)
+
+    // Получаем данные персонажа
+    const personData = this.getPersonData(currentPerson.id)
+    if (!personData.inventory || slotIndex >= personData.inventory.length) {
+      console.log(`[showItemTooltip] Нет инвентаря или слот ${slotIndex} пустой`)
+      return
+    }
+
+    const item = personData.inventory[slotIndex]
+    if (!item) {
+      console.log(`[showItemTooltip] Предмет в слоте ${slotIndex} не найден`)
+      return
+    }
+
+    console.log(`[showItemTooltip] Найден предмет: ${item.id}, количество: ${item.quantity}`)
+
+    // Получаем название предмета
+    const itemData = this.getItemById(item.id)
+    console.log(`[showItemTooltip] getItemById('${item.id}') вернул:`, itemData)
+    const itemName = itemData ? itemData.name : item.id
+
+    console.log(`[showItemTooltip] Название предмета: ${itemName}`)
+
+    // Устанавливаем текст подсказки
+    this.itemTooltipText.setText(itemName)
+
+    // Позиционируем подсказку под слотом
+    const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
+    if (inventorySlots[slotIndex]) {
+      const slot = inventorySlots[slotIndex]
+
+      // Получаем позицию инвентаря относительно personBottom
+      const inventoryX = this.personPreviewInventory.x
+      const inventoryY = this.personPreviewInventory.y
+
+      // Получаем позицию слота внутри инвентаря
+      const slotX = slot.x
+      const slotY = slot.y
+
+      // Размер слота
+      const slotSize = 56
+
+      // Рассчитываем позицию подсказки под слотом
+      const tooltipX = inventoryX + slotX + slotSize / 8 // Центр слота
+      const tooltipY = inventoryY + slotY + slotSize + 8 // Под слотом с отступом
+
+      console.log(`[showItemTooltip] Позиция инвентаря: x=${inventoryX}, y=${inventoryY}`)
+      console.log(`[showItemTooltip] Позиция слота: x=${slotX}, y=${slotY}`)
+      console.log(`[showItemTooltip] Размер слота: ${slotSize}`)
+      console.log(`[showItemTooltip] Позиция подсказки: x=${tooltipX}, y=${tooltipY}`)
+
+      // Устанавливаем позицию относительно personBottom
+      this.itemTooltipText.setPosition(tooltipX, tooltipY)
+      this.itemTooltipText.setVisible(true)
+
+      console.log(`[showItemTooltip] Финальная позиция подсказки: x=${this.itemTooltipText.x}, y=${this.itemTooltipText.y}`)
+      console.log(`[showItemTooltip] Подсказка видима: ${this.itemTooltipText.visible}`)
+
+      // Скрываем подсказку через 2 секунды
+      this.time.delayedCall(2000, () => {
+        if (this.itemTooltipText) {
+          this.itemTooltipText.setVisible(false)
+        }
+      })
+    } else {
+      console.log(`[showItemTooltip] Слот ${slotIndex} не найден в inventorySlots`)
+    }
+  }
+
+  private hideCitizenPreview(): void {
+    // Скрываем все элементы превью жителя
+    if (this.personPreviewSprite) {
+      this.personPreviewSprite.setVisible(false)
+      this.personPreviewSprite.setAlpha(1) // Восстанавливаем прозрачность для следующих использований
+    }
+    if (this.personPreviewShirt) this.personPreviewShirt.setVisible(false)
+    if (this.personPreviewPants) this.personPreviewPants.setVisible(false)
+    if (this.personPreviewFootwear) this.personPreviewFootwear.setVisible(false)
+    if (this.personPreviewHair) this.personPreviewHair.setVisible(false)
+
+    // Очищаем инвентарь
+    this.clearInventorySlots()
+
+    // Сбрасываем флаги
+    this._previewCurrentIsEnemy = false
+    this._previewCurrentId = null
+
+    // Обновляем текстовую информацию
+    if (this.personNameText) this.personNameText.setText(`${t('name')}: —`)
+    if (this.personDetailsText) this.personDetailsText.setText(`${t('age')}: —\nПОЛ: —\n${t('specialty')}: —`)
+    if (this.personSkillText) this.personSkillText.setText(`${t('skill')}: —`)
+
+    // Скрываем текстовые элементы
+    if (this.personNameText) this.personNameText.setVisible(false)
+    if (this.personDetailsText) this.personDetailsText.setVisible(false)
+    if (this.personSkillText) this.personSkillText.setVisible(false)
+
+    console.log('[hideCitizenPreview] Блок превью очищен от жителей')
   }
 
   private updatePersonInfoFromQueue(): void {
@@ -3008,14 +3564,22 @@ export class GameScene extends Phaser.Scene {
     const isNight = this.phase === 'night'
     if (isNight && this.enemyQueueItems.length > 0) {
       const e = this.enemyQueueItems[0]
-      
+
       // Проверяем: завершена ли анимация прибытия первого врага
       const firstEnemyArrived = (e as any).arrivedAtPosition || false
+
+      // Если враг еще не прибыл, но у нас есть жители в превью - сразу очищаем их
+      if (!firstEnemyArrived && this._previewCurrentId !== null && !this._previewCurrentIsEnemy) {
+        console.log('[updatePersonInfoFromQueue] Ночь наступила, очищаем превью от жителей до прибытия врага')
+        this.hideCitizenPreview()
+        return
+      }
+
       if (!firstEnemyArrived) {
         // Первый враг еще движется к первому месту, не показываем его в превью
         return
       }
-      
+
       // если это тот же враг, не проигрывать вход повторно
       if (this._previewCurrentIsEnemy && this._previewCurrentId === e.id) {
         // обновим только тексты и выходим
@@ -3026,6 +3590,21 @@ export class GameScene extends Phaser.Scene {
         if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
         return
       }
+
+      // Очищаем инвентарь и скрываем все элементы жителя при переключении к врагу
+      if (!this._previewCurrentIsEnemy && this._previewCurrentId !== null) {
+        // Скрываем все элементы жителя
+        if (this.personPreviewSprite) this.personPreviewSprite.setVisible(false)
+        if (this.personPreviewShirt) this.personPreviewShirt.setVisible(false)
+        if (this.personPreviewPants) this.personPreviewPants.setVisible(false)
+        if (this.personPreviewFootwear) this.personPreviewFootwear.setVisible(false)
+        if (this.personPreviewHair) this.personPreviewHair.setVisible(false)
+        if (this.personPreview) this.personPreview.setVisible(false)
+
+        // Очищаем инвентарь
+        this.clearInventorySlots()
+      }
+
       this._previewCurrentIsEnemy = true
       this._previewCurrentId = e.id
       if (this.personNameText) this.personNameText.setText(`ВРАГ: ID-${e.id}`)
@@ -3033,6 +3612,15 @@ export class GameScene extends Phaser.Scene {
       if (this.personSkillText) this.personSkillText.setText(`${t('skill')}: —`)
       // Инвентарь не показываем для врагов
       if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
+
+      // Скрываем все слои превью перед показом врага
+      if (this.personPreviewSprite) this.personPreviewSprite.setVisible(false)
+      if (this.personPreviewShirt) this.personPreviewShirt.setVisible(false)
+      if (this.personPreviewPants) this.personPreviewPants.setVisible(false)
+      if (this.personPreviewFootwear) this.personPreviewFootwear.setVisible(false)
+      if (this.personPreviewHair) this.personPreviewHair.setVisible(false)
+      if (this.personPreview) this.personPreview.setVisible(false)
+
       // Превью врага: мародёр — слои персонажа, иначе — красный прямоугольник
       if (this.personPreview && this.personPreviewSprite) {
         if (e.type === 'МАРОДЕР') {
@@ -3168,7 +3756,7 @@ export class GameScene extends Phaser.Scene {
     // Переходим к показу жителей
     const first = this.queueItems[0]
     if (!first) {
-      // Нет ни врагов, ни жителей - сбрасываем все флаги
+      // Нет ни врагов, ни жителей - сбрасываем все флаги и очищаем инвентарь
       this._previewCurrentIsEnemy = false
       this._previewCurrentId = null
       if (this.personNameText) this.personNameText.setText(`${t('name')}: —`)
@@ -3180,8 +3768,10 @@ export class GameScene extends Phaser.Scene {
       this.personPreviewPants?.setVisible(false)
       this.personPreviewFootwear?.setVisible(false)
       this.personPreviewHair?.setVisible(false)
-      // Инвентарь скрываем всегда, когда нет жителей
-      if (this.personPreviewInventory) this.personPreviewInventory.setVisible(false)
+
+      // Полностью очищаем инвентарь при пустой очереди
+      this.clearInventorySlots()
+
       this.updateUIVisibility()
       if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
       return
@@ -3201,6 +3791,20 @@ export class GameScene extends Phaser.Scene {
       }
       return
     }
+    // Очищаем инвентарь и скрываем все элементы врага при переключении к жителю
+    if (this._previewCurrentIsEnemy && this._previewCurrentId !== null) {
+      // Скрываем все элементы врага
+      if (this.personPreviewSprite) this.personPreviewSprite.setVisible(false)
+      if (this.personPreviewShirt) this.personPreviewShirt.setVisible(false)
+      if (this.personPreviewPants) this.personPreviewPants.setVisible(false)
+      if (this.personPreviewFootwear) this.personPreviewFootwear.setVisible(false)
+      if (this.personPreviewHair) this.personPreviewHair.setVisible(false)
+      if (this.personPreview) this.personPreview.setVisible(false)
+
+      // Очищаем инвентарь
+      this.clearInventorySlots()
+    }
+
     // Устанавливаем нового жителя (сбрасываем флаги врагов)
     this._previewCurrentIsEnemy = false
     this._previewCurrentId = first.id
@@ -3218,17 +3822,29 @@ export class GameScene extends Phaser.Scene {
     // Показываем инвентарь в превью
     if (this.personPreviewInventory && data.inventory) {
       const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
-      // Скрываем все слоты
+      // Скрываем все слоты и очищаем содержимое
       inventorySlots.forEach(slot => {
         const children = slot.list as Phaser.GameObjects.GameObject[]
         const bg = children[0] as Phaser.GameObjects.Rectangle
         const itemSprite = children[1] as Phaser.GameObjects.Sprite
         const quantityText = children[2] as Phaser.GameObjects.Text
 
+        // Скрываем спрайт предмета
         itemSprite.setVisible(false)
+        itemSprite.setTexture('') // Очищаем текстуру
+        itemSprite.setScale(1.2, 1.2) // Устанавливаем правильный масштаб
+
+        // Очищаем и скрываем текст количества
         quantityText.setText('')
+        quantityText.setPosition(20, 20) // Сбрасываем позицию
         quantityText.setVisible(false)
+
+        // Восстанавливаем фон слота
         bg.setFillStyle(0x333333, 0.8)
+        bg.setSize(56, 56) // Восстанавливаем размер по умолчанию
+
+        // Отключаем интерактивность перед заполнением
+        bg.disableInteractive()
       })
 
       // Показываем предметы из инвентаря
@@ -3247,6 +3863,8 @@ export class GameScene extends Phaser.Scene {
             const textureKey = itemData.spritePath.split('/').pop()?.replace('.png', '') || item.id
             try {
               itemSprite.setTexture(textureKey)
+              // Устанавливаем масштаб для предмета в слоте (увеличиваем в 2 раза)
+              itemSprite.setScale(1.2, 1.2) // Масштаб 120% для хорошей видимости в 56x56 слоте
               itemSprite.setVisible(true)
             } catch (error) {
               console.warn(`[updatePersonInfoFromQueue] Не удалось загрузить текстуру для ${item.id}:`, error)
@@ -3257,11 +3875,20 @@ export class GameScene extends Phaser.Scene {
             // Показываем количество если > 1
             if (item.quantity > 1) {
               quantityText.setText(item.quantity.toString())
+              quantityText.setPosition(20, 20) // Позиция для больших слотов
               quantityText.setVisible(true)
             }
 
             // Подсвечиваем слот
             bg.setFillStyle(0x555555, 0.9)
+
+            // Включаем интерактивность для слота с предметом
+            console.log(`[InventorySlot] Устанавливаем интерактивность для слота ${index} с предметом ${item.id}`)
+            bg.setInteractive({ useHandCursor: true })
+            bg.on('pointerdown', () => {
+              console.log(`[InventorySlot] Клик по слоту ${index}, предмет: ${item.id}`)
+              this.showItemTooltip(index)
+            })
           }
         }
       })
@@ -3521,7 +4148,10 @@ export class GameScene extends Phaser.Scene {
       thirst: 100,
       energy: 100,
       health: 100,
-      patient: false
+      patient: false,
+      insane: false,
+      insaneSince: undefined,
+      intent: 'peaceful' // Мирное поведение по умолчанию
     })
     this.updateResourcesText()
   }
@@ -3539,17 +4169,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Функция для удаления мертвого жителя (вызывается из bunkerView)
-  public removeDeadResident(id: number): void {
+  public removeDeadResident(id: number, reason?: string): void {
     const idx = this.bunkerResidents.findIndex(r => r.id === id)
     if (idx >= 0) {
       const [r] = this.bunkerResidents.splice(idx, 1)
       console.log(`[GameScene] Удаляем мертвого жителя ${r.name} (ID: ${r.id}) из bunkerResidents`)
-      
+
       // Обновляем UI (но НЕ вызываем syncResidents - bunkerView сам управляет агентами)
       this.updateResourcesText()
-      
+
       // Показываем уведомление о смерти
-      this.showToast(`${r.name} погиб в бою с врагами!`)
+      const deathMessage = reason === 'убит в драке между жителями'
+        ? `${r.name} убит в драке между жителями!`
+        : `${r.name} погиб в бою с врагами!`
+      this.showToast(`💀 ${deathMessage}`)
     }
   }
 
@@ -3557,11 +4190,8 @@ export class GameScene extends Phaser.Scene {
 
   private transferPersonInventoryToBunker(personData: { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> }): void {
     if (!personData.inventory || personData.inventory.length === 0) {
-      console.log('[transferPersonInventoryToBunker] Персонаж не имеет предметов')
       return
     }
-
-    console.log(`[transferPersonInventoryToBunker] Перенос ${personData.inventory.length} предметов от ${personData.name}`)
 
     let inventoryChanged = false
     let resourceItems = 0
@@ -3576,13 +4206,12 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Проверяем, является ли предмет базовым ресурсом
-      const isBasicResource = ['food', 'water', 'ammo', 'money', 'wood', 'metal'].includes(personItem.id)
+      const isBasicResource = ['food', 'water', 'ammo', 'money', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(personItem.id)
 
       if (isBasicResource) {
         // Для базовых ресурсов обновляем их количество в специальных ячейках
         if (typeof window !== 'undefined' && window.addResource) {
           window.addResource(personItem.id, personItem.quantity)
-          console.log(`[transferPersonInventoryToBunker] Добавлено ${personItem.quantity} ${itemData.name} в ресурсы`)
           resourceItems++
         }
       } else {
@@ -3592,11 +4221,9 @@ export class GameScene extends Phaser.Scene {
         if (existingItem) {
           // Если предмет уже есть, увеличиваем количество
           existingItem.quantity += personItem.quantity
-          console.log(`[transferPersonInventoryToBunker] Увеличено количество ${itemData.name}: +${personItem.quantity}`)
         } else {
           // Если предмета нет, добавляем его
           this.bunkerInventory.push({ id: personItem.id, quantity: personItem.quantity })
-          console.log(`[transferPersonInventoryToBunker] Добавлен новый предмет: ${itemData.name} x${personItem.quantity}`)
         }
         regularItems++
         inventoryChanged = true
@@ -3609,8 +4236,6 @@ export class GameScene extends Phaser.Scene {
       this.bunkerInventory = this.bunkerInventory.filter(item => {
         return item && item.id && this.getItemById(item.id) !== undefined
       })
-
-      console.log(`[transferPersonInventoryToBunker] Обновленный инвентарь бункера: ${this.bunkerInventory.filter(item => item !== undefined).length} предметов`)
 
       // Обновляем все модальные окна инвентаря
       if (typeof window.populateInventoryModal === 'function') {
@@ -3828,6 +4453,12 @@ export class GameScene extends Phaser.Scene {
   // Методы для вызова из bunkerView (работники)
   public addFood(amount: number): void { this.food = Math.max(0, this.food + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
   public addWater(amount: number): void { this.water = Math.max(0, this.water + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+  public addWood(amount: number): void { this.wood = Math.max(0, this.wood + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+  public addMetal(amount: number): void { this.metal = Math.max(0, this.metal + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+  public addCoal(amount: number): void { this.coal = Math.max(0, this.coal + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+  public addNails(amount: number): void { this.nails = Math.max(0, this.nails + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+  public addPaper(amount: number): void { this.paper = Math.max(0, this.paper + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+  public addGlass(amount: number): void { this.glass = Math.max(0, this.glass + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
 
   // Методы управления опытом бункера
   public addBunkerExperience(amount: number): void {
@@ -4413,6 +5044,9 @@ export class GameScene extends Phaser.Scene {
       ;(this.simpleBunker as any)?.onHourTick?.(hh, isDayHour)
       this.lastHourTick = hh
       this.processEnemyDefenseDamage(hh)
+
+      // Проверка жителей на безумие каждый час
+      this.checkResidentsForInsanity()
     }
   }
 
@@ -4530,6 +5164,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.uiOverlay || typeof window.updateGameUI !== 'function') return;
 
     try {
+      const resources = this.getResourcesData();
       const gameData = {
         day: this.dayNumber,
         phase: this.phase,
@@ -4538,31 +5173,27 @@ export class GameScene extends Phaser.Scene {
         capacity: this.getBunkerCapacity(),
         happiness: this.happiness,
         defense: this.defense,
-        ammo: this.ammo,
         comfort: this.comfort,
-        food: this.food,
-        water: this.water,
-        money: this.money,
-        wood: this.wood,
-        metal: this.metal,
         enemies: this.bunkerEnemies.length,
         bunkerLevel: this.bunkerLevel,
         bunkerExperience: this.bunkerExperience,
-        maxExperience: this.maxExperienceForLevel
+        maxExperience: this.maxExperienceForLevel,
+        ...resources // Включаем все ресурсы
       };
 
       window.updateGameUI(gameData);
+
+      // Также обновляем ресурсы в инвентаре
+      if (typeof window.updateAllResourceDisplays === 'function') {
+        window.updateAllResourceDisplays();
+      }
     } catch (error) {
       console.error('[GameScene] Error updating UI overlay:', error);
     }
   }
 
-  // Override existing methods to also update HTML overlay
   private updateResourcesTextOverlay(): void {
-    // Call original method for Phaser UI
-    this.updateResourcesText();
-
-    // Update HTML overlay
+    // Update HTML overlay with resource data
     this.updateUIOverlay();
   }
 
@@ -4613,8 +5244,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getDefaultInventory(): { id: string; quantity: number }[] {
-    // Возвращаем текущий инвентарь бункера, фильтруя undefined значения
-    return this.bunkerInventory.filter(item => item !== undefined) as { id: string; quantity: number }[];
+    // Возвращаем только предметы инвентаря, исключая ресурсы
+    const resourceIds = ['food', 'water', 'money', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'];
+    return this.bunkerInventory.filter(item => 
+      item !== undefined && !resourceIds.includes(item.id)
+    ) as { id: string; quantity: number }[];
+  }
+
+  private getResourcesData(): { [key: string]: number } {
+    // Возвращаем данные ресурсов для UI
+    return {
+      food: this.food,
+      water: this.water,
+      money: this.money,
+      ammo: this.ammo,
+      wood: this.wood,
+      metal: this.metal,
+      coal: this.coal,
+      nails: this.nails,
+      paper: this.paper,
+      glass: this.glass
+    };
   }
 
   private initializeModals(): void {
@@ -4639,6 +5289,11 @@ export class GameScene extends Phaser.Scene {
         return itemData !== undefined;
       });
       window.populateInventoryModal(existingItems, this.inventoryRows);
+    }
+
+    // Initialize resources in inventory modal
+    if (typeof window.updateAllResourceDisplays === 'function') {
+      window.updateAllResourceDisplays();
     }
 
     // Initialize abilities with sample data
@@ -4722,7 +5377,13 @@ export class GameScene extends Phaser.Scene {
 
   // Public method to get item by ID from the database
   public getItemById(id: string): Item | undefined {
-    return ITEMS_DATABASE.find(item => item.id === id);
+    console.log(`[getItemById] Ищем предмет: ${id}, ITEMS_DATABASE доступен:`, typeof ITEMS_DATABASE !== 'undefined')
+    if (typeof ITEMS_DATABASE !== 'undefined') {
+      console.log(`[getItemById] ITEMS_DATABASE содержит ${ITEMS_DATABASE.length} предметов`)
+    }
+    const result = ITEMS_DATABASE.find(item => item.id === id);
+    console.log(`[getItemById] Результат поиска для ${id}:`, result)
+    return result;
   }
 
   // Public method to update inventory rows based on storage room count

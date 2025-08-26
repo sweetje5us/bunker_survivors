@@ -6,6 +6,7 @@ class GameUIManager {
         this.overlay = null;
         this.isInitialized = false;
         this.updateInterval = null;
+        this.previousPopulation = 0; // Для отслеживания изменений населения
         this.gameData = {
             day: 1,
             phase: 'day',
@@ -16,11 +17,16 @@ class GameUIManager {
             defense: 50,
             ammo: 100,
             comfort: 100,
+            moral: 50,
             food: 100,
             water: 100,
             money: 200,
             wood: 50,
             metal: 25,
+            coal: 10,
+            nails: 20,
+            paper: 15,
+            glass: 5,
             enemies: 0,
             bunkerLevel: 1,
             bunkerExperience: 0,
@@ -110,38 +116,39 @@ class GameUIManager {
             }
 
             // Update resources
-            const resources = ['population', 'happiness', 'defense', 'ammo', 'comfort', 'food', 'water', 'money', 'wood', 'metal', 'enemies'];
+            const resources = ['population', 'enemies', 'happiness', 'defense', 'ammo', 'comfort', 'moral', 'food', 'water', 'money', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'];
             resources.forEach(resource => {
                 const element = this.overlay.querySelector(`#${resource}`);
                 if (element) {
                     const value = this.gameData[resource];
                     switch (resource) {
                         case 'population':
-                            element.textContent = `👥 ${value}/${this.gameData.capacity}`;
+                            this.updatePopulationDisplay(value, this.gameData.capacity);
                             break;
                         case 'happiness':
                         case 'defense':
                         case 'comfort':
-                            element.textContent = `${this.getResourceIcon(resource)} ${value}%`;
-                            break;
+                        case 'moral':
                         case 'enemies':
-                            element.textContent = `👹 ${value}`;
-                            break;
                         case 'food':
                         case 'water':
                         case 'money':
                         case 'wood':
                         case 'metal':
+                        case 'coal':
+                        case 'nails':
+                        case 'paper':
+                        case 'glass':
                             // Для ресурсов с иконками сохраняем HTML структуру
-                            const iconElement = element.querySelector('.resource-icon');
-                            if (iconElement) {
-                                element.innerHTML = `${iconElement.outerHTML} ${value}`;
+                            const existingIcon = element.querySelector('.resource-icon');
+                            if (existingIcon) {
+                                element.innerHTML = `${existingIcon.outerHTML} ${value}${resource === 'happiness' || resource === 'defense' || resource === 'comfort' || resource === 'moral' ? '%' : ''}`;
                             } else {
-                                element.textContent = `${this.getResourceIcon(resource)} ${value}`;
+                                element.innerHTML = `${this.getResourceIcon(resource)} ${value}${resource === 'happiness' || resource === 'defense' || resource === 'comfort' || resource === 'moral' ? '%' : ''}`;
                             }
                             break;
                         default:
-                            element.textContent = `${this.getResourceIcon(resource)} ${value}`;
+                            element.innerHTML = `${this.getResourceIcon(resource)} ${value}`;
                     }
                 }
             });
@@ -178,21 +185,118 @@ class GameUIManager {
     }
 
     /**
+     * Change moral value
+     */
+    changeMoral(delta) {
+        const oldMoral = this.gameData.moral;
+        this.gameData.moral = Math.max(0, Math.min(100, oldMoral + delta));
+        console.log(`[GameUIManager] Moral changed: ${oldMoral}% → ${this.gameData.moral}% (delta: ${delta > 0 ? '+' : ''}${delta}%)`);
+        console.log(`[GameUIManager] Stack trace:`, new Error().stack);
+
+        // Update UI immediately
+        this.updateUI();
+
+        return this.gameData.moral;
+    }
+
+    /**
+     * Get current moral value
+     */
+    getMoral() {
+        return this.gameData.moral;
+    }
+
+    /**
      * Get resource icon
      */
     getResourceIcon(resource) {
         const icons = {
-            happiness: '😊',
-            defense: '🛡️',
-            ammo: '🔫',
-            comfort: '🛋️',
-            food: '🍎',
-            water: '💧',
-            money: '💰',
-            wood: '🪵',
-            metal: '⚙️'
+            happiness: `<img src="src/sprites/resources/happiness.png" alt="Счастье" class="resource-icon">`,
+            defense: `<img src="src/sprites/resources/defence.png" alt="Защита" class="resource-icon">`,
+            ammo: `<img src="src/sprites/resources/ammo.png" alt="Патроны" class="resource-icon">`,
+            comfort: `<img src="src/sprites/resources/comfort.png" alt="Комфорт" class="resource-icon">`,
+            moral: `<img src="src/sprites/resources/moral.png" alt="Мораль" class="resource-icon">`,
+            food: `<img src="src/sprites/resources/food.png" alt="Еда" class="resource-icon">`,
+            water: `<img src="src/sprites/resources/water.png" alt="Вода" class="resource-icon">`,
+            money: `<img src="src/sprites/resources/money.png" alt="Деньги" class="resource-icon">`,
+            wood: `<img src="src/sprites/resources/wood.png" alt="Дерево" class="resource-icon">`,
+            metal: `<img src="src/sprites/resources/metal.png" alt="Металл" class="resource-icon">`,
+            coal: `<img src="src/sprites/resources/coal.png" alt="Уголь" class="resource-icon">`,
+            nails: `<img src="src/sprites/resources/nails.png" alt="Гвозди" class="resource-icon">`,
+            paper: `<img src="src/sprites/resources/paper.png" alt="Бумага" class="resource-icon">`,
+            glass: `<img src="src/sprites/resources/glass.png" alt="Стекло" class="resource-icon">`,
+            enemies: `<img src="src/sprites/resources/enemies.png" alt="Враги" class="resource-icon">`
         };
         return icons[resource] || '';
+    }
+
+    /**
+     * Update population display with animation
+     */
+    updatePopulationDisplay(population, capacity) {
+        const skullElement = this.overlay.querySelector('#population-skull');
+        const countElement = this.overlay.querySelector('#population-count');
+
+        if (!skullElement || !countElement) return;
+
+        // Обновляем текст количества людей
+        countElement.textContent = `${population}/${capacity}`;
+
+        // Определяем статус населения
+        const wasAlive = this.previousPopulation > 0;
+        const isAlive = population > 0;
+
+        // Всегда устанавливаем финальный кадр (для начальной загрузки или если статус не изменился)
+        this.setPopulationSkullFrame(isAlive ? 'alive' : 'dead');
+
+        // Если статус изменился, запускаем анимацию
+        if (wasAlive !== isAlive) {
+            if (wasAlive && !isAlive) {
+                // Люди умерли - анимация умирания
+                this.animatePopulationSkull('dying');
+            } else if (!wasAlive && isAlive) {
+                // Люди оживили - анимация оживления
+                this.animatePopulationSkull('reviving');
+            }
+        }
+
+        // Обновляем previousPopulation
+        this.previousPopulation = population;
+    }
+
+    /**
+     * Animate population skull
+     */
+    animatePopulationSkull(animationType) {
+        const skullElement = this.overlay.querySelector('#population-skull');
+        if (!skullElement) return;
+
+        // Убираем предыдущие классы анимации
+        skullElement.classList.remove('skull-dying', 'skull-reviving');
+
+        // Добавляем новый класс анимации
+        const animationClass = animationType === 'dying' ? 'skull-dying' : 'skull-reviving';
+        skullElement.classList.add(animationClass);
+
+        // После завершения анимации устанавливаем финальный кадр
+        setTimeout(() => {
+            skullElement.classList.remove(animationClass);
+            this.setPopulationSkullFrame(animationType === 'dying' ? 'dead' : 'alive');
+        }, 1000);
+    }
+
+    /**
+     * Set population skull frame
+     */
+    setPopulationSkullFrame(state) {
+        const skullElement = this.overlay.querySelector('#population-skull');
+        if (!skullElement) return;
+
+        const frameSrc = state === 'alive'
+            ? 'src/sprites/resources/people/skull001.png'
+            : 'src/sprites/resources/people/skull007.png';
+
+        skullElement.style.backgroundImage = `url('${frameSrc}')`;
     }
 
     /**
@@ -298,6 +402,26 @@ function setGameUILoading(loading) {
     }
 }
 
+/**
+ * Change moral value
+ */
+function changeMoral(delta) {
+    if (gameUIManager) {
+        return gameUIManager.changeMoral(delta);
+    }
+    return 50; // default value
+}
+
+/**
+ * Get current moral value
+ */
+function getMoral() {
+    if (gameUIManager) {
+        return gameUIManager.getMoral();
+    }
+    return 50; // default value
+}
+
 // Auto-initialize when DOM is ready
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
@@ -307,6 +431,8 @@ if (typeof document !== 'undefined') {
         window.updateGameUI = updateGameUI;
         window.showGameUI = showGameUI;
         window.setGameUILoading = setGameUILoading;
+        window.changeMoral = changeMoral;
+        window.getMoral = getMoral;
     });
 }
 

@@ -111,6 +111,11 @@
       }, 100);
     };
 
+    // Также добавляем функции в глобальное пространство имен без префикса window
+    openInventory = window.openInventory;
+    openJournal = window.openJournal;
+    openAbilities = window.openAbilities;
+
     // Функция для открытия журнала уведомлений
     window.openJournal = function() {
       console.log('[openJournal] Opening journal modal');
@@ -2056,9 +2061,21 @@
 
     // Resource management functions
     window.updateResourceDisplay = function(resource, amount) {
-      const element = document.getElementById(`resource-${resource}-quantity`);
-      if (element) {
-        element.textContent = amount.toString();
+      // Обновляем в UI строке
+      const uiElement = document.getElementById(resource);
+      if (uiElement) {
+        const iconElement = uiElement.querySelector('.resource-icon');
+        if (iconElement) {
+          uiElement.innerHTML = `${iconElement.outerHTML} ${amount}`;
+        } else {
+          uiElement.textContent = `${amount}`;
+        }
+      }
+
+      // Обновляем в инвентаре
+      const inventoryElement = document.getElementById(`resource-${resource}-quantity`);
+      if (inventoryElement) {
+        inventoryElement.textContent = amount.toString();
       }
     };
 
@@ -2072,6 +2089,10 @@
           updateResourceDisplay('ammo', gameScene.ammo);
           updateResourceDisplay('wood', gameScene.wood);
           updateResourceDisplay('metal', gameScene.metal);
+          updateResourceDisplay('coal', gameScene.coal);
+          updateResourceDisplay('nails', gameScene.nails);
+          updateResourceDisplay('paper', gameScene.paper);
+          updateResourceDisplay('glass', gameScene.glass);
         }
       }
     };
@@ -2099,6 +2120,18 @@
             case 'metal':
               gameScene.metal = Math.max(0, gameScene.metal + amount);
               break;
+            case 'coal':
+              gameScene.coal = Math.max(0, gameScene.coal + amount);
+              break;
+            case 'nails':
+              gameScene.nails = Math.max(0, gameScene.nails + amount);
+              break;
+            case 'paper':
+              gameScene.paper = Math.max(0, gameScene.paper + amount);
+              break;
+            case 'glass':
+              gameScene.glass = Math.max(0, gameScene.glass + amount);
+              break;
           }
           updateAllResourceDisplays();
           updateResourceUI(resource, gameScene[resource]);
@@ -2115,6 +2148,15 @@
           element.innerHTML = `${iconElement.outerHTML} ${amount}`;
         } else {
           element.textContent = `${amount}`;
+        }
+      }
+
+      // Также обновляем ресурс в инвентаре
+      const resourceSlot = document.getElementById(`resource-${resource}`);
+      if (resourceSlot) {
+        const quantityElement = resourceSlot.querySelector('.resource-quantity');
+        if (quantityElement) {
+          quantityElement.textContent = amount.toString();
         }
       }
     };
