@@ -49,6 +49,14 @@
 
     // Prevent passive pinch-zoom scroll issues on mobile
     document.addEventListener('gesturestart', function (e) { e.preventDefault() }, { passive: false })
+
+    // Ensure Phaser interactions are enabled by default when page loads
+    window.addEventListener('load', function() {
+      console.log('[ModalManager] Page loaded, ensuring Phaser interactions are enabled');
+      setTimeout(() => {
+        window.enablePhaserInteractions();
+      }, 500); // Give time for Phaser to initialize
+    });
   </script>
 
   <!-- Global UI functions for HTML overlay -->
@@ -1230,23 +1238,96 @@
       }
     };
 
+    // Phaser scene interaction control
+    let phaserSceneDisabled = false;
+
+    window.disablePhaserInteractions = function() {
+      if (phaserSceneDisabled) return;
+
+      phaserSceneDisabled = true;
+
+      // Get the game scene
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene) {
+          // Disable input on the scene
+          gameScene.input.enabled = false;
+
+          // Disable input on all interactive objects
+          gameScene.input.manager.globalTopOnly = true;
+
+          console.log('[ModalManager] Phaser interactions disabled');
+        }
+      } else {
+        console.warn('[ModalManager] Game scene not available, cannot disable interactions');
+      }
+    };
+
+    window.enablePhaserInteractions = function() {
+      if (!phaserSceneDisabled) return;
+
+      phaserSceneDisabled = false;
+
+      // Get the game scene
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene) {
+          // Re-enable input on the scene
+          gameScene.input.enabled = true;
+
+          // Restore normal input behavior
+          gameScene.input.manager.globalTopOnly = false;
+
+          console.log('[ModalManager] Phaser interactions enabled');
+        }
+      } else {
+        console.warn('[ModalManager] Game scene not available, cannot enable interactions');
+      }
+    };
+
     // Modal management functions
-    window.closeModal = function(modalId) {
+        window.closeModal = function(modalId) {
       const modal = document.getElementById(modalId);
       if (modal) {
         modal.style.display = 'none';
-        
+
+        // Remove overlay click handler if it exists
+        if (modal._overlayClickHandler) {
+          modal.removeEventListener('click', modal._overlayClickHandler);
+          delete modal._overlayClickHandler;
+        }
+
         // Special handling for abilities modal
         if (modalId === 'abilities-modal') {
           clearAbilityTree();
         }
+
+        // Re-enable Phaser interactions when modal closes
+        setTimeout(() => {
+          window.enablePhaserInteractions();
+        }, 100); // Small delay to ensure modal is fully closed
       }
     };
 
     window.openModal = function(modalId) {
       const modal = document.getElementById(modalId);
       if (modal) {
+        // Disable Phaser interactions when modal opens
+        window.disablePhaserInteractions();
+
         modal.style.display = 'block';
+
+        // Add click handler to close modal when clicking on overlay
+        const handleOverlayClick = function(event) {
+          // Only close if clicked directly on the modal overlay, not on modal content
+          if (event.target === modal) {
+            window.closeModal(modalId);
+          }
+        };
+
+        // Store the handler for later removal
+        modal._overlayClickHandler = handleOverlayClick;
+        modal.addEventListener('click', handleOverlayClick);
       }
     };
 

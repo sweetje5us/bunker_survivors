@@ -1356,7 +1356,7 @@ export class GameScene extends Phaser.Scene {
 
     this.isTransitioning = true
 
-    // Создаем временное изображение для перехода
+    // Создаем временное изображение для перехода поверхности
     const transitionBg = this.add.image(0, 0, 'surface_day').setOrigin(0, 0)
     transitionBg.setDepth(-1)
     transitionBg.setAlpha(0)
@@ -1367,11 +1367,18 @@ export class GameScene extends Phaser.Scene {
       this.surfaceArea.sendToBack(transitionBg)
     }
 
-    // Определяем целевую текстуру
-    const targetTexture = this.phase === 'day' ? 'surface_night' : 'surface_day'
+    // Определяем целевую текстуру для поверхности
+    const targetSurfaceTexture = this.phase === 'day' ? 'surface_night' : 'surface_day'
 
-    // Устанавливаем правильную текстуру для перехода
-    transitionBg.setTexture(targetTexture)
+    // Устанавливаем правильную текстуру для перехода поверхности
+    transitionBg.setTexture(targetSurfaceTexture)
+
+    // Определяем целевую фазу для двери
+    const targetPhase = this.phase === 'day' ? 'night' : 'day'
+
+    // Сохраняем текущую текстуру двери для плавного перехода
+    const currentEntranceTexture = this.personEntranceImage?.texture?.key || ''
+    const targetEntranceTexture = this.getEntranceTextureForPhase(targetPhase)
 
     // Плавный переход в течение 3 секунд
     this.tweens.add({
@@ -1383,15 +1390,53 @@ export class GameScene extends Phaser.Scene {
         // После завершения перехода
         this.isTransitioning = false
 
-        // Меняем основное изображение
+        // Меняем основное изображение поверхности
         if (this.surfaceBackground) {
-          this.surfaceBackground.setTexture(targetTexture)
+          this.surfaceBackground.setTexture(targetSurfaceTexture)
         }
+
+        // Меняем фон двери на новый
+        this.updateEntranceBackgroundForPhase(targetPhase)
 
         // Удаляем временное изображение
         transitionBg.destroy()
       }
     })
+
+    // Если текстура двери меняется, добавляем плавный переход для двери
+    if (this.personEntranceImage && currentEntranceTexture !== targetEntranceTexture) {
+      // Создаем временное изображение для перехода двери
+      const entranceTransition = this.add.image(0, 0, targetEntranceTexture).setOrigin(0.5)
+      entranceTransition.setAlpha(0)
+
+      if (this.personArea) {
+        this.personArea.add(entranceTransition)
+        // Помещаем под основное изображение двери
+        this.personArea.sendToBack(entranceTransition)
+
+        // Позиционируем как основное изображение двери
+        if (this.personEntranceImage) {
+          entranceTransition.setPosition(this.personEntranceImage.x, this.personEntranceImage.y)
+          entranceTransition.setScale(this.personEntranceImage.scaleX, this.personEntranceImage.scaleY)
+        }
+
+        // Плавный переход для двери
+        this.tweens.add({
+          targets: entranceTransition,
+          alpha: 1,
+          duration: 3000,
+          ease: 'Sine.easeInOut',
+          onComplete: () => {
+            // Меняем основное изображение двери
+            if (this.personEntranceImage) {
+              this.personEntranceImage.setTexture(targetEntranceTexture)
+            }
+            // Удаляем временное изображение
+            entranceTransition.destroy()
+          }
+        })
+      }
+    }
   }
 
   private buildSurfacePlaceholders(): void {
@@ -1529,6 +1574,52 @@ export class GameScene extends Phaser.Scene {
         }
         break
     }
+
+    // Обновляем текстуру изображения
+    this.personEntranceImage.setTexture(textureKey)
+  }
+
+  private getEntranceTextureForPhase(phase: Phase): string {
+    let textureKey: string
+
+    // Определяем текстуру в зависимости от состояния и указанной фазы (для плавного перехода)
+    switch (this.entranceState) {
+      case 'broken':
+        textureKey = phase === 'day' ? 'entrance_day_broken' : 'entrance_night_broken'
+        break
+      case 'accept':
+        // Состояние accept: если защита сломана, используем специальный спрайт
+        if (this.defense <= 0) {
+          textureKey = 'entrance_day_broken_accept'
+        } else {
+          textureKey = 'entrance_day_accept'
+        }
+        break
+      case 'deny':
+        // Состояние deny: если защита сломана, используем специальный спрайт
+        if (this.defense <= 0) {
+          textureKey = 'entrance_day_broken_deny'
+        } else {
+          textureKey = 'entrance_day_deny'
+        }
+        break
+      default: // normal
+        // Проверяем защиту: если <= 0, показываем сломанное состояние
+        if (this.defense <= 0) {
+          textureKey = phase === 'day' ? 'entrance_day_broken' : 'entrance_night_broken'
+        } else {
+          textureKey = phase === 'day' ? 'entrance_day' : 'entrance_night'
+        }
+        break
+    }
+
+    return textureKey
+  }
+
+  private updateEntranceBackgroundForPhase(phase: Phase): void {
+    if (!this.personEntranceImage) return
+
+    const textureKey = this.getEntranceTextureForPhase(phase)
 
     // Обновляем текстуру изображения
     this.personEntranceImage.setTexture(textureKey)
