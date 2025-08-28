@@ -212,19 +212,25 @@ export function pickHairForGender(gender: string, seed: number): string | undefi
 // Функция для создания анимаций специализаций
 export function ensureSpecialistAnimations(scene: Phaser.Scene, profession: string): void {
   const key = profession.toLowerCase()
-  
+  console.log(`[characters] ensureSpecialistAnimations: profession=${profession}, key=${key}`)
+
   if (key === 'безработный') {
+    console.log(`[characters] Создаем анимации для безработного`)
     // Создаем анимации для безработного
     const anims = scene.anims
     
     // Attack (10 кадров)
     if (!anims.exists(`${key}_attack`)) {
+      console.log(`[characters] Создаем анимацию ${key}_attack с texture unemployed_attack`)
       anims.create({
         key: `${key}_attack`,
         frames: anims.generateFrameNumbers('unemployed_attack', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
         frameRate: 12,
         repeat: -1
       })
+      console.log(`[characters] Анимация ${key}_attack создана: ${anims.exists(`${key}_attack`)}`)
+    } else {
+      console.log(`[characters] Анимация ${key}_attack уже существует`)
     }
     
     // Dead (4 кадра)
@@ -269,12 +275,30 @@ export function ensureSpecialistAnimations(scene: Phaser.Scene, profession: stri
     
     // Walk (8 кадров)
     if (!anims.exists(`${key}_walk`)) {
+      console.log(`[characters] Создаем анимацию ${key}_walk с texture unemployed_walk`)
       anims.create({
         key: `${key}_walk`,
         frames: anims.generateFrameNumbers('unemployed_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7] }),
         frameRate: 12,
         repeat: -1
       })
+      console.log(`[characters] Анимация ${key}_walk создана: ${anims.exists(`${key}_walk`)}`)
+    } else {
+      console.log(`[characters] Анимация ${key}_walk уже существует`)
+    }
+
+    // Idle (7 кадров) - основная анимация покоя
+    if (!anims.exists(`${key}_idle`)) {
+      console.log(`[characters] Создаем анимацию ${key}_idle с texture unemployed_idle`)
+      anims.create({
+        key: `${key}_idle`,
+        frames: anims.generateFrameNumbers('unemployed_idle', { frames: [0, 1, 2, 3, 4, 5, 6] }),
+        frameRate: 8,
+        repeat: -1
+      })
+      console.log(`[characters] Анимация ${key}_idle создана: ${anims.exists(`${key}_idle`)}`)
+    } else {
+      console.log(`[characters] Анимация ${key}_idle уже существует`)
     }
   } else if (key === 'повар') {
     // Создаем анимации для повара
@@ -393,6 +417,7 @@ export function ensureSpecialistAnimations(scene: Phaser.Scene, profession: stri
       })
     }
   } else if (key === 'доктор') {
+    console.log(`[characters] Создаем анимации для доктора`)
     // Создаем анимации для доктора
     const anims = scene.anims
     
@@ -428,24 +453,33 @@ export function ensureSpecialistAnimations(scene: Phaser.Scene, profession: stri
     
     // Idle (6 кадров) - основная анимация покоя
     if (!anims.exists(`${key}_idle`)) {
+      console.log(`[characters] Создаем анимацию ${key}_idle с texture doctor_idle`)
       anims.create({
         key: `${key}_idle`,
         frames: anims.generateFrameNumbers('doctor_idle', { frames: [0, 1, 2, 3, 4, 5] }),
         frameRate: 8,
         repeat: -1
       })
+      console.log(`[characters] Анимация ${key}_idle создана: ${anims.exists(`${key}_idle`)}`)
+    } else {
+      console.log(`[characters] Анимация ${key}_idle уже существует`)
     }
     
     // Walk (10 кадров)
     if (!anims.exists(`${key}_walk`)) {
+      console.log(`[characters] Создаем анимацию ${key}_walk с texture doctor_walk`)
       anims.create({
         key: `${key}_walk`,
         frames: anims.generateFrameNumbers('doctor_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }),
         frameRate: 12,
         repeat: -1
       })
+      console.log(`[characters] Анимация ${key}_walk создана: ${anims.exists(`${key}_walk`)}`)
+    } else {
+      console.log(`[characters] Анимация ${key}_walk уже существует`)
     }
   } else if (key === 'инженер') {
+    console.log(`[characters] Создаем анимации для инженера`)
     // Создаем анимации для инженера
     const anims = scene.anims
     
@@ -481,22 +515,30 @@ export function ensureSpecialistAnimations(scene: Phaser.Scene, profession: stri
     
     // Idle (6 кадров) - основная анимация покоя
     if (!anims.exists(`${key}_idle`)) {
+      console.log(`[characters] Создаем анимацию ${key}_idle с texture engineer_idle`)
       anims.create({
         key: `${key}_idle`,
         frames: anims.generateFrameNumbers('engineer_idle', { frames: [0, 1, 2, 3, 4, 5] }),
         frameRate: 8,
         repeat: -1
       })
+      console.log(`[characters] Анимация ${key}_idle создана: ${anims.exists(`${key}_idle`)}`)
+    } else {
+      console.log(`[characters] Анимация инженер_idle уже существует`)
     }
     
     // Walk (12 кадров)
     if (!anims.exists(`${key}_walk`)) {
+      console.log(`[characters] Создаем анимацию ${key}_walk с texture engineer_walk`)
       anims.create({
         key: `${key}_walk`,
         frames: anims.generateFrameNumbers('engineer_walk', { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] }),
         frameRate: 12,
         repeat: -1
       })
+      console.log(`[characters] Анимация ${key}_walk создана: ${anims.exists(`${key}_walk`)}`)
+    } else {
+      console.log(`[characters] Анимация ${key}_walk уже существует`)
     }
   } else if (key === 'бездомный') {
     // Создаем анимации для бездомного

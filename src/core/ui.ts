@@ -125,4 +125,107 @@ export function createMenuButton(
   return group
 }
 
+export function createSovietTitle(
+  scene: Phaser.Scene,
+  title: string,
+  x: number,
+  y: number,
+  fontSize = 48
+): Phaser.GameObjects.Container {
+  const container = scene.add.container(x, y)
+  
+  // Основной текст заголовка - используем шрифт "28 Days Later Cyr Regular"
+  const mainText = scene.add.text(0, 0, title, {
+    fontFamily: '"28 Days Later Cyr Regular", monospace',
+    fontSize: `${fontSize}px`,
+    color: COLORS.textAccent,
+    stroke: '#000000',
+    strokeThickness: 4
+  }).setOrigin(0.5)
+  
+  // Тень текста
+  const shadowText = scene.add.text(4, 4, title, {
+    fontFamily: '"28 Days Later Cyr Regular", monospace',
+    fontSize: `${fontSize}px`,
+    color: '#000000'
+  }).setOrigin(0.5)
+  shadowText.setAlpha(0.7)
+  
+  // Декоративные линии под заголовком
+  const lineLength = mainText.width + 40
+  const topLine = scene.add.rectangle(0, fontSize/2 + 10, lineLength, 3, COLORS.panelBorder, 1).setOrigin(0.5)
+  const bottomLine = scene.add.rectangle(0, fontSize/2 + 20, lineLength, 1, COLORS.panelBorder, 0.6).setOrigin(0.5)
+  
+  container.add([shadowText, mainText, topLine, bottomLine])
+  return container
+}
+
+// Новые компоненты в советском стиле  
+export function createSovietPanel(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  padding = 20
+): Phaser.GameObjects.Container {
+  const root = scene.add.container(x, y)
+
+  // Основной фон (темно-красный)
+  const mainBg = scene.add.rectangle(0, 0, width, height, COLORS.bg, 0.95).setOrigin(0)
+  
+  // Золотая рамка
+  const border = scene.add.rectangle(0, 0, width, height, COLORS.panelBorder, 0).setOrigin(0)
+  border.setStrokeStyle(2, COLORS.panelBorder, 1)
+  
+  // Контейнер для контента
+  const content = scene.add.container(padding, padding)
+  content.name = 'content'
+
+  root.add([mainBg, border, content])
+  return root
+}
+
+export function createSovietButton(
+  scene: Phaser.Scene,
+  label: string,
+  x: number,
+  y: number,
+  onClick: () => void,
+  width = 300,
+  height = 50
+): Phaser.GameObjects.Container {
+  const container = scene.add.container(x, y)
+  
+  // Фон кнопки (оранжевый)
+  const bg = scene.add.rectangle(0, 0, width, height, COLORS.primary, 0.9).setOrigin(0.5)
+  bg.setStrokeStyle(2, COLORS.panelBorder, 1)
+  
+  // Текст кнопки - возвращаем пиксельный шрифт
+  const text = scene.add.text(0, 0, label, {
+    fontFamily: '"Press Start 2P", monospace',
+    fontSize: '16px',
+    color: COLORS.text,
+    stroke: '#000000',
+    strokeThickness: 2
+  }).setOrigin(0.5)
+  
+  // Интерактивность
+  bg.setInteractive({ useHandCursor: true })
+  bg.on('pointerover', () => {
+    bg.setFillStyle(COLORS.primaryHover, 0.9)
+    text.setColor(COLORS.textAccent)
+    container.y -= 2
+  })
+  bg.on('pointerout', () => {
+    bg.setFillStyle(COLORS.primary, 0.9)
+    text.setColor(COLORS.text)
+    container.y += 2
+  })
+  bg.on('pointerdown', onClick)
+  
+  container.add([bg, text])
+  return container
+}
+
 

@@ -7,6 +7,9 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload(): void {
+    // Предварительная загрузка шрифтов для главного меню
+    this.preloadFonts()
+
     const width = this.scale.width
     const height = this.scale.height
     const progressBar = this.add.rectangle(width / 2, height / 2, 400, 24, 0x2e7d32).setOrigin(0.5)
@@ -351,10 +354,65 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet('soldier_idle', 'src/sprites/enemies/soldier/Idle.png', { frameWidth: 128, frameHeight: 128 })
     this.load.spritesheet('soldier_dead', 'src/sprites/enemies/soldier/Dead.png', { frameWidth: 128, frameHeight: 128 })
     this.load.spritesheet('soldier_hurt', 'src/sprites/enemies/soldier/Hurt.png', { frameWidth: 128, frameHeight: 128 })
+
+    // UI кнопки (192x32, 6 кадров в строку)
+    this.load.spritesheet('button_green', 'src/sprites/ui/ButtonGreen-Sheet.png', { frameWidth: 32, frameHeight: 32 })
+    this.load.spritesheet('button_red', 'src/sprites/ui/ButtonRed-Sheet.png', { frameWidth: 32, frameHeight: 32 })
   }
 
   create(): void {
+    // Создаем анимации для кнопок
+    this.createButtonAnimations()
     this.scene.start('MainMenu')
+  }
+
+  private createButtonAnimations(): void {
+    // Анимация нажатия зеленой кнопки (6 кадров)
+    this.anims.create({
+      key: 'button_green_press',
+      frames: this.anims.generateFrameNumbers('button_green', { start: 0, end: 5 }),
+      frameRate: 12,
+      repeat: 0
+    })
+
+    // Анимация нажатия красной кнопки (6 кадров)
+    this.anims.create({
+      key: 'button_red_press',
+      frames: this.anims.generateFrameNumbers('button_red', { start: 0, end: 5 }),
+      frameRate: 12,
+      repeat: 0
+    })
+  }
+
+  private preloadFonts(): void {
+    // Создаем временные текстовые объекты для предварительной загрузки шрифтов
+    // Это поможет Phaser понять, какие шрифты нужны и загрузить их
+    
+    // Создаем скрытый текст с нужными шрифтами
+    const testText1 = this.add.text(-1000, -1000, 'ВХОД ВОСПРЕЩЕН', {
+      fontFamily: '"28 Days Later Cyr Regular", monospace',
+      fontSize: '64px'
+    })
+    
+    const testText2 = this.add.text(-1000, -1000, 'NO ENTRY', {
+      fontFamily: '"28 Days Later Cyr Regular", monospace',
+      fontSize: '32px'
+    })
+    
+    const testText3 = this.add.text(-1000, -1000, 'НАЧАТЬ ОБОРОНУ', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '18px'
+    })
+    
+    // Сразу удаляем тестовые тексты
+    testText1.destroy()
+    testText2.destroy()
+    testText3.destroy()
+    
+    // Добавляем небольшую задержку для загрузки шрифтов
+    this.time.delayedCall(100, () => {
+      console.log('Шрифты предварительно загружены')
+    })
   }
 }
 

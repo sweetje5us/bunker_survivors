@@ -1,12 +1,11 @@
 import Phaser from 'phaser'
-import { t, getLanguage, toggleLanguage, onLanguageChange } from '../core/i18n'
-import { createTextButton, createToggle, createPixelPanel, getPanelContent, createMenuButton, createRadiationBadge } from '../core/ui'
-import { THEME, uiScale, fs } from '../core/theme'
-import { addScanlines, addEmergencyLights, addGlitchTitle } from '../core/effects'
+import { t, getLanguage, toggleLanguage } from '../core/i18n'
 import { onResize, isPortrait } from '../core/responsive'
 
 export class MainMenuScene extends Phaser.Scene {
-  private titleText?: Phaser.GameObjects.Text
+  private titleContainer?: Phaser.GameObjects.Container
+  private warningSign?: Phaser.GameObjects.Container
+  private particles: Phaser.GameObjects.Rectangle[] = []
 
   constructor() {
     super('MainMenu')
@@ -15,72 +14,317 @@ export class MainMenuScene extends Phaser.Scene {
   create(): void {
     const { width, height } = this.scale
 
-    // Effects
-    addScanlines(this)
-    addEmergencyLights(this)
-
-    // Main pixel panel container
-    const s = uiScale(this)
-    const panelWidth = Math.min(920 * s, Math.floor(width * 0.92))
-    const panelHeight = Math.min(560 * s, Math.floor(height * 0.82))
-    const panelX = Math.floor((width - panelWidth) / 2)
-    const panelY = Math.floor((height - panelHeight) / 2)
-    const panel = createPixelPanel(this, panelX, panelY, panelWidth, panelHeight, 20)
-    const content = getPanelContent(panel)!
-
-    // Radiation badge
-    const badge = createRadiationBadge(this, panelX + panelWidth - 48, panelY + 48)
+    // Создаем анимированный фон
+    this.createAnimatedBackground()
     
-    // Title with glitch effect
-    addGlitchTitle(this, t('title').toUpperCase(), width / 2, panelY + 44 * s, {
-      fontFamily: THEME.fonts.heading,
-      fontSize: fs(this, 28),
-      color: '#b71c1c'
-    })
+    // Добавляем scanlines
+    this.createScanlines()
+    
+    // Добавляем шум
+    this.createNoise()
+    
+    // Создаем частицы
+    this.createParticles()
+    
+    // Создаем барьерную ленту
+    this.createWarningTape()
+    
+    // Создаем заголовок игры
+    this.createGameTitle()
+    
+    // Создаем предупреждающий знак
+    this.createWarningSign()
+    
+    // Создаем навигационное меню
+    this.createNavigationMenu()
 
-    // Menu list inside panel
-    const menuStartY = Math.round(90 * s)
-    const menuGap = Math.round(48 * s)
-    const menuX = 0
-    const addItem = (label: string, idx: number, cb: () => void) => {
-      const btn = createMenuButton(this, label, 0, menuStartY + idx * menuGap, cb, Math.floor(panelWidth * 0.7), Math.max(34, Math.round(40 * s)))
-      content.add(btn)
+    // Обработчик ресайза
+    this.scale.on('resize', this.handleResize, this)
+  }
+
+  private createAnimatedBackground(): void {
+    const { width, height } = this.scale
+    
+    // Градиентный фон
+    const bg = this.add.graphics()
+    bg.fillGradientStyle(0x000000, 0x000000, 0x8b0000, 0x8b0000, 0.1)
+    bg.fillRect(0, 0, width, height)
+    
+    // Радиальные градиенты
+    const radial1 = this.add.graphics()
+    radial1.fillStyle(0x8b0000, 0.1)
+    radial1.fillCircle(width * 0.2, height * 0.3, 200)
+    
+    const radial2 = this.add.graphics()
+    radial2.fillStyle(0x8b0000, 0.1)
+    radial2.fillCircle(width * 0.8, height * 0.7, 200)
+  }
+
+  private createScanlines(): void {
+    const { width, height } = this.scale
+    const scanlines = this.add.graphics()
+    
+    // Создаем scanlines
+    for (let y = 0; y < height; y += 4) {
+      scanlines.lineStyle(1, 0x00ff00, 0.03)
+      scanlines.beginPath()
+      scanlines.moveTo(0, y)
+      scanlines.lineTo(width, y)
+      scanlines.strokePath()
     }
-    addItem(t('play').toUpperCase(), 0, () => this.scene.start('Difficulty'))
-    addItem('SETTINGS', 1, () => this.scene.start('Settings'))
-    addItem('ABOUT', 2, () => this.scene.start('About'))
+    
+    // Анимация scanlines
+    this.tweens.add({
+      targets: scanlines,
+      y: height,
+      duration: 900,
+      repeat: -1,
+      ease: 'Linear'
+    })
+  }
 
-    // Status bar (inside main panel, bottom area)
-    const statusY = Math.round(menuStartY + 3 * menuGap)
-    const status = this.add.container(0, statusY)
-    const statusBg = this.add.rectangle(0, 0, Math.floor(panelWidth * 0.7), Math.max(30, Math.round(34 * s)), 0x1a1d22, 1).setOrigin(0, 0.5)
-    statusBg.setStrokeStyle(1, 0x2a2d33)
-    const dot = (x: number, color: number) => this.add.rectangle(x, 0, Math.max(8, Math.round(10 * s)), Math.max(8, Math.round(10 * s)), color).setOrigin(0, 0.5)
-    const term = (x: number, text: string) => this.add.text(x, 0, text, { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: '#00ff00' }).setOrigin(0, 0.5)
-    status.add([statusBg,
-      dot(8, 0x2ecc71), term(8 + Math.round(14 * s), 'SYSTEM: OPERATIONAL'),
-      dot(Math.round(220 * s), 0xf1c40f), term(Math.round(220 * s) + Math.round(14 * s), 'POWER: 78%'),
-      dot(Math.round(360 * s), 0xe74c3c), term(Math.round(360 * s) + Math.round(14 * s), 'RATIONS: CRITICAL')
-    ])
-    content.add(status)
+  private createNoise(): void {
+    const { width, height } = this.scale
+    const noise = this.add.graphics()
+    
+    // Создаем случайные точки для эффекта шума
+    for (let i = 0; i < 1000; i++) {
+      const x = Math.random() * width
+      const y = Math.random() * height
+      const alpha = Math.random() * 0.02
+      
+      noise.fillStyle(0xffffff, alpha)
+      noise.fillRect(x, y, 1, 1)
+    }
+  }
 
-    // Authenticator bar below panel
-    const authWidth = Math.min(panelWidth, Math.floor(width * 0.9))
-    const authHeight = Math.max(40, Math.round(48 * s))
-    const authPanel = createPixelPanel(this, Math.floor((width - authWidth) / 2), Math.floor(panelY + panelHeight + Math.round(12 * s)), authWidth, authHeight, Math.max(8, Math.round(10 * s)))
-    const authContent = getPanelContent(authPanel)!
-    const pulse = this.add.rectangle(0, 0, Math.max(8, Math.round(10 * s)), Math.max(8, Math.round(10 * s)), 0x2ecc71).setOrigin(0, 0.5)
-    this.tweens.add({ targets: pulse, alpha: 0.3, yoyo: true, repeat: -1, duration: 600 })
-    const leftText = this.add.text(Math.round(14 * s), 0, 'AUTHENTICATING...', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: '#00ff00' }).setOrigin(0, 0.5)
-    const rightText = this.add.text(Math.floor(authWidth * 0.45), 0, 'USER: COMMANDER | CLEARANCE: ALPHA-9', { fontFamily: THEME.fonts.body, fontSize: fs(this, 10), color: '#00ff00' }).setOrigin(0, 0.5)
-    authContent.add([pulse, leftText, rightText])
+  private createParticles(): void {
+    const { width, height } = this.scale
+    
+    for (let i = 0; i < 30; i++) {
+      const particle = this.add.rectangle(
+        Math.random() * width,
+        Math.random() * height,
+        Math.random() * 4 + 1,
+        Math.random() * 4 + 1,
+        0xff0000,
+        0.3
+      )
+      
+      this.particles.push(particle)
+      
+      // Анимация частиц
+      this.tweens.add({
+        targets: particle,
+        y: -50,
+        x: particle.x + Math.random() * 100,
+        alpha: 0,
+        duration: Math.random() * 4000 + 4000,
+        delay: Math.random() * 6000,
+        repeat: -1,
+        ease: 'Linear'
+      })
+    }
+  }
 
-    // Обновление при смене языка и ресайзе
-    onLanguageChange(() => this.scene.restart())
+  private createWarningTape(): void {
+    const { width, height } = this.scale
+    const tape = this.add.graphics()
+    
+    // Создаем барьерную ленту
+    for (let x = 0; x < width; x += 40) {
+      tape.fillStyle(0xff0000, 0.6)
+      tape.fillRect(x, height / 2 - 1, 20, 2)
+      tape.fillStyle(0x000000, 0.6)
+      tape.fillRect(x + 20, height / 2 - 1, 20, 2)
+    }
+  }
+
+  private createGameTitle(): void {
+    const { width, height } = this.scale
+    const centerX = width / 2
+    const titleY = height * 0.2
+    
+    this.titleContainer = this.add.container(centerX, titleY)
+    
+    // Основной заголовок "ВХОД ВОСПРЕЩЕН"
+    const mainTitle = this.add.text(0, 0, 'ВХОД ВОСПРЕЩЕН', {
+      fontFamily: '"28 Days Later Cyr Regular", monospace',
+      fontSize: '64px',
+      color: '#ff0000',
+      stroke: '#000000',
+      strokeThickness: 4
+    }).setOrigin(0.5)
+    
+    // Подзаголовок "NO ENTRY"
+    const subTitle = this.add.text(0, 80, 'NO ENTRY', {
+      fontFamily: '"28 Days Later Cyr Regular", monospace',
+      fontSize: '32px',
+      color: '#ffcc00',
+      stroke: '#000000',
+      strokeThickness: 2
+    }).setOrigin(0.5)
+    
+    this.titleContainer.add([mainTitle, subTitle])
+    
+    // Анимация свечения для основного заголовка
+    this.tweens.add({
+      targets: mainTitle,
+      alpha: 0.7,
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+    
+    // Анимация свечения для подзаголовка
+    this.tweens.add({
+      targets: subTitle,
+      alpha: 0.7,
+      duration: 3000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    })
+  }
+
+  private createWarningSign(): void {
+    const { width, height } = this.scale
+    const centerX = width / 2
+    const warningY = height * 0.4
+    
+    this.warningSign = this.add.container(centerX, warningY)
+    
+    // Фон предупреждения
+    const warningBg = this.add.rectangle(0, 0, 600, 60, 0x8b0000, 0.2)
+    warningBg.setStrokeStyle(2, 0xff0000)
+    
+    // Текст предупреждения
+    const warningText = this.add.text(0, 0, 'DANGER', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '16px',
+      color: '#ff6666'
+    }).setOrigin(0.5)
+    
+    this.warningSign.add([warningBg, warningText])
+    
+    // Анимация мигания
+    this.tweens.add({
+      targets: this.warningSign,
+      alpha: 0.3,
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Linear'
+    })
+  }
+
+  private createNavigationMenu(): void {
+    const { width, height } = this.scale
+    const centerX = width / 2
+    const menuStartY = height * 0.55
+    const buttonSpacing = 80
+    
+    const buttons = [
+      { text: 'НАЧАТЬ ОБОРОНУ', action: () => this.scene.start('Difficulty') },
+      { text: 'КОНФИГУРАЦИЯ', action: () => this.scene.start('Settings') },
+      { text: 'ИНФОРМАЦИЯ', action: () => this.scene.start('About') },
+      { text: 'ПОКИНУТЬ ПОСТ', action: () => this.quitGame() }
+    ]
+    
+    buttons.forEach((button, index) => {
+      const buttonContainer = this.createMenuButton(
+        centerX,
+        menuStartY + index * buttonSpacing,
+        button.text,
+        button.action
+      )
+      
+      if (buttonContainer) {
+        // Анимация появления кнопки
+        buttonContainer.setAlpha(0)
+        const originalY = buttonContainer.y
+        buttonContainer.y -= 50
+        
+        this.tweens.add({
+          targets: buttonContainer,
+          alpha: 1,
+          y: originalY,
+          duration: 800,
+          delay: index * 200,
+          ease: 'Power2'
+        })
+      }
+    })
+  }
+
+  private createMenuButton(x: number, y: number, text: string, onClick: () => void): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y)
+    
+    // Фон кнопки
+    const bg = this.add.rectangle(0, 0, 400, 60, 0x2a0a0a, 1)
+    bg.setStrokeStyle(3, 0x8b0000)
+    
+    // Текст кнопки
+    const buttonText = this.add.text(0, 0, text, {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '18px',
+      color: '#ffcc00'
+    }).setOrigin(0.5)
+    
+    // Иконка стрелки
+    const arrow = this.add.text(-150, 0, '⏵', {
+      fontFamily: 'Arial',
+      fontSize: '20px',
+      color: '#ffcc00'
+    }).setOrigin(0.5)
+    arrow.setAlpha(0)
+    
+    container.add([bg, buttonText, arrow])
+    
+    // Интерактивность
+    bg.setInteractive({ useHandCursor: true })
+    
+    bg.on('pointerover', () => {
+      bg.setFillStyle(0x3a1a1a)
+      bg.setStrokeStyle(3, 0xffcc00)
+      buttonText.setColor('#ffffff')
+      arrow.setAlpha(1)
+      container.y -= 2
+    })
+    
+    bg.on('pointerout', () => {
+      bg.setFillStyle(0x2a0a0a)
+      bg.setStrokeStyle(3, 0x8b0000)
+      buttonText.setColor('#ffcc00')
+      arrow.setAlpha(0)
+      container.y += 2
+    })
+    
+    bg.on('pointerdown', onClick)
+    
+    return container
+  }
+
+  private quitGame(): void {
+    // Здесь можно добавить логику выхода из игры
+    console.log('Выход из игры')
+  }
+
+  private handleResize(gameSize: Phaser.Structs.Size): void {
+    // Обновление позиций при ресайзе
+    if (this.titleContainer) {
+      this.titleContainer.setPosition(gameSize.width / 2, gameSize.height * 0.2)
+    }
+    
+    if (this.warningSign) {
+      this.warningSign.setPosition(gameSize.width / 2, gameSize.height * 0.4)
+    }
   }
 
   updateTexts = (): void => {
-    this.titleText?.setText(t('title'))
+    // Обновление текстов при смене языка
+    // В данном случае тексты статичные, но можно добавить локализацию
   }
 }
 

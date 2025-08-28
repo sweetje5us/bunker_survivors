@@ -76,4 +76,109 @@ export function addGlitchTitle(
   return group
 }
 
+// Новые эффекты для советского стиля
+export function addSovietBackground(scene: Phaser.Scene): Phaser.GameObjects.Container {
+  const container = scene.add.container(0, 0)
+  
+  // Градиентный фон от темно-красного к черному
+  const bg = scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, 0x8B0000, 1).setOrigin(0)
+  
+  // Добавляем текстуру "глитчей" и повреждений
+  const glitchTexture = scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, 0x000000, 0).setOrigin(0)
+  glitchTexture.setStrokeStyle(1, 0xFFD700, 0.1)
+  
+  // Создаем случайные "глитчи" по экрану (уменьшаем количество)
+  for (let i = 0; i < 8; i++) {
+    const x = Phaser.Math.Between(0, scene.scale.width)
+    const y = Phaser.Math.Between(0, scene.scale.height)
+    const width = Phaser.Math.Between(20, 80)
+    const height = Phaser.Math.Between(2, 6)
+    
+    const glitch = scene.add.rectangle(x, y, width, height, 0xFFD700, 0.1).setOrigin(0)
+    glitch.setStrokeStyle(1, 0xFFD700, 0.3)
+    
+    // Анимация мерцания глитчей
+    scene.tweens.add({
+      targets: glitch,
+      alpha: 0.3,
+      yoyo: true,
+      repeat: -1,
+      duration: Phaser.Math.Between(1500, 4000),
+      delay: Phaser.Math.Between(0, 3000)
+    })
+    
+    container.add(glitch)
+  }
+  
+  container.add([bg, glitchTexture])
+  container.setDepth(0)
+  return container
+}
+
+export function addSovietDecorations(scene: Phaser.Scene): Phaser.GameObjects.Container {
+  const container = scene.add.container(0, 0)
+  
+  // Добавляем только основные декоративные элементы
+  const decorations = [
+    { symbol: '☭', x: 60, y: 60, size: 28, color: 0xFFD700 },
+    { symbol: '★', x: scene.scale.width - 60, y: 60, size: 20, color: 0xFFD700 }
+  ]
+  
+  decorations.forEach(dec => {
+    const decoration = scene.add.text(dec.x, dec.y, dec.symbol, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: `${dec.size}px`,
+      color: `#${dec.color.toString(16).padStart(6, '0')}`
+    }).setOrigin(0.5)
+    
+    // Добавляем легкую анимацию вращения
+    scene.tweens.add({
+      targets: decoration,
+      angle: 360,
+      duration: 10000,
+      repeat: -1,
+      ease: 'Linear'
+    })
+    
+    container.add(decoration)
+  })
+  
+  container.setDepth(100)
+  return container
+}
+
+export function addSovietScanlines(scene: Phaser.Scene): Phaser.GameObjects.TileSprite {
+  const key = 'soviet-scanline-texture'
+  if (!scene.textures.exists(key)) {
+    const cvs = scene.textures.createCanvas(key, 2, 4) as Phaser.Textures.CanvasTexture | null
+    if (cvs) {
+      const ctx = cvs.getContext()
+      // Создаем более тонкие и стилизованные линии
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.06)' // Золотые линии (более прозрачные)
+      ctx.fillRect(0, 0, 2, 1)
+      ctx.clearRect(0, 1, 2, 3)
+      cvs.refresh()
+    }
+  }
+  
+  const scanlines = scene.add.tileSprite(0, 0, scene.scale.width, scene.scale.height, key).setOrigin(0)
+  scanlines.setScrollFactor(0, 0)
+  scanlines.setDepth(200)
+  
+  // Более медленное движение линий
+  scene.tweens.add({
+    targets: scanlines,
+    tilePositionY: scene.scale.height,
+    duration: 15000,
+    repeat: -1,
+    ease: 'Linear',
+  })
+  
+  scene.scale.on('resize', (size: Phaser.Structs.Size) => {
+    scanlines.setSize(size.width, size.height)
+  })
+  
+  return scanlines
+}
+
 

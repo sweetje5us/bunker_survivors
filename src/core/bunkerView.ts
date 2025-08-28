@@ -62,7 +62,7 @@ export class SimpleBunkerView {
   private debugAnim: boolean = false
   private lastInsanityCheck: number = 0
   private lastStuckCheck: number = 0
-
+  
   // Режимы редактирования
   private isAddingRoom = false
   private isRemovingRoom = false
@@ -73,6 +73,14 @@ export class SimpleBunkerView {
   private removeButton?: Phaser.GameObjects.Text
   private peopleButton?: Phaser.GameObjects.Text
   private currentDialog?: Phaser.GameObjects.Container
+
+  // Drag n Drop для жителей
+  private draggedResident: any = null
+  private dragOffset: Phaser.Math.Vector2 = new Phaser.Math.Vector2()
+  private isDraggingResident = false
+  private dragStartTime = 0
+  private lastDragEndTime: Map<number, number> = new Map() // Время последнего перетаскивания по ID жителя
+  private residentsBeingDragged: Set<number> = new Set() // ID жителей, которые сейчас перетаскиваются
   private availableRoomTypes = [
     // Базовые типы со старта
     'Вход',
@@ -465,10 +473,10 @@ export class SimpleBunkerView {
    */
   private checkCombatStatus(): void {
     console.log(`[bunkerView] Проверка боевого статуса агентов...`)
-
+    
     // Проверяем, есть ли вообще враги в бункере
     const enemies = this.residentAgents.filter(a => a && a.isEnemy && (a.health || 0) > 0)
-
+    
     // Проверяем жителей в боевом режиме
     for (const agent of this.residentAgents) {
       if (!agent || agent.isEnemy || (agent.isCoward && !((agent as any).intent === 'hostile'))) continue
@@ -478,10 +486,10 @@ export class SimpleBunkerView {
         let targetStillValid = false
 
         // Проверяем, есть ли цель среди врагов (обычное поведение)
-        const targetEnemy = this.residentAgents.find(a =>
+        const targetEnemy = this.residentAgents.find(a => 
           a && a.isEnemy && a.id === (agent as any).combatTarget && (a.health || 0) > 0
         )
-
+        
         if (targetEnemy) {
           targetStillValid = true
         } else if ((agent as any).intent === 'hostile' && agent.isAggressive && !agent.isEnemy) {
@@ -497,7 +505,7 @@ export class SimpleBunkerView {
 
         if (!targetStillValid) {
           console.log(`[bunkerView] Житель ${agent.profession} (ID: ${agent.id}) освобожден от боевого режима - цель мертва или недоступна`)
-
+          
           // Очищаем боевой режим
           ;(agent as any).combatTarget = undefined
           ;(agent as any).enemyTargetId = undefined
@@ -526,51 +534,51 @@ export class SimpleBunkerView {
             }
           } else {
             // Обычный житель - возвращаем к нормальной жизни только если нет врагов
-            if (enemies.length === 0) {
-              console.log(`[bunkerView] Нет врагов в бункере - возвращаем жителя ${agent.profession} (ID: ${agent.id}) к работе`)
-
-              // Сбрасываем все боевые состояния
-              agent.animLock = null
-              agent.target = undefined
-              agent.path = undefined
-              agent.dwellUntil = undefined
-
-              // Возвращаем к работе или нормальной жизни
-              if (agent.profession === 'солдат' || agent.profession === 'охотник' || agent.profession === 'разведчик') {
-                // Агрессивные профессии идут к входу для патрулирования
-                const entranceIdx = this.roomNames.indexOf('Вход')
-                if (entranceIdx >= 0) {
-                  const r = this.roomRects[entranceIdx]
-                  const margin = 4
-                  const dst = new Phaser.Math.Vector2(r.x + r.width / 2, r.y + r.height - margin)
-                  this.buildPathTo(agent, entranceIdx, dst, false)
-                  agent.animLock = 'walk'
-                  console.log(`[bunkerView] ${agent.profession} (ID: ${agent.id}) идет к входу для патрулирования`)
-                }
-              } else if (agent.profession === 'химик' || agent.profession === 'ученый') {
-                // Лабораторные работники возвращаются к работе
-                console.log(`[bunkerView] Лабораторный работник ${agent.profession} (ID: ${agent.id}) возвращается к работе`)
-                agent.animLock = 'idle'
-                // Попытка назначить лабораторию
-                const role = agent.profession === 'химик' ? 'chemist' : 'scientist'
-                this.tryAssignAndPathToLab(agent, role)
-              } else if (agent.profession === 'сантехник' || agent.profession === 'повар' || agent.profession === 'инженер') {
-                // Рабочие возвращаются к работе
-                console.log(`[bunkerView] Рабочий ${agent.profession} (ID: ${agent.id}) возвращается к работе`)
-                agent.animLock = 'idle'
-                // Попытка назначить рабочую комнату
-                this.tryAssignAndPathToWorkRoom(agent)
-              } else {
-                // Обычные жители возвращаются к нормальной жизни
-                console.log(`[bunkerView] Обычный житель ${agent.profession} (ID: ${agent.id}) возвращается к нормальной жизни`)
-                agent.animLock = null
-                this.pickNewTarget(agent)
+          if (enemies.length === 0) {
+            console.log(`[bunkerView] Нет врагов в бункере - возвращаем жителя ${agent.profession} (ID: ${agent.id}) к работе`)
+            
+            // Сбрасываем все боевые состояния
+            agent.animLock = null
+            agent.target = undefined
+            agent.path = undefined
+            agent.dwellUntil = undefined
+            
+            // Возвращаем к работе или нормальной жизни
+            if (agent.profession === 'солдат' || agent.profession === 'охотник' || agent.profession === 'разведчик') {
+              // Агрессивные профессии идут к входу для патрулирования
+              const entranceIdx = this.roomNames.indexOf('Вход')
+              if (entranceIdx >= 0) {
+                const r = this.roomRects[entranceIdx]
+                const margin = 4
+                const dst = new Phaser.Math.Vector2(r.x + r.width / 2, r.y + r.height - margin)
+                this.buildPathTo(agent, entranceIdx, dst, false)
+                agent.animLock = 'walk'
+                console.log(`[bunkerView] ${agent.profession} (ID: ${agent.id}) идет к входу для патрулирования`)
               }
+            } else if (agent.profession === 'химик' || agent.profession === 'ученый') {
+              // Лабораторные работники возвращаются к работе
+              console.log(`[bunkerView] Лабораторный работник ${agent.profession} (ID: ${agent.id}) возвращается к работе`)
+              agent.animLock = 'idle'
+              // Попытка назначить лабораторию
+              const role = agent.profession === 'химик' ? 'chemist' : 'scientist'
+              this.tryAssignAndPathToLab(agent, role)
+            } else if (agent.profession === 'сантехник' || agent.profession === 'повар' || agent.profession === 'инженер') {
+              // Рабочие возвращаются к работе
+              console.log(`[bunkerView] Рабочий ${agent.profession} (ID: ${agent.id}) возвращается к работе`)
+              agent.animLock = 'idle'
+              // Попытка назначить рабочую комнату
+              this.tryAssignAndPathToWorkRoom(agent)
             } else {
-              // Есть враги - житель должен искать новую цель
-              console.log(`[bunkerView] Житель ${agent.profession} (ID: ${agent.id}) ищет новую цель - в бункере есть враги`)
-              // Не меняем animLock - житель останется в боевом режиме
+              // Обычные жители возвращаются к нормальной жизни
+              console.log(`[bunkerView] Обычный житель ${agent.profession} (ID: ${agent.id}) возвращается к нормальной жизни`)
+              agent.animLock = null
+              this.pickNewTarget(agent)
             }
+          } else {
+            // Есть враги - житель должен искать новую цель
+            console.log(`[bunkerView] Житель ${agent.profession} (ID: ${agent.id}) ищет новую цель - в бункере есть враги`)
+            // Не меняем animLock - житель останется в боевом режиме
+          }
           }
         }
       } else if ((agent as any).intent === 'hostile' && agent.isAggressive && !agent.isEnemy) {
@@ -600,13 +608,13 @@ export class SimpleBunkerView {
     // Проверяем врагов без целей
     for (const agent of this.residentAgents) {
       if (!agent || !agent.isEnemy) continue
-
+      
       // Если у врага нет цели или цель мертва, ищем новую
       if (!agent.enemyTargetId || !agent.target) {
-        const livingResidents = this.residentAgents.filter(a =>
+        const livingResidents = this.residentAgents.filter(a => 
           a && !a.isEnemy && (a.health || 0) > 0 && !(a as any).away
         )
-
+        
         if (livingResidents.length > 0) {
           // Выбираем ближайшего жителя как цель
           let bestTarget = livingResidents[0]
@@ -1198,6 +1206,24 @@ export class SimpleBunkerView {
       if (a.shirt && a.shirt.scene && a.shirt.parentContainer !== this.content) this.content.add(a.shirt)
       if (a.hair && a.hair.scene && a.hair.parentContainer !== this.content) this.content.add(a.hair)
       if (a.rect.scene && a.rect.parentContainer !== this.content) this.content.add(a.rect)
+    }
+    
+    // ВАЖНО: Проверяем жителей на поверхности, чтобы убедиться что они все еще существуют
+    const gameScene = this.scene as any
+    if (gameScene.surfaceQueue) {
+      for (const item of gameScene.surfaceQueue.list) {
+        if (item && typeof item === 'object' && 'onSurface' in item && item.onSurface) {
+          // Это житель на поверхности
+          const surfaceResident = item as any
+          if (surfaceResident.sprite && surfaceResident.sprite.scene) {
+            // Проверяем, что спрайт все еще в surfaceArea
+            if (gameScene.surfaceArea && !gameScene.surfaceArea.list.includes(surfaceResident.sprite)) {
+              console.log(`[bunkerView] layout: Восстанавливаем спрайт жителя на поверхности ${surfaceResident.profession}`)
+              gameScene.surfaceArea.add(surfaceResident.sprite)
+            }
+          }
+        }
+      }
     }
     // Устанавливаем фиксированные значения depth для правильного порядка отрисовки
     // console.log(`[Depth] Обновляем depth для ${this.residentAgents.length} персонажей`)
@@ -2082,6 +2108,14 @@ export class SimpleBunkerView {
     
     // Показываем уведомление об удалении комнаты
     this.showNotification(`Уничтожена комната: ${roomName}`, 'warning')
+
+    // Сообщаем сцене, что структура бункера изменилась (вместимость/UI)
+    try {
+    const gameScene = this.scene as any
+      if (gameScene && typeof gameScene.onBunkerChanged === 'function') {
+        gameScene.onBunkerChanged()
+      }
+    } catch {}
   }
 
   private handleResidentsAfterRoomRemoval(removedRoomIndex: number): void {
@@ -2861,6 +2895,14 @@ export class SimpleBunkerView {
 
     // Показываем уведомление о добавлении комнаты
     this.showNotification(`Построена комната: ${roomType}`, 'success')
+
+    // Сообщаем сцене, что структура бункера изменилась (вместимость/UI)
+    try {
+      const gameScene = this.scene as any
+      if (gameScene && typeof gameScene.onBunkerChanged === 'function') {
+        gameScene.onBunkerChanged()
+      }
+    } catch {}
 
     // Проверяем, была ли добавлена комната склада
     if (roomType === 'Склад') {
@@ -3706,7 +3748,7 @@ export class SimpleBunkerView {
             console.log(`[bunkerView] Житель ${res.profession} (ID: ${res.id}) выздоровел - снимаем агрессивность`)
           }
 
-          continue
+        continue
         }
       } else {
         // Для врагов проверяем, не существует ли уже агент с таким же ID
@@ -3875,6 +3917,33 @@ export class SimpleBunkerView {
         id?: number; rect: Phaser.GameObjects.Rectangle; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite; skinKey: string;
         profession?: string; skills?: Array<{ text: string; positive: boolean }>; workAtNight?: boolean; isLazyToday?: boolean; working?: boolean; away?: boolean; target?: Phaser.Math.Vector2; roomIndex?: number; sleeping?: boolean; path?: Phaser.Math.Vector2[]; dwellUntil?: number; goingToRest?: boolean; stayInRoomName?: string; settled?: boolean; assignedRoomIndex?: number; assignedSlotIndex?: number; assignedRole?: 'chemist' | 'scientist'; schedType?: 'normal' | 'owl' | 'insomnia'; insomniaOffsetHour?: number; scheduleState?: 'sleep' | 'work' | 'rest';
         isEnemy?: boolean; enemyType?: string; marauderKind?: number; zombieKind?: string; mutantKind?: number; health?: number; lastAttackTime?: number; lastTargetReconsiderTime?: number; enemyTargetId?: number; animLock?: 'work' | 'sleep' | 'walk' | 'idle' | 'attack' | 'hurt' | 'dead' | null
+      }
+
+      // Добавляем обработчики drag n drop для жителей
+      if (!agent.isEnemy && (agent.sprite || agent.rect)) {
+        const interactiveSprite = agent.sprite || agent.rect
+
+        interactiveSprite.setInteractive({ useHandCursor: true })
+
+        interactiveSprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+          // Проверяем, что это не двойной клик и не паннинг
+          if (this.recentlyFinishedPanning) return
+
+          // Запускаем таймер для определения долгого нажатия
+          this.dragStartTime = Date.now()
+
+          // Через 300мс начинаем перетаскивание (теперь работает для всех жителей, включая движущихся)
+          setTimeout(() => {
+            if (!this.isDraggingResident && Date.now() - this.dragStartTime >= 300) {
+              this.startResidentDrag(agent, pointer)
+            }
+          }, 300)
+        })
+
+        interactiveSprite.on('pointerup', () => {
+          // Отменяем перетаскивание если оно не началось
+          this.dragStartTime = 0
+        })
       }
       
       // Инициализация здоровья в зависимости от профессии и навыков
@@ -4147,7 +4216,9 @@ export class SimpleBunkerView {
         )
 
         // Если агент находится слишком далеко от любой комнаты (> 100 пикселей), перемещаем его
-        if (distanceToRoom > 100) {
+        // НО только если он НЕ на поверхности (поверхность имеет свою логику движения)
+        const isOnSurface = (agent as any).onSurface === true
+        if (distanceToRoom > 100 && !isOnSurface) {
           const margin = 8
           agent.rect.x = nearestRoom.x + nearestRoom.width / 2
           agent.rect.y = nearestRoom.y + nearestRoom.height - margin
@@ -4161,6 +4232,8 @@ export class SimpleBunkerView {
           curIndex = nearestRoomIndex
 
           console.log(`[buildPathTo] Агент ${(agent as any).profession || 'враг'} (ID: ${(agent as any).id}) слишком далеко от комнат, перемещаем в комнату ${nearestRoomIndex}`)
+        } else if (isOnSurface) {
+          console.log(`[buildPathTo] Агент ${(agent as any).profession || 'враг'} (ID: ${(agent as any).id}) находится на поверхности, пропускаем перемещение в комнату`)
         } else {
           // Агент недалеко от комнаты, вероятно просто переходит между комнатами
           // Используем ближайшую комнату как текущую
@@ -4171,6 +4244,13 @@ export class SimpleBunkerView {
         curIndex = agent.roomIndex ?? destIndex
       }
     }
+    // Защита для жителей на поверхности - они не должны иметь комнаты
+    if ((agent as any).onSurface === true) {
+      console.log(`[buildPathTo] Житель ${(agent as any).profession} на поверхности - отменяем построение пути`)
+      agent.path = undefined
+      return
+    }
+
     const curRoom = this.roomRects[curIndex]
     const dstRoom = this.roomRects[destIndex]
     const margin = 4
@@ -4457,6 +4537,19 @@ export class SimpleBunkerView {
       // Проверяем смерть жителя
       if (agent.health && agent.health <= 0) {
         console.log(`[bunkerView] Пропускаем мертвого жителя ${agent.profession} (ID: ${agent.id})`)
+        continue
+      }
+
+      // Пропускаем жителей, которые находятся в режиме перетаскивания
+      if (agent.id && this.residentsBeingDragged.has(agent.id)) {
+        console.log(`[bunkerView] Пропускаем жителя ${agent.profession} (ID: ${agent.id}) - находится в режиме перетаскивания`)
+        continue
+      }
+
+      // Пропускаем жителей, которые находятся на поверхности
+      // Они имеют свою собственную логику движения (падение + движение влево)
+      if ((agent as any).onSurface === true) {
+        // console.log(`[bunkerView] Пропускаем жителя ${agent.profession} (ID: ${agent.id}) - находится на поверхности`)
         continue
       }
       
@@ -6180,14 +6273,14 @@ export class SimpleBunkerView {
     
     const attackerType = attacker.isEnemy ? `враг ${attacker.enemyType}` : `житель ${attacker.profession}`
     console.log(`[bunkerView] ${attackerType} (ID: ${attacker.id}) наносит ${attacker.attackDamage} урона жителю ${resident.profession} (ID: ${resident.id}). Осталось здоровья: ${resident.health}`)
-
+    
     // Проверяем, умер ли житель
     if (resident.health <= 0) {
       console.log(`[bunkerView] Житель ${resident.profession} (ID: ${resident.id}) умер от потери здоровья!`)
-
+      
       // Устанавливаем dead анимацию
       this.setDeadAnimation(resident)
-
+      
       // Сбрасываем цель атаки у атакующего
       attacker.combatTarget = undefined
       attacker.animLock = 'idle'
@@ -6259,8 +6352,9 @@ export class SimpleBunkerView {
     const maxHealth = agent.isEnemy ? 80 : (agent.profession === 'солдат' || agent.profession === 'охотник' ? 150 : 100)
     const healthPercent = agent.health / maxHealth
     
-    // Создаем контейнер для шкалы здоровья
-    const healthBar = this.scene.add.container(agent.rect.x, agent.rect.y - 20)
+    // Используем основной спрайт или rect как точку отсчета для позиции
+    const mainSprite = agent.sprite || agent.rect
+    const healthBar = this.scene.add.container(mainSprite.x, mainSprite.y - 20)
     
     // Фон шкалы (серый)
     const background = this.scene.add.graphics()
@@ -6288,8 +6382,17 @@ export class SimpleBunkerView {
     border.strokeRect(-barWidth/2, 0, barWidth, barHeight)
     healthBar.add(border)
     
-    // Добавляем шкалу в content и устанавливаем правильный depth
+    // Добавляем шкалу в правильный контейнер в зависимости от того, на поверхности ли житель
+    const isOnSurface = (agent as any).onSurface
+    const gameScene = this.scene as any
+    if (isOnSurface && gameScene.surfaceQueue) {
+      // Для жителей на поверхности добавляем шкалу в surfaceQueue
+      gameScene.surfaceQueue.add(healthBar)
+      console.log(`[bunkerView] Шкала здоровья добавлена в surfaceQueue для жителя на поверхности`)
+    } else {
+      // Для жителей в бункере добавляем шкалу в content
     this.content.add(healthBar)
+    }
     healthBar.setDepth(150) // Выше спрайтов агентов
     
     // Сохраняем ссылку на шкалу здоровья
@@ -6308,9 +6411,32 @@ export class SimpleBunkerView {
         return
     }
     
+    // Проверяем правильность контейнера шкалы здоровья
+    const isOnSurface = (agent as any).onSurface
+    const gameScene = this.scene as any
+    const currentParent = agent.healthBar.parentContainer
+    const shouldBeInSurface = isOnSurface && gameScene.surfaceQueue
+    const shouldBeInContent = !isOnSurface || !gameScene.surfaceQueue
+
+    // Перемещаем шкалу здоровья в правильный контейнер если нужно
+    if (shouldBeInSurface && currentParent !== gameScene.surfaceQueue) {
+      if (currentParent) {
+        currentParent.remove(agent.healthBar)
+      }
+      gameScene.surfaceQueue.add(agent.healthBar)
+      console.log(`[bunkerView] Шкала здоровья перемещена в surfaceQueue для жителя на поверхности`)
+    } else if (shouldBeInContent && currentParent !== this.content) {
+      if (currentParent) {
+        currentParent.remove(agent.healthBar)
+      }
+      this.content.add(agent.healthBar)
+      console.log(`[bunkerView] Шкала здоровья перемещена в content для жителя в бункере`)
+    }
+    
     // Показываем шкалу здоровья если она была скрыта
     if (agent.healthBar && !agent.healthBar.visible) {
       agent.healthBar.setVisible(true)
+      console.log(`[bunkerView] Шкала здоровья сделана видимой для жителя ${agent.profession}`)
     }
     
     // Проверяем смерть жителя
@@ -6329,7 +6455,10 @@ export class SimpleBunkerView {
     }
     
     // Обновляем позицию шкалы здоровья относительно агента
-    agent.healthBar.setPosition(agent.rect.x, agent.rect.y - 20)
+    // Используем основной спрайт или rect как точку отсчета
+    const mainSprite = agent.sprite || agent.rect
+    const healthBarOffset = isOnSurface ? 25 : 20 // Разное расстояние для поверхности и бункера
+    agent.healthBar.setPosition(mainSprite.x, mainSprite.y - healthBarOffset)
     
     // Обновляем цвет и размер полоски здоровья
     const maxHealth = agent.isEnemy ? 80 : (agent.profession === 'солдат' || agent.profession === 'охотник' ? 150 : 100)
@@ -6659,8 +6788,8 @@ export class SimpleBunkerView {
   private updateResidentCombat(agent: any): void {
     if (!agent || agent.isEnemy || (agent.isCoward && !((agent as any).intent === 'hostile'))) return
 
-    console.log(`[updateResidentCombat] Обрабатываем жителя ${agent.profession} (ID: ${agent.id}), intent=${(agent as any).intent}, animLock=${agent.animLock}`)
-
+    // console.log(`[updateResidentCombat] Обрабатываем жителя ${agent.profession} (ID: ${agent.id}), intent=${(agent as any).intent}, animLock=${agent.animLock}`)
+    
     // Инициализируем боевые параметры если нужно
     if (agent.health === undefined) {
       this.initializeCombatStats(agent)
@@ -6762,17 +6891,17 @@ export class SimpleBunkerView {
         target = null
       }
     }
-
+    
     // Если нет цели - выбираем новую
     if (!target && targets.length > 0) {
       if (targetType === 'enemy') {
         // Логика для выбора вражеских целей
-        if (agent.isAggressive) {
-          // Агрессивные жители ищут врагов по всему бункеру
+      if (agent.isAggressive) {
+        // Агрессивные жители ищут врагов по всему бункеру
           target = targets[0] // Берем первую цель
-        } else {
+      } else {
           // Обычные жители атакуют только цели в той же комнате
-          const agentRoom = this.findRoomIndexAt(agent.rect.x, agent.rect.y)
+        const agentRoom = this.findRoomIndexAt(agent.rect.x, agent.rect.y)
           target = targets.find(t => {
             const targetRoom = this.findRoomIndexAt(t.rect.x, t.rect.y)
             return agentRoom === targetRoom
@@ -7100,7 +7229,12 @@ export class SimpleBunkerView {
       const hasNoTarget = !agent.target && (!agent.path || agent.path.length === 0) &&
                          !(agent as any).combatTarget && !(agent as any).enemyTargetId
 
-      if (isStuck && hasNoTarget) {
+      // Проверяем, был ли житель недавно перетащен (защита от телепортации)
+      const lastDragTime = agent.id ? this.lastDragEndTime.get(agent.id) || 0 : 0
+      const timeSinceDrag = Date.now() - lastDragTime
+      const wasRecentlyDragged = timeSinceDrag < 5000 // 5 секунд защиты
+
+      if (isStuck && hasNoTarget && !wasRecentlyDragged) {
         console.log(`[checkStuckAgents] Агент ${(agent as any).profession || 'враг'} (ID: ${(agent as any).id}) застрял без цели!`)
 
         // Разные стратегии восстановления в зависимости от типа агента
@@ -7116,6 +7250,8 @@ export class SimpleBunkerView {
           agent.animLock = null
           this.pickNewTarget(agent)
         }
+      } else if (wasRecentlyDragged && isStuck && hasNoTarget) {
+        console.log(`[checkStuckAgents] Житель ${agent.profession} (ID: ${agent.id}) недавно перетащен (${Math.round(timeSinceDrag/1000)}сек назад), пропускаем`)
       }
 
       // Дополнительная проверка: агент вне комнаты без цели
@@ -7123,8 +7259,11 @@ export class SimpleBunkerView {
       const isAgentInElevator = agent.rect.x >= this.elevatorRect.x &&
                                 agent.rect.x <= (this.elevatorRect.x + this.elevatorRect.width)
 
-      if (currentRoomIndex === null && !isAgentInElevator && hasNoTarget) {
-        // Агент застрял вне комнаты
+      // Проверяем, находится ли агент на поверхности
+      const isOnSurface = (agent as any).onSurface === true
+
+      if (currentRoomIndex === null && !isAgentInElevator && hasNoTarget && !isOnSurface) {
+        // Агент застрял вне комнаты (только для агентов НЕ на поверхности)
         const nearestRoomIndex = this.findNearestRoomForAgent(agent)
         if (nearestRoomIndex >= 0) {
           console.log(`[checkStuckAgents] Агент ${(agent as any).profession || 'враг'} (ID: ${(agent as any).id}) застрял вне комнаты, перемещаем`)
@@ -7375,6 +7514,10 @@ export class SimpleBunkerView {
     // Используем capture phase для перехвата всех pointer событий
     document.addEventListener('pointermove', this.handleDocumentPointerMove.bind(this), true)
     document.addEventListener('pointerup', this.handleDocumentPointerUp.bind(this), true)
+
+    // Добавляем обработчики для drag n drop жителей
+    document.addEventListener('pointermove', this.handleResidentDragMove.bind(this), true)
+    document.addEventListener('pointerup', this.handleResidentDragEnd.bind(this), true)
     
     // Для мобильного: добавляем touch события для лучшей поддержки
     document.addEventListener('touchmove', this.handleDocumentTouchMove.bind(this), true)
@@ -7546,6 +7689,1884 @@ export class SimpleBunkerView {
       this.isPanning = false
       this.panStart = undefined
       this.contentStart = undefined
+    }
+  }
+
+  // Обработчики drag n drop для жителей
+  private handleResidentDragMove(event: PointerEvent): void {
+    if (!this.isDraggingResident) return
+
+    // Проверяем, не происходит ли событие в модальном окне
+    const target = event.target as HTMLElement
+    if (target && (target.closest('.modal') || target.closest('#room-selection-modal'))) {
+      return
+    }
+
+    // Создаем Phaser Pointer объект из DOM события
+    const pointer = this.scene.input.activePointer
+    pointer.x = event.clientX
+    pointer.y = event.clientY
+
+    this.updateResidentDrag(pointer)
+  }
+
+  private handleResidentDragEnd(event: PointerEvent): void {
+    if (!this.isDraggingResident) return
+
+    // Создаем Phaser Pointer объект из DOM события
+    const pointer = this.scene.input.activePointer
+    pointer.x = event.clientX
+    pointer.y = event.clientY
+
+    this.endResidentDrag(pointer)
+  }
+
+  // Drag n Drop функции для жителей
+  private startResidentDrag(agent: any, pointer: Phaser.Input.Pointer): void {
+    if (agent.isEnemy) return // Не позволяем перетаскивать врагов
+
+    console.log(`[bunkerView] Начинаем перетаскивание жителя: ${agent.profession} (ID: ${agent.id})`)
+    console.log(`[bunkerView] Текущая позиция жителя: (${agent.rect.x}, ${agent.rect.y})`)
+    console.log(`[bunkerView] Житель в контейнере: ${agent.sprite ? agent.sprite.parentContainer?.name || 'unknown' : 'no sprite'}`)
+    
+    // ДЕТАЛЬНАЯ ДИАГНОСТИКА: Проверяем состояние спрайта ДО перетаскивания
+    console.log(`[bunkerView] 🔍 ДИАГНОСТИКА ДРАГА: Состояние спрайта ДО перетаскивания:`)
+    if (agent.sprite) {
+      console.log(`[bunkerView] - Спрайт: scaleX=${agent.sprite.scaleX}, scaleY=${agent.sprite.scaleY}`)
+      console.log(`[bunkerView] - Спрайт: originX=${agent.sprite.originX}, originY=${agent.sprite.originY}`)
+      console.log(`[bunkerView] - Спрайт: texture.key=${agent.sprite.texture?.key || 'unknown'}`)
+      console.log(`[bunkerView] - Спрайт: направление=${agent.sprite.scaleX < 0 ? 'ВЛЕВО' : 'ВПРАВО'}`)
+      console.log(`[bunkerView] - Спрайт: УЖЕ ОТЗЕРКАЛЕН=${agent.sprite.scaleX < 0 ? 'ДА' : 'НЕТ'}`)
+    }
+    
+    if (agent.shirt) {
+      console.log(`[bunkerView] - Рубашка: scaleX=${agent.shirt.scaleX}, scaleY=${agent.shirt.scaleY}`)
+    }
+    if (agent.pants) {
+      console.log(`[bunkerView] - Штаны: scaleX=${agent.pants.scaleX}, scaleY=${agent.pants.scaleY}`)
+    }
+    if (agent.footwear) {
+      console.log(`[bunkerView] - Обувь: scaleX=${agent.footwear.scaleX}, scaleY=${agent.footwear.scaleY}`)
+    }
+    if (agent.hair) {
+      console.log(`[bunkerView] - Волосы: scaleX=${agent.hair.scaleX}, scaleY=${agent.hair.scaleY}`)
+    }
+    
+    console.log(`[bunkerView] 🔍 ДИАГНОСТИКА ДРАГА: Конец состояния ДО перетаскивания`)
+
+    this.draggedResident = agent
+    this.isDraggingResident = true
+    this.dragStartTime = Date.now()
+
+    // Добавляем жителя в множество перетаскиваемых
+    if (agent.id) {
+      this.residentsBeingDragged.add(agent.id)
+    }
+
+    // ПОЛНОСТЬЮ сбрасываем состояние движения и пути при начале перетаскивания
+    agent.animLock = null
+    agent.target = undefined
+    agent.path = undefined
+    agent.dwellUntil = undefined
+    ;(agent as any).combatTarget = undefined
+    ;(agent as any).enemyTargetId = undefined
+    agent.lastTargetReconsiderTime = undefined
+
+    // Также сбрасываем связанные состояния
+    agent.goingToRest = false
+    agent.working = false
+    agent.sleeping = false
+
+    // Сбрасываем флаг завершения перетаскивания
+    ;(agent as any).dragEnded = false
+
+    // Вычисляем смещение курсора относительно спрайта
+    const sprite = agent.sprite || agent.rect
+    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y)
+
+    // Преобразуем мировые координаты в локальные координаты content
+    const contentMatrix = this.content.getWorldTransformMatrix()
+    const localPoint = new Phaser.Math.Vector2()
+    contentMatrix.applyInverse(worldPoint.x, worldPoint.y, localPoint)
+
+    this.dragOffset.set(
+      localPoint.x - (sprite.x || 0),
+      localPoint.y - (sprite.y || 0)
+    )
+
+          // Сохраняем оригинальные размеры при первом перетаскивании
+      if (!agent.originalScale) {
+        console.log(`[bunkerView] Сохраняем оригинальные размеры для жителя ${agent.profession}`)
+
+        // В Phaser scale может быть числом или объектом Vector2
+        const getScaleValue = (sprite: any) => {
+          if (!sprite || !sprite.scale) return 1
+          if (typeof sprite.scale === 'number') return sprite.scale
+          if (sprite.scale.x !== undefined) return sprite.scale.x // Vector2
+          return 1
+        }
+
+        // ВАЖНО: Сохраняем ТЕКУЩИЙ масштаб спрайта, а не "оригинальный"
+        // Это может быть уже отзеркаленный спрайт, если житель двигался влево
+        const currentSpriteScale = getScaleValue(agent.sprite)
+        console.log(`[bunkerView] 🔍 ВАЖНО: Текущий масштаб спрайта при захвате: ${currentSpriteScale}`)
+        console.log(`[bunkerView] 🔍 Это означает, что житель ${currentSpriteScale < 0 ? 'УЖЕ ОТЗЕРКАЛЕН' : 'НЕ ОТЗЕРКАЛЕН'} в бункере`)
+
+        agent.originalScale = {
+          sprite: currentSpriteScale, // Сохраняем ТЕКУЩИЙ масштаб
+          shirt: getScaleValue(agent.shirt),
+          pants: getScaleValue(agent.pants),
+          footwear: getScaleValue(agent.footwear),
+          hair: getScaleValue(agent.hair)
+        }
+      agent.originalOrigin = {
+        sprite: agent.sprite && agent.sprite.origin ? { x: agent.sprite.origin.x || 0.5, y: agent.sprite.origin.y || 1 } : { x: 0.5, y: 1 },
+        shirt: agent.shirt && agent.shirt.origin ? { x: agent.shirt.origin.x || 0.5, y: agent.shirt.origin.y || 1 } : { x: 0.5, y: 1 },
+        pants: agent.pants && agent.pants.origin ? { x: agent.pants.origin.x || 0.5, y: agent.pants.origin.y || 1 } : { x: 0.5, y: 1 },
+        footwear: agent.footwear && agent.footwear.origin ? { x: agent.footwear.origin.x || 0.5, y: agent.footwear.origin.y || 1 } : { x: 0.5, y: 1 },
+        hair: agent.hair && agent.hair.origin ? { x: agent.hair.origin.x || 0.5, y: agent.hair.origin.y || 1 } : { x: 0.5, y: 1 }
+      }
+
+              const originalDirection = agent.originalScale.sprite < 0 ? 'влево' : 'вправо'
+      console.log(`[bunkerView] Сохранены оригинальные размеры: sprite=${agent.originalScale.sprite} (направление: ${originalDirection}), origin=(${agent.originalOrigin.sprite.x}, ${agent.originalOrigin.sprite.y})`)
+      console.log(`[bunkerView] ДЕТАЛЬНО: originalScale объект:`, agent.originalScale)
+      console.log(`[bunkerView] ДЕТАЛЬНО: originalOrigin объект:`, agent.originalOrigin)
+      
+      // ДОПОЛНИТЕЛЬНАЯ ДИАГНОСТИКА: Анализируем сохраненные размеры
+      console.log(`[bunkerView] 🔍 АНАЛИЗ СОХРАНЕННЫХ РАЗМЕРОВ:`)
+      console.log(`[bunkerView] - originalScale.sprite=${agent.originalScale.sprite} (${agent.originalScale.sprite < 0 ? 'ОТРИЦАТЕЛЬНЫЙ' : 'ПОЛОЖИТЕЛЬНЫЙ'})`)
+      console.log(`[bunkerView] - Это означает, что в бункере житель смотрел: ${originalDirection}`)
+      console.log(`[bunkerView] - При размещении на поверхности НУЖНО: ${agent.originalScale.sprite < 0 ? 'НЕ зеркалить (directionScaleX=1)' : 'зеркалить (directionScaleX=-1)'}`)
+      
+      // ВАЖНОЕ УТОЧНЕНИЕ: Теперь мы сохраняем ТЕКУЩИЙ масштаб при захвате
+      console.log(`[bunkerView] 🔍 ВАЖНОЕ УТОЧНЕНИЕ:`)
+      console.log(`[bunkerView] - Мы сохранили ТЕКУЩИЙ масштаб при захвате: ${agent.originalScale.sprite}`)
+      console.log(`[bunkerView] - Если житель двигался влево в бункере, он УЖЕ отзеркален`)
+      console.log(`[bunkerView] - Если житель двигался вправо в бункере, он НЕ отзеркален`)
+    } else {
+      console.log(`[bunkerView] Оригинальные размеры уже сохранены для жителя ${agent.profession}`)
+    }
+
+    // Устанавливаем визуальную обратную связь
+    if (agent.sprite) {
+      agent.sprite.setTint(0x888888) // Затемняем спрайт
+      agent.sprite.setDepth(9999999) // СУПЕР максимальный z-index для перетаскиваемого жителя
+    }
+    if (agent.shirt) agent.shirt.setDepth(10000000)
+    if (agent.pants) agent.pants.setDepth(10000001)
+    if (agent.footwear) agent.footwear.setDepth(10000002)
+    if (agent.hair) agent.hair.setDepth(10000003)
+    if (agent.healthBar) agent.healthBar.setDepth(10000004)
+    if (agent.rect) {
+      agent.rect.setStrokeStyle(2, 0xffff00, 1.0) // Желтая рамка
+    }
+  }
+
+  private updateResidentDrag(pointer: Phaser.Input.Pointer): void {
+    if (!this.isDraggingResident || !this.draggedResident) return
+
+    const sprite = this.draggedResident.sprite || this.draggedResident.rect
+    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y)
+
+    // Преобразуем мировые координаты в локальные координаты content
+    const contentMatrix = this.content.getWorldTransformMatrix()
+    const localPoint = new Phaser.Math.Vector2()
+    contentMatrix.applyInverse(worldPoint.x, worldPoint.y, localPoint)
+
+    // Устанавливаем новую позицию спрайта
+    const newX = localPoint.x - this.dragOffset.x
+    const newY = localPoint.y - this.dragOffset.y
+
+    // Перемещаем физическую модель (rect) - ЭТО КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ!
+    this.draggedResident.rect.setPosition(newX, newY)
+
+    // Также перемещаем визуальные спрайты
+    if (sprite !== this.draggedResident.rect) {
+      sprite.setPosition(newX, newY)
+    }
+
+    // Также перемещаем связанные спрайты (одежда, волосы и т.д.)
+    if (this.draggedResident.shirt) this.draggedResident.shirt.setPosition(newX, newY)
+    if (this.draggedResident.pants) this.draggedResident.pants.setPosition(newX, newY)
+    if (this.draggedResident.footwear) this.draggedResident.footwear.setPosition(newX, newY)
+    if (this.draggedResident.hair) this.draggedResident.hair.setPosition(newX, newY)
+
+    // Перемещаем шкалу здоровья вместе с жителем
+    if (this.draggedResident.healthBar) {
+      this.draggedResident.healthBar.setPosition(newX, newY - 20)
+    }
+  }
+
+  private endResidentDrag(pointer: Phaser.Input.Pointer): void {
+    if (!this.isDraggingResident || !this.draggedResident) return
+
+    // Защита от повторных вызовов
+    if ((this.draggedResident as any).dragEnded) return
+    ;(this.draggedResident as any).dragEnded = true
+
+    console.log(`[bunkerView] Завершаем перетаскивание жителя: ${this.draggedResident.profession} (ID: ${this.draggedResident.id})`)
+
+    const sprite = this.draggedResident.sprite || this.draggedResident.rect
+    const worldPoint = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y)
+
+    // Получаем gameScene для доступа к поверхности
+    const gameScene = this.scene as any
+    const surfaceRect = gameScene?.lastSurfaceRect
+
+    let localPoint: Phaser.Math.Vector2
+    let isInSurfaceArea: boolean
+
+    if (surfaceRect) {
+      // Конвертируем мировые координаты в локальные координаты поверхности
+      const surfaceLocalPoint = new Phaser.Math.Vector2()
+      surfaceLocalPoint.x = worldPoint.x - surfaceRect.x
+      surfaceLocalPoint.y = worldPoint.y - surfaceRect.y
+
+      // Проверяем, находится ли точка в области поверхности
+      isInSurfaceArea = (surfaceLocalPoint.x >= 0 &&
+                        surfaceLocalPoint.x <= surfaceRect.width &&
+                        surfaceLocalPoint.y >= 0 &&
+                        surfaceLocalPoint.y <= surfaceRect.height)
+
+      if (isInSurfaceArea) {
+        // Используем локальные координаты поверхности
+        localPoint = surfaceLocalPoint
+        console.log(`[bunkerView] Точка отпускания на поверхности: (${localPoint.x}, ${localPoint.y})`)
+        console.log(`[bunkerView] Мировые координаты: (${worldPoint.x}, ${worldPoint.y})`)
+        console.log(`[bunkerView] Локальные координаты поверхности: (${surfaceLocalPoint.x}, ${surfaceLocalPoint.y})`)
+        console.log(`[bunkerView] Размеры поверхности: ${surfaceRect.width} x ${surfaceRect.height}`)
+      } else {
+        // Конвертируем мировые координаты в локальные координаты content (бункера)
+        const contentMatrix = this.content.getWorldTransformMatrix()
+        localPoint = new Phaser.Math.Vector2()
+        contentMatrix.applyInverse(worldPoint.x, worldPoint.y, localPoint)
+        console.log(`[bunkerView] Точка отпускания в бункере: (${localPoint.x}, ${localPoint.y})`)
+      }
+    } else {
+      // Конвертируем мировые координаты в локальные координаты content (бункера)
+      const contentMatrix = this.content.getWorldTransformMatrix()
+      localPoint = new Phaser.Math.Vector2()
+      contentMatrix.applyInverse(worldPoint.x, worldPoint.y, localPoint)
+      isInSurfaceArea = false
+      console.log(`[bunkerView] Точка отпускания в бункере: (${localPoint.x}, ${localPoint.y})`)
+    }
+
+    if (isInSurfaceArea) {
+      // Житель отпущен в области поверхности - применяем физику поверхности
+      console.log(`[bunkerView] Житель отпущен в области поверхности`)
+      this.handleSurfaceDrop(this.draggedResident, localPoint)
+    } else {
+      // Обычное поведение - проверяем комнаты бункера
+      const targetRoomIndex = this.findRoomIndexAt(localPoint.x, localPoint.y)
+
+      if (targetRoomIndex !== null && targetRoomIndex >= 0) {
+        // Житель отпущен в комнате - перемещаем его туда
+        this.moveResidentToRoom(this.draggedResident, targetRoomIndex, localPoint)
+        console.log(`[bunkerView] Житель перемещен в комнату ${this.roomNames[targetRoomIndex]}`)
+      } else {
+        // Житель отпущен вне комнаты - возвращаем на исходную позицию
+        console.log(`[bunkerView] Житель отпущен вне комнаты, возвращаем на место`)
+        this.returnResidentToOriginalPosition(this.draggedResident)
+      }
+    }
+
+          // Логируем текущий масштаб после всех операций
+      if (this.draggedResident.sprite) {
+        const finalDirection = this.draggedResident.sprite.scaleX < 0 ? 'влево' : 'вправо'
+        console.log(`[bunkerView] Финальный масштаб жителя: ${this.draggedResident.sprite.scaleX} x ${this.draggedResident.sprite.scaleY} (направление: ${finalDirection})`)
+      }
+
+    // Сбрасываем визуальную обратную связь
+    if (this.draggedResident.sprite) {
+      this.draggedResident.sprite.clearTint()
+      this.draggedResident.sprite.setDepth(100) // Возвращаем нормальный z-index
+    }
+    if (this.draggedResident.shirt) this.draggedResident.shirt.setDepth(101)
+    if (this.draggedResident.pants) this.draggedResident.pants.setDepth(102)
+    if (this.draggedResident.footwear) this.draggedResident.footwear.setDepth(103)
+    if (this.draggedResident.hair) this.draggedResident.hair.setDepth(104)
+    if (this.draggedResident.healthBar) this.draggedResident.healthBar.setDepth(105)
+    if (this.draggedResident.rect) {
+      this.draggedResident.rect.setStrokeStyle(2, 0x00ff00, 1.0) // Зеленая рамка
+    }
+
+    // Восстанавливаем оригинальные размеры и origin, если они были сохранены
+    // НО только если житель НЕ на поверхности (для поверхности сохраняем специальный масштаб)
+    const isOnSurface = (this.draggedResident as any).onSurface === true
+    if (this.draggedResident.originalScale && this.draggedResident.originalOrigin && !isOnSurface) {
+      console.log(`[bunkerView] Восстанавливаем оригинальные размеры для жителя ${this.draggedResident.profession}`)
+      console.log(`[bunkerView] originalScale exists: ${!!this.draggedResident.originalScale}, originalOrigin exists: ${!!this.draggedResident.originalOrigin}`)
+      console.log(`[bunkerView] originalScale.sprite: ${this.draggedResident.originalScale.sprite}, originalOrigin.sprite: ${this.draggedResident.originalOrigin.sprite ? 'exists' : 'null'}`)
+
+      if (this.draggedResident.sprite && this.draggedResident.originalScale.sprite !== undefined && this.draggedResident.originalOrigin.sprite) {
+        console.log(`[bunkerView] Восстанавливаю sprite: scale=${this.draggedResident.originalScale.sprite}, origin=(${this.draggedResident.originalOrigin.sprite.x}, ${this.draggedResident.originalOrigin.sprite.y})`)
+        this.draggedResident.sprite.setScale(this.draggedResident.originalScale.sprite)
+        this.draggedResident.sprite.setOrigin(
+          this.draggedResident.originalOrigin.sprite.x,
+          this.draggedResident.originalOrigin.sprite.y
+        )
+      }
+      if (this.draggedResident.shirt && this.draggedResident.originalScale.shirt !== undefined && this.draggedResident.originalOrigin.shirt) {
+        this.draggedResident.shirt.setScale(this.draggedResident.originalScale.shirt)
+        this.draggedResident.shirt.setOrigin(
+          this.draggedResident.originalOrigin.shirt.x,
+          this.draggedResident.originalOrigin.shirt.y
+        )
+      }
+      if (this.draggedResident.pants && this.draggedResident.originalScale.pants !== undefined && this.draggedResident.originalOrigin.pants) {
+        this.draggedResident.pants.setScale(this.draggedResident.originalScale.pants)
+        this.draggedResident.pants.setOrigin(
+          this.draggedResident.originalOrigin.pants.x,
+          this.draggedResident.originalOrigin.pants.y
+        )
+      }
+      if (this.draggedResident.footwear && this.draggedResident.originalScale.footwear !== undefined && this.draggedResident.originalOrigin.footwear) {
+        this.draggedResident.footwear.setScale(this.draggedResident.originalScale.footwear)
+        this.draggedResident.footwear.setOrigin(
+          this.draggedResident.originalOrigin.footwear.x,
+          this.draggedResident.originalOrigin.footwear.y
+        )
+      }
+      if (this.draggedResident.hair && this.draggedResident.originalScale.hair !== undefined && this.draggedResident.originalOrigin.hair) {
+        this.draggedResident.hair.setScale(this.draggedResident.originalScale.hair)
+        this.draggedResident.hair.setOrigin(
+          this.draggedResident.originalOrigin.hair.x,
+          this.draggedResident.originalOrigin.hair.y
+        )
+      }
+
+      // Очищаем сохраненные оригинальные размеры
+      this.draggedResident.originalScale = undefined
+      this.draggedResident.originalOrigin = undefined
+    } else if (isOnSurface) {
+      console.log(`[bunkerView] Житель ${(this.draggedResident as any).profession} на поверхности - сохраняем масштаб поверхности`)
+      // НЕ очищаем originalScale и originalOrigin для жителей на поверхности
+    } else {
+      console.log(`[bunkerView] Оригинальные размеры не сохранены для жителя ${(this.draggedResident as any).profession}, пропускаем восстановление`)
+    }
+
+    // Записываем время окончания перетаскивания для защиты от телепортации
+    this.lastDragEndTime.set(this.draggedResident.id, Date.now())
+
+    // Удаляем жителя из множества перетаскиваемых
+    if (this.draggedResident.id) {
+      this.residentsBeingDragged.delete(this.draggedResident.id)
+    }
+
+    // Сбрасываем флаг завершения перетаскивания для следующего раза
+    ;(this.draggedResident as any).dragEnded = false
+
+    // Очищаем состояние перетаскивания
+    this.draggedResident = null
+    this.isDraggingResident = false
+    this.dragStartTime = 0
+  }
+
+  private moveResidentToRoom(agent: any, roomIndex: number, position: Phaser.Math.Vector2): void {
+    if (roomIndex < 0) return
+    const room = this.roomRects[roomIndex]
+    if (!room) return
+
+    // Устанавливаем новую позицию в центре комнаты
+    const newX = room.x + room.width / 2
+    const newY = room.y + room.height - 4 // Немного выше пола
+
+    // Перемещаем физическую модель (rect) - КЛЮЧЕВОЕ!
+    agent.rect.setPosition(newX, newY)
+
+    // Также перемещаем визуальные спрайты
+    if (agent.sprite) agent.sprite.setPosition(newX, newY)
+    if (agent.shirt) agent.shirt.setPosition(newX, newY)
+    if (agent.pants) agent.pants.setPosition(newX, newY)
+    if (agent.footwear) agent.footwear.setPosition(newX, newY)
+    if (agent.hair) agent.hair.setPosition(newX, newY)
+
+    // Обновляем индекс комнаты агента
+    agent.roomIndex = roomIndex
+
+    // ПОЛНОСТЬЮ сбрасываем ВСЕ состояния движения и целей
+    agent.path = undefined
+    agent.target = undefined
+    agent.animLock = null
+    agent.dwellUntil = undefined
+    ;(agent as any).combatTarget = undefined
+    ;(agent as any).enemyTargetId = undefined
+    agent.lastTargetReconsiderTime = undefined
+
+    // Также сбрасываем связанные состояния
+    agent.goingToRest = false
+    agent.working = false
+    agent.sleeping = false
+
+    // Перемещаем шкалу здоровья на новое место
+    if (agent.healthBar) {
+      agent.healthBar.setPosition(newX, newY - 20)
+    }
+
+    // Уведомляем GameScene об изменении позиции жителя
+    const gameScene = this.scene as any
+    if (gameScene && typeof gameScene.onResidentPositionChanged === 'function') {
+      gameScene.onResidentPositionChanged(agent.id, roomIndex, newX, newY)
+    }
+
+    // Устанавливаем защиту от автоматического назначения целей
+    // В течение 3 секунд после перетаскивания не позволяем автоматически назначать цели
+    agent.dwellUntil = Date.now() + 3000
+    console.log(`[bunkerView] Установлена защита от автоматических целей для жителя ${agent.profession} (ID: ${agent.id}) на 3 секунды`)
+  }
+
+  private returnResidentToOriginalPosition(agent: any): void {
+    console.log(`[bunkerView] Возвращаем жителя ${agent.profession} на исходную позицию`)
+    console.log(`[bunkerView] Текущая позиция перед возвращением: (${agent.rect.x}, ${agent.rect.y})`)
+
+    // Возвращаем агента к центру его текущей комнаты
+    const currentRoomIndex = agent.roomIndex
+    if (currentRoomIndex >= 0 && this.roomRects[currentRoomIndex]) {
+      const room = this.roomRects[currentRoomIndex]
+      const newX = room.x + room.width / 2
+      const newY = room.y + room.height - 4
+
+      // Перемещаем физическую модель (rect) - КЛЮЧЕВОЕ!
+      agent.rect.setPosition(newX, newY)
+
+      // Также перемещаем визуальные спрайты
+      if (agent.sprite) agent.sprite.setPosition(newX, newY)
+      if (agent.shirt) agent.shirt.setPosition(newX, newY)
+      if (agent.pants) agent.pants.setPosition(newX, newY)
+      if (agent.footwear) agent.footwear.setPosition(newX, newY)
+      if (agent.hair) agent.hair.setPosition(newX, newY)
+
+      // Перемещаем шкалу здоровья на новое место
+      if (agent.healthBar) {
+        agent.healthBar.setPosition(newX, newY - 20)
+      }
+
+      // ПОЛНОСТЬЮ сбрасываем ВСЕ состояния движения и целей при возврате
+      agent.path = undefined
+      agent.target = undefined
+      agent.animLock = null
+      agent.dwellUntil = undefined
+      ;(agent as any).combatTarget = undefined
+      ;(agent as any).enemyTargetId = undefined
+      agent.lastTargetReconsiderTime = undefined
+
+      // Также сбрасываем связанные состояния
+      agent.goingToRest = false
+      agent.working = false
+      agent.sleeping = false
+
+      // Устанавливаем защиту от автоматического назначения целей
+      agent.dwellUntil = Date.now() + 3000
+      console.log(`[bunkerView] Установлена защита от автоматических целей для жителя ${agent.profession} (ID: ${agent.id}) на 3 секунды`)
+      console.log(`[bunkerView] Фактическая позиция после возвращения: (${agent.rect.x}, ${agent.rect.y})`)
+    } else {
+      console.log(`[bunkerView] Ошибка: комната с индексом ${currentRoomIndex} не найдена`)
+    }
+  }
+
+  private isPointInSurfaceArea(x: number, y: number): boolean {
+    // Получаем доступ к gameScene для определения области поверхности
+    const gameScene = this.scene as any
+    if (!gameScene || !gameScene.lastSurfaceRect) {
+      console.log(`[bunkerView] isPointInSurfaceArea: gameScene или lastSurfaceRect отсутствует`)
+      return false
+    }
+
+    const surfaceRect = gameScene.lastSurfaceRect
+
+    // Преобразуем локальные координаты content в глобальные координаты сцены
+    const contentMatrix = this.content.getWorldTransformMatrix()
+    const globalPoint = new Phaser.Math.Vector2()
+    contentMatrix.transformPoint(x, y, globalPoint)
+
+    // Проверяем, находится ли точка в области поверхности
+    const isInside = (globalPoint.x >= surfaceRect.x &&
+                     globalPoint.x <= surfaceRect.x + surfaceRect.width &&
+                     globalPoint.y >= surfaceRect.y &&
+                     globalPoint.y <= surfaceRect.y + surfaceRect.height)
+
+    return isInside
+  }
+
+  private handleSurfaceDrop(agent: any, dropPoint: Phaser.Math.Vector2): void {
+    console.log(`[bunkerView] Обрабатываем падение жителя ${agent.profession} (ID: ${agent.id}) на поверхность`)
+
+    // Получаем доступ к gameScene
+    const gameScene = this.scene as any
+    if (!gameScene || !gameScene.lastSurfaceRect) {
+      console.log(`[bunkerView] Размеры поверхности не определены, возвращаем жителя`)
+      this.returnResidentToOriginalPosition(agent)
+      return
+    }
+
+    const surfaceRect = gameScene.lastSurfaceRect
+    const pad = 10
+    const groundLevel = surfaceRect.height - pad
+
+    console.log(`[bunkerView] Координаты точки отпускания на поверхности: (${dropPoint.x}, ${dropPoint.y})`)
+    console.log(`[bunkerView] Размеры блока поверхности: ${surfaceRect.width} x ${surfaceRect.height}`)
+    console.log(`[bunkerView] Уровень пола: ${groundLevel}`)
+
+    // Используем координаты точки отпускания напрямую (они уже в локальной системе поверхности)
+    let startX = dropPoint.x
+    let startY = dropPoint.y
+
+    // Ограничиваем координаты в разумных пределах
+    // X: ограничиваем в пределах блока поверхности
+    const clampedX = Math.max(pad, Math.min(surfaceRect.width - pad, startX))
+    // Y: ограничиваем только сверху, снизу можем быть выше блока (для падения)
+    const clampedY = Math.min(surfaceRect.height + 100, startY) // Позволяем быть выше блока до 100 пикселей
+
+    // Если координаты сильно отличаются, используем ограниченные
+    if (Math.abs(startX - clampedX) > 50 || Math.abs(startY - clampedY) > 100) {
+      console.log(`[bunkerView] Координаты сильно выходят за пределы, ограничиваем: (${startX}, ${startY}) -> (${clampedX}, ${clampedY})`)
+      startX = clampedX
+      startY = clampedY
+    }
+
+    console.log(`[bunkerView] Финальные координаты для размещения: (${startX}, ${startY})`)
+
+    // Определяем высоту падения - ВНИМАНИЕ: падаем ВНИЗ (увеличиваем Y)
+    let fallHeight = 0
+    if (startY < groundLevel - 20) {
+      // Точка отпускания значительно выше пола - будет падение вниз
+      fallHeight = groundLevel - startY
+      console.log(`[bunkerView] Будет падение вниз: точка отпускания=${startY}, пол=${groundLevel}, высота падения=${fallHeight}`)
+    } else {
+      // Точка отпускания на уровне пола или ниже - размещаем сразу на полу
+      console.log(`[bunkerView] Размещение на уровне пола: точка отпускания=${startY}, пол=${groundLevel}`)
+      startY = groundLevel
+    }
+
+    // Сохраняем урон от падения для применения ПОСЛЕ падения
+    // УВЕЛИЧИВАЕМ УРОН В 4 РАЗА: убираем порог и уменьшаем делитель
+    const fallDamage = Math.max(0, Math.floor(fallHeight / 3))
+    ;(agent as any).pendingFallDamage = fallDamage
+
+    if (fallDamage > 0) {
+      console.log(`[bunkerView] Рассчитан УВЕЛИЧЕННЫЙ урон от падения: ${fallDamage} (высота: ${fallHeight}px, будет применен после приземления)`)
+    }
+
+    // Размещаем жителя на поверхности
+    this.placeResidentOnSurface(agent, surfaceRect, dropPoint, startX, startY, groundLevel)
+  }
+
+  private placeResidentOnSurface(agent: any, surfaceRect: Phaser.Geom.Rectangle, dropPoint: Phaser.Math.Vector2, startX: number, startY: number, groundLevel: number): void {
+    console.log(`[bunkerView] Размещаем жителя ${agent.profession} на поверхности`)
+
+    const gameScene = this.scene as any
+
+    // Пересоздаем спрайты жителя на поверхности, используя логику из очереди
+    // ВАЖНО: используем startX, startY для правильного позиционирования
+    this.recreateResidentSpritesForSurface(agent, new Phaser.Math.Vector2(startX, startY))
+
+    // Размещаем жителя в точке отпускания
+    agent.rect.setPosition(startX, startY)
+    
+    // Спрайты уже созданы в правильной позиции в recreateResidentSpritesForSurface
+    // Устанавливаем позицию только для healthBar
+    if (agent.healthBar) {
+      agent.healthBar.setPosition(startX, startY - 25)
+    }
+
+    // Добавляем в очередь поверхности только rect и healthBar
+    // Спрайты уже добавлены в bunkerView.content
+    if (gameScene.surfaceQueue) {
+      gameScene.surfaceQueue.add(agent.rect)
+      if (agent.healthBar) gameScene.surfaceQueue.add(agent.healthBar)
+    }
+
+    // Помечаем как находящегося на поверхности
+    ;(agent as any).onSurface = true
+
+    // ВАЖНО: Удаляем жителя из бункера и снижаем мораль
+    this.removeResidentFromBunkerAndLowerMoral(agent)
+
+    // ВАЖНО: Запускаем атаку врагов на жителей на поверхности
+    this.startEnemyAttackOnSurfaceResidents()
+
+    // Запускаем анимацию падения до пола
+    this.animateFallToGround(agent, startX, startY, groundLevel)
+
+    console.log(`[bunkerView] Житель размещен на поверхности и начинает падение с (${startX}, ${startY}) на пол (${groundLevel})`)
+    console.log(`[bunkerView] Флаг onSurface установлен = ${(agent as any).onSurface} для жителя ${(agent as any).profession}`)
+
+    // Сохраняем позицию для отладки
+    ;(agent as any).dropPosition = { x: startX, y: startY }
+  }
+
+  /**
+   * Удаляет жителя из бункера и снижает мораль на 10%
+   */
+  private removeResidentFromBunkerAndLowerMoral(agent: any): void {
+    console.log(`[bunkerView] Удаляем жителя ${agent.profession} из бункера и снижаем мораль`)
+    
+    // Снимаем все рабочие/исследовательские назначения и освобождаем слоты
+    try {
+      this.releaseRoomAssignment(agent)
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[bunkerView] Не удалось освободить рабочие слоты при удалении жителя', e)
+    }
+
+    // Удаляем из слотов сна, если числится
+    try {
+      for (const [, sleepers] of this.sleepOccupancy) {
+        if (agent?.id != null) sleepers.delete(agent.id)
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[bunkerView] Не удалось снять жителя со слотов сна при удалении', e)
+    }
+
+    // Удаляем жителя из residentAgents (визуальные и ИИ-агенты)
+    const agentIndex = this.residentAgents.findIndex(a => a === agent)
+    if (agentIndex !== -1) {
+      this.residentAgents.splice(agentIndex, 1)
+      console.log(`[bunkerView] ✅ Житель ${agent.profession} удален из residentAgents`)
+    } else {
+      console.log(`[bunkerView] ⚠️ Житель ${agent.profession} не найден в residentAgents`)
+    }
+    
+    // Сразу удаляем жителя из логического списка жителей бункера, чтобы освободить слот
+    try {
+    const gameScene = this.scene as any
+      if (gameScene && typeof gameScene.removeResidentFromBunker === 'function' && agent?.id != null) {
+        gameScene.removeResidentFromBunker(agent.id, 'вышел на поверхность')
+        console.log(`[bunkerView] ✅ Житель (ID: ${agent.id}) удален из bunkerResidents в GameScene`)
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[bunkerView] Не удалось удалить жителя из GameScene.bunkerResidents', e)
+    }
+    
+    // Снижаем мораль на 10%
+    const gameScene = this.scene as any
+    if (gameScene && typeof gameScene.applyMoralChange === 'function') {
+      gameScene.applyMoralChange(-10, `Житель ${agent.profession} покинул бункер`)
+      console.log(`[bunkerView] ✅ Мораль снижена на 10% (житель ${agent.profession} покинул бункер)`)
+    } else {
+      console.log(`[bunkerView] ⚠️ Не удалось снизить мораль: gameScene.applyMoralChange не найден`)
+    }
+  }
+
+  /**
+   * Проверяет наличие жителей на поверхности для атаки врагов
+   */
+  private getSurfaceResidents(): any[] {
+    const gameScene = this.scene as any
+    if (!gameScene || !gameScene.surfaceArea) return []
+    
+    const surfaceResidents: any[] = []
+    
+    // Ищем жителей в surfaceArea по спрайтам
+    if (gameScene.surfaceArea && gameScene.surfaceArea.list) {
+      console.log(`[bunkerView] getSurfaceResidents: проверяем ${gameScene.surfaceArea.list.length} объектов в surfaceArea`)
+      
+      for (const item of gameScene.surfaceArea.list) {
+        if (item && typeof item === 'object') {
+          // Проверяем, является ли это спрайтом жителя
+          if (item.texture && item.texture.key && 
+              (item.texture.key.includes('_idle') || 
+               item.texture.key.includes('_walk') || 
+               item.texture.key.includes('_hurt'))) {
+            
+            // Ищем объект агента, который содержит этот спрайт
+            const agent = this.findAgentBySprite(item)
+            if (agent && agent.onSurface && agent.health > 0) {
+              console.log(`[bunkerView] - Найден житель на поверхности: ${agent.profession}, здоровье: ${agent.health}`)
+              surfaceResidents.push(agent)
+            }
+          }
+        }
+      }
+    }
+    
+    // Также проверяем в surfaceQueue на всякий случай
+    if (gameScene.surfaceQueue && gameScene.surfaceQueue.list) {
+      console.log(`[bunkerView] getSurfaceResidents: проверяем ${gameScene.surfaceQueue.list.length} объектов в surfaceQueue`)
+      
+      for (const item of gameScene.surfaceQueue.list) {
+        if (item && typeof item === 'object' && 'onSurface' in item && item.onSurface) {
+          // Это житель на поверхности
+          const surfaceResident = item as any
+          if (surfaceResident.sprite && surfaceResident.sprite.scene && surfaceResident.health > 0) {
+            // Проверяем, не добавлен ли уже
+            if (!surfaceResidents.find(r => r === surfaceResident)) {
+              console.log(`[bunkerView] - Найден житель в surfaceQueue: ${surfaceResident.profession}, здоровье: ${surfaceResident.health}`)
+              surfaceResidents.push(surfaceResident)
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`[bunkerView] getSurfaceResidents: итого найдено ${surfaceResidents.length} жителей на поверхности`)
+    
+    return surfaceResidents
+  }
+
+  /**
+   * Ищет агента по спрайту
+   */
+  private findAgentBySprite(sprite: any): any | null {
+    // Ищем в residentAgents
+    for (const agent of this.residentAgents) {
+      if (agent.sprite === sprite) {
+        return agent
+      }
+    }
+    
+    // Ищем в gameScene.surfaceQueue
+    const gameScene = this.scene as any
+    if (gameScene.surfaceQueue && gameScene.surfaceQueue.list) {
+      for (const item of gameScene.surfaceQueue.list) {
+        if (item && typeof item === 'object' && item.sprite === sprite) {
+          return item
+        }
+      }
+    }
+    
+    return null
+  }
+
+  /**
+   * Запускает атаку врагов на жителей на поверхности
+   */
+  private startEnemyAttackOnSurfaceResidents(): void {
+    const gameScene = this.scene as any
+    if (!gameScene || !gameScene.enemyQueueItems) {
+      console.log(`[bunkerView] startEnemyAttackOnSurfaceResidents: gameScene или enemyQueueItems не найдены`)
+      return
+    }
+    
+    console.log(`[bunkerView] startEnemyAttackOnSurfaceResidents: найдено ${gameScene.enemyQueueItems.length} врагов в очереди`)
+    
+    const surfaceResidents = this.getSurfaceResidents()
+    
+    if (surfaceResidents.length === 0) {
+      // Нет жителей на поверхности - враги действуют по обычной логике
+      console.log(`[bunkerView] Нет жителей на поверхности - враги действуют по обычной логике`)
+      
+      // Дополнительная отладка
+      console.log(`[bunkerView] Отладка: проверяем содержимое surfaceArea`)
+      if (gameScene.surfaceArea && gameScene.surfaceArea.list) {
+        for (let i = 0; i < gameScene.surfaceArea.list.length; i++) {
+          const item = gameScene.surfaceArea.list[i]
+          if (item && typeof item === 'object') {
+            console.log(`[bunkerView] - surfaceArea[${i}]: ${item.constructor.name}, texture: ${item.texture?.key || 'нет'}`)
+          }
+        }
+      }
+      
+      return
+    }
+    
+    console.log(`[bunkerView] Запускаем атаку ${gameScene.enemyQueueItems.length} врагов на ${surfaceResidents.length} жителей на поверхности`)
+    
+    // Для каждого врага запускаем атаку на жителей
+    for (const enemy of gameScene.enemyQueueItems) {
+      if (enemy && enemy.health > 0 && !enemy.exiting) {
+        console.log(`[bunkerView] Запускаем атаку врага ${enemy.type} на жителей`)
+        this.startEnemyAttackOnResident(enemy, surfaceResidents)
+      }
+    }
+  }
+
+  /**
+   * Запускает атаку конкретного врага на жителей
+   */
+  private startEnemyAttackOnResident(enemy: any, surfaceResidents: any[]): void {
+    if (!enemy || enemy.health <= 0 || enemy.exiting) {
+      console.log(`[bunkerView] startEnemyAttackOnResident: враг не подходит для атаки (здоровье: ${enemy?.health}, exiting: ${enemy?.exiting})`)
+      return
+    }
+    
+    console.log(`[bunkerView] startEnemyAttackOnResident: проверяем ${surfaceResidents.length} жителей для атаки врагом ${enemy.type}`)
+    
+    // Находим ближайшего жителя для атаки
+    let nearestResident = null
+    let minDistance = Infinity
+    
+    for (const resident of surfaceResidents) {
+      if (!resident || resident.health <= 0) {
+        console.log(`[bunkerView] - Житель ${resident?.profession} пропущен (здоровье: ${resident?.health})`)
+        continue
+      }
+      
+      if (!resident.rect) {
+        console.log(`[bunkerView] - Житель ${resident.profession} пропущен (нет rect)`)
+        continue
+      }
+      
+      const distance = Phaser.Math.Distance.Between(
+        enemy.rect.x, enemy.rect.y,
+        resident.rect.x, resident.rect.y
+      )
+      
+      console.log(`[bunkerView] - Расстояние до жителя ${resident.profession}: ${Math.round(distance)}`)
+      
+      if (distance < minDistance) {
+        minDistance = distance
+        nearestResident = resident
+      }
+    }
+    
+    if (nearestResident) {
+      console.log(`[bunkerView] Враг ${enemy.type} атакует жителя ${nearestResident.profession} на расстоянии ${Math.round(minDistance)}`)
+      
+      // Запускаем атаку врага
+      if (!(enemy as any).attackTimer) {
+        console.log(`[bunkerView] Создаем таймер атаки для врага ${enemy.type}`)
+        ;(enemy as any).attackTimer = setInterval(() => {
+          if (enemy && enemy.health > 0 && nearestResident && nearestResident.health > 0) {
+            console.log(`[bunkerView] Враг ${enemy.type} атакует жителя ${nearestResident.profession}`)
+            this.handleEnemyAttackOnResident(enemy, nearestResident)
+          } else {
+            // Очищаем таймер если кто-то умер
+            if ((enemy as any).attackTimer) {
+              console.log(`[bunkerView] Очищаем таймер атаки для врага ${enemy.type}`)
+              clearInterval((enemy as any).attackTimer)
+              ;(enemy as any).attackTimer = null
+            }
+          }
+        }, 3000) // Враги атакуют каждые 3 секунды
+      } else {
+        console.log(`[bunkerView] Таймер атаки для врага ${enemy.type} уже существует`)
+      }
+    } else {
+      console.log(`[bunkerView] Не найден подходящий житель для атаки врагом ${enemy.type}`)
+    }
+  }
+
+  /**
+   * Пересоздает спрайты жителя для поверхности, используя логику из очереди жителей
+   */
+  private recreateResidentSpritesForSurface(agent: any, position: Phaser.Math.Vector2): void {
+    console.log(`[bunkerView] Пересоздаем спрайты жителя ${agent.profession} для поверхности`)
+    
+    // Проверяем, что content существует
+    if (!this.content) {
+      console.log(`[bunkerView] ❌ ОШИБКА: this.content не существует!`)
+      return
+    }
+    
+    // Проверяем, что scene существует
+    if (!this.scene) {
+      console.log(`[bunkerView] ❌ ОШИБКА: this.scene не существует!`)
+      return
+    }
+    
+    console.log(`[bunkerView] content существует, количество объектов: ${this.content.list.length}`)
+    console.log(`[bunkerView] scene существует: ${!!this.scene}`)
+
+    // Удаляем старые спрайты из bunkerView
+    if (agent.sprite) {
+      this.content.remove(agent.sprite)
+      agent.sprite.destroy()
+      agent.sprite = null
+    }
+    if (agent.shirt) {
+      this.content.remove(agent.shirt)
+      agent.shirt.destroy()
+      agent.shirt = null
+    }
+    if (agent.pants) {
+      this.content.remove(agent.pants)
+      agent.pants.destroy()
+      agent.pants = null
+    }
+    if (agent.footwear) {
+      this.content.remove(agent.footwear)
+      agent.footwear.destroy()
+      agent.footwear = null
+    }
+    if (agent.hair) {
+      this.content.remove(agent.hair)
+      agent.hair.destroy()
+      agent.hair = null
+    }
+
+    // Получаем данные жителя
+    if (!(agent as any).profession) {
+      console.log(`[bunkerView] ❌ ОШИБКА: agent.profession не существует!`)
+      console.log(`[bunkerView] agent объект:`, agent)
+      return
+    }
+    
+    const profession = (agent as any).profession.toLowerCase()
+    console.log(`[bunkerView] Профессия жителя: ${profession}`)
+    
+    if (typeof getSpecialistSpriteKey !== 'function') {
+      console.log(`[bunkerView] ❌ ОШИБКА: getSpecialistSpriteKey не импортирована!`)
+      return
+    }
+    
+    const specialistSpriteKey = getSpecialistSpriteKey(profession)
+    console.log(`[bunkerView] Ключ спрайта специализации: ${specialistSpriteKey}`)
+    
+          // Создаем новые спрайты в bunkerView (не в surfaceArea)
+      if (specialistSpriteKey) {
+        console.log(`[bunkerView] Найден спрайт специализации: ${specialistSpriteKey}`)
+        
+        // Создаем спрайт для специализации
+        if (typeof ensureSpecialistAnimations !== 'function') {
+          console.log(`[bunkerView] ❌ ОШИБКА: ensureSpecialistAnimations не импортирована!`)
+          return
+        }
+        
+        ensureSpecialistAnimations(this.scene, profession)
+        
+        // Создаем основной спрайт
+        if (typeof this.scene.add.sprite !== 'function') {
+          console.log(`[bunkerView] ❌ ОШИБКА: this.scene.add.sprite не является функцией!`)
+          return
+        }
+        
+        try {
+          agent.sprite = this.scene.add.sprite(position.x, position.y, specialistSpriteKey, 0)
+          console.log(`[bunkerView] ✅ Спрайт создан успешно`)
+        } catch (error) {
+          console.log(`[bunkerView] ❌ ОШИБКА при создании спрайта:`, error)
+          return
+        }
+        // ВАЖНО: Для поверхности используем правильный origin (0.5, 1) как у жителей в бункере
+        agent.sprite.setOrigin(0.5, 1)
+        agent.sprite.setDepth(100)
+        
+        // Устанавливаем масштаб как у жителей в очереди
+        const scaleX = (28 / 128) * 4
+        const scaleY = (36 / 128) * 4
+        agent.sprite.setScale(scaleX, scaleY)
+        
+        // ВАЖНО: На поверхности жители должны смотреть влево для движения влево
+        // Исходные спрайты смотрят вправо, поэтому зеркалим (flipX = true) для движения влево
+        agent.sprite.setFlipX(true)
+        
+                  // Добавляем в gameScene.surfaceArea (это важно для отображения на поверхности!)
+          const gameScene = this.scene as any
+          if (gameScene.surfaceArea && typeof gameScene.surfaceArea.add === 'function') {
+            try {
+              gameScene.surfaceArea.add(agent.sprite)
+              console.log(`[bunkerView] ✅ Спрайт добавлен в gameScene.surfaceArea`)
+              
+              // ВАЖНО: НЕ добавляем в bunkerView.content - это вызывает конфликт!
+              // Вместо этого сохраняем ссылку на спрайт в agent для последующего восстановления
+              ;(agent as any).surfaceSprite = agent.sprite
+              console.log(`[bunkerView] ✅ Ссылка на спрайт поверхности сохранена в agent`)
+            } catch (error) {
+              console.log(`[bunkerView] ❌ ОШИБКА при добавлении спрайта в surfaceArea:`, error)
+              return
+            }
+          } else {
+            console.log(`[bunkerView] ❌ ОШИБКА: gameScene.surfaceArea не найден или add не является функцией!`)
+            // Fallback: добавляем в bunkerView.content
+            try {
+              this.content.add(agent.sprite)
+              console.log(`[bunkerView] ✅ Fallback: спрайт добавлен в bunkerView.content`)
+            } catch (error) {
+              console.log(`[bunkerView] ❌ ОШИБКА при fallback добавлении в content:`, error)
+              return
+            }
+          }
+        
+        // Временно отключаем создание одежды и волос для отладки
+        // TODO: Восстановить после исправления основных спрайтов
+        
+        // Сохраняем исходное направление для правильного зеркалирования
+        ;(agent as any).originalSurfaceDirection = 1 // 1 = смотрит влево (зеркален, flipX = true)
+        
+        console.log(`[bunkerView] Спрайты жителя ${agent.profession} пересозданы для поверхности в surfaceArea`)
+        console.log(`[bunkerView] Позиция спрайта: (${position.x}, ${position.y})`)
+        console.log(`[bunkerView] Масштаб: ${scaleX} x ${scaleY}`)
+        console.log(`[bunkerView] flipX: ${agent.sprite.flipX}`)
+        console.log(`[bunkerView] Спрайт видим: ${agent.sprite.visible}`)
+        console.log(`[bunkerView] Спрайт активен: ${agent.sprite.active}`)
+      } else {
+        console.log(`[bunkerView] Не удалось найти спрайт специализации для профессии: ${profession}`)
+        console.log(`[bunkerView] Попробуем создать fallback спрайт`)
+        
+        // Fallback: создаем простой прямоугольник как спрайт
+        if (typeof this.scene.add.rectangle !== 'function') {
+          console.log(`[bunkerView] ❌ ОШИБКА: this.scene.add.rectangle не является функцией!`)
+          return
+        }
+        
+        try {
+          agent.sprite = this.scene.add.rectangle(position.x, position.y, 28, 36, 0x00ff00, 0.8)
+          // ВАЖНО: Для поверхности используем правильный origin (0.5, 1)
+          agent.sprite.setOrigin(0.5, 1)
+          agent.sprite.setDepth(100)
+          
+          // Добавляем в gameScene.surfaceArea
+          const gameScene = this.scene as any
+          if (gameScene.surfaceArea && typeof gameScene.surfaceArea.add === 'function') {
+            gameScene.surfaceArea.add(agent.sprite)
+            console.log(`[bunkerView] ✅ Fallback спрайт добавлен в gameScene.surfaceArea`)
+            
+            // ВАЖНО: НЕ добавляем в bunkerView.content - это вызывает конфликт!
+            // Вместо этого сохраняем ссылку на спрайт в agent для последующего восстановления
+            ;(agent as any).surfaceSprite = agent.sprite
+            console.log(`[bunkerView] ✅ Ссылка на fallback спрайт поверхности сохранена в agent`)
+          } else {
+            // Fallback: добавляем в bunkerView.content
+            this.content.add(agent.sprite)
+            console.log(`[bunkerView] ✅ Fallback: спрайт добавлен в bunkerView.content`)
+          }
+          
+          console.log(`[bunkerView] Создан fallback спрайт (зеленый прямоугольник)`)
+        } catch (error) {
+          console.log(`[bunkerView] ❌ ОШИБКА при создании fallback спрайта:`, error)
+          return
+        }
+
+      }
+  }
+
+
+
+
+
+
+
+
+
+  private animateFallToGround(agent: any, startX: number, startY: number, groundLevel: number): void {
+    const gameScene = this.scene as any
+    if (!gameScene || !gameScene.tweens) return
+
+    // ВОССТАНАВЛИВАЕМ МАСШТАБ ПОВЕРХНОСТИ И НАПРАВЛЕНИЕ перед падением
+    if ((agent as any).surfaceScaleX && (agent as any).surfaceScaleY) {
+      const surfaceScaleX = (agent as any).surfaceScaleX
+      const surfaceScaleY = (agent as any).surfaceScaleY
+      // Используем сохраненное исходное направление для правильного зеркалирования
+      const directionScaleX = (agent as any).originalSurfaceDirection || -1
+      console.log(`[bunkerView] animateFallToGround: directionScaleX=${directionScaleX} для движения влево`)
+      console.log(`[bunkerView] animateFallToGround: текущий scaleX спрайта=${agent.sprite?.scaleX}, будет установлен=${surfaceScaleX * directionScaleX}`)
+      console.log(`[bunkerView] animateFallToGround: сохраненное исходное направление=${(agent as any).originalSurfaceDirection}`)
+
+      console.log(`[bunkerView] Восстанавливаем масштаб для падения с направлением: ${surfaceScaleX} x ${surfaceScaleY} (${directionScaleX === -1 ? 'влево' : 'вправо'})`)
+
+      if (agent.sprite) {
+        const beforeScaleX = agent.sprite.scaleX
+        agent.sprite.setOrigin(0.5, 1) // Устанавливаем правильный origin для падения
+        agent.sprite.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+        const afterScaleX = agent.sprite.scaleX
+        const fallDirection = agent.sprite.scaleX < 0 ? 'влево' : 'вправо'
+        console.log(`[bunkerView] animateFallToGround: ДЕТАЛЬНО: scaleX ДО=${beforeScaleX}, ПОСЛЕ=${afterScaleX}, направление=${fallDirection}`)
+        console.log(`[bunkerView] animateFallToGround: РЕЗУЛЬТАТ: scaleX=${agent.sprite.scaleX}, направление=${fallDirection}`)
+        // Сбрасываем анимации во время падения
+        if (agent.sprite.anims) {
+          agent.sprite.anims.stop()
+          console.log(`[bunkerView] Анимации сброшены для падения`)
+        }
+      }
+      if (agent.shirt) {
+        agent.shirt.setOrigin(0.5, 1)
+        agent.shirt.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+      if (agent.pants) {
+        agent.pants.setOrigin(0.5, 1)
+        agent.pants.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+      if (agent.footwear) {
+        agent.footwear.setOrigin(0.5, 1)
+        agent.footwear.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+      if (agent.hair) {
+        agent.hair.setOrigin(0.5, 1)
+        agent.hair.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+    }
+
+    // Проверяем, нужно ли падение - падаем вниз (от меньшего Y к большему Y)
+    const fallDistance = groundLevel - startY
+    if (fallDistance <= 20) {
+      // Уже близко к земле или на земле, сразу размещаем на полу и запускаем движение влево
+      console.log(`[bunkerView] Житель близко к земле (расстояние=${fallDistance}), размещаем на полу и запускаем движение влево`)
+
+      // Размещаем на полу с правильным позиционированием
+      agent.rect.setPosition(startX, groundLevel)
+      if (agent.sprite) {
+        agent.sprite.setOrigin(0.5, 1)
+        agent.sprite.setPosition(startX, groundLevel)
+      }
+      if (agent.shirt) {
+        agent.shirt.setOrigin(0.5, 1)
+        agent.shirt.setPosition(startX, groundLevel)
+      }
+      if (agent.pants) {
+        agent.pants.setOrigin(0.5, 1)
+        agent.pants.setPosition(startX, groundLevel)
+      }
+      if (agent.footwear) {
+        agent.footwear.setOrigin(0.5, 1)
+        agent.footwear.setPosition(startX, groundLevel)
+      }
+      if (agent.hair) {
+        agent.hair.setOrigin(0.5, 1)
+        agent.hair.setPosition(startX, groundLevel)
+      }
+
+      // Обновляем шкалу здоровья и устанавливаем правильную позицию
+      if (agent.healthBar) {
+        this.drawHealthBar(agent)
+        agent.healthBar.setPosition(startX, groundLevel - 20)
+        console.log(`[bunkerView] Шкала здоровья repositioned при размещении на полу: (${agent.healthBar.x}, ${agent.healthBar.y})`)
+      }
+
+      this.startSurfaceMovement(agent)
+      return
+    }
+
+    // Рассчитываем время падения в зависимости от высоты
+    const fallDuration = Math.min(2000, Math.max(300, fallDistance * 10)) // 300мс минимум, 2000мс максимум
+
+    console.log(`[bunkerView] Анимируем падение: расстояние=${fallDistance}, длительность=${fallDuration}мс`)
+    console.log(`[bunkerView] Падение с (${startX}, ${startY}) на (${startX}, ${groundLevel})`)
+
+    // Создаем tween для падения с ускорением
+    const fallTween = gameScene.tweens.add({
+      targets: [agent.rect, agent.sprite, agent.shirt, agent.pants, agent.footwear, agent.hair].filter(obj => obj),
+      x: startX, // Сохраняем X-координату точки отпускания
+      y: groundLevel, // Падаем к уровню пола
+      duration: fallDuration,
+      ease: 'Quad.easeIn', // Ускорение падения (как гравитация)
+      onUpdate: () => {
+        // Обновляем позицию шкалы здоровья во время падения
+        if (agent.healthBar) {
+          agent.healthBar.setPosition(agent.rect.x, agent.rect.y - 20)
+        }
+      },
+      onComplete: () => {
+        console.log(`[bunkerView] Падение завершено, применяем урон и запускаем движение влево`)
+        console.log(`[bunkerView] Финальная позиция после падения: (${agent.rect.x}, ${agent.rect.y})`)
+
+        // ПРИМЕНЯЕМ УРОН ОТ ПАДЕНИЯ ПОСЛЕ приземления
+        const pendingDamage = (agent as any).pendingFallDamage || 0
+        if (pendingDamage > 0) {
+          agent.health = Math.max(0, agent.health - pendingDamage)
+          console.log(`[bunkerView] Житель получил ${pendingDamage} урона от падения (здоровье: ${agent.health})`)
+
+          // ВОСПРОИЗВОДИМ АНИМАЦИЮ HURT при получении урона
+          this.playHurtAnimation(agent)
+
+          // Обновляем шкалу здоровья и устанавливаем правильную позицию
+          if (agent.healthBar) {
+            this.drawHealthBar(agent)
+            agent.healthBar.setPosition(agent.rect.x, agent.rect.y - 20)
+            console.log(`[bunkerView] Шкала здоровья обновлена и repositioned: (${agent.healthBar.x}, ${agent.healthBar.y})`)
+          }
+
+          // Очищаем pending damage
+          ;(agent as any).pendingFallDamage = 0
+        }
+
+        // Проверяем, не умер ли житель от падения
+        if (agent.health <= 0) {
+          console.log(`[bunkerView] Житель умер от падения!`)
+          this.handleResidentDeath(agent)
+          return
+        }
+
+        this.startSurfaceMovement(agent)
+      }
+    })
+
+    // Сохраняем ссылку на tween для возможной отмены
+    ;(agent as any).fallTween = fallTween
+  }
+
+  private startSurfaceMovement(agent: any): void {
+    console.log(`[bunkerView] Запускаем движение жителя ${(agent as any).profession} по поверхности`)
+
+    // Для новых спрайтов на поверхности используем setFlipX вместо scaleX
+    if ((agent as any).onSurface && agent.sprite) {
+      // НЕ перезаписываем flipX - он уже правильно установлен в recreateResidentSpritesForSurface
+      // Спрайт уже смотрит влево (flipX = true) для движения влево
+      
+      // Устанавливаем правильный origin для движения
+      agent.sprite.setOrigin(0.5, 1)
+      
+      console.log(`[bunkerView] startSurfaceMovement: Сохраняем текущее направление влево (flipX=${agent.sprite.flipX}) для движения`)
+      console.log(`[bunkerView] startSurfaceMovement: Спрайт смотрит ${agent.sprite.flipX ? 'влево (зеркален)' : 'вправо (не зеркален)'}`)
+        
+        // ДИАГНОСТИКА ТЕКСТУРЫ: Проверяем, какая текстура отображается
+        if (agent.sprite.texture) {
+          console.log(`[bunkerView] 🔍 ДИАГНОСТИКА ТЕКСТУРЫ при движении:`)
+          console.log(`[bunkerView] - Текущая текстура: ${agent.sprite.texture.key}`)
+          console.log(`[bunkerView] - Размеры текстуры: ${agent.sprite.texture.source[0]?.width} x ${agent.sprite.texture.source[0]?.height}`)
+          console.log(`[bunkerView] - Текущий кадр анимации: ${agent.sprite.anims.currentFrame?.textureKey || 'unknown'}`)
+          console.log(`[bunkerView] - Анимация активна: ${agent.sprite.anims.isPlaying}`)
+          console.log(`[bunkerView] - Текущий кадр: ${agent.sprite.anims.currentFrame?.index || 'unknown'}`)
+        }
+        
+        // Запускаем анимацию ходьбы
+        const profession = (agent as any).profession?.toLowerCase() || 'unemployed'
+        if (agent.sprite.anims) {
+          // УБЕДИМСЯ ЧТО АНИМАЦИИ СОЗДАНЫ для этой профессии
+          const actualProfession = (agent as any).profession || 'безработный'
+          console.log(`[bunkerView] Создаем анимации для профессии при движении: ${actualProfession}`)
+          ensureSpecialistAnimations(this.scene, actualProfession)
+          console.log(`[bunkerView] Убедились что анимации созданы для профессии при движении: ${actualProfession}`)
+
+          // СБРАСЫВАЕМ ВСЕ СТАРЫЕ АНИМАЦИИ перед запуском новой
+          agent.sprite.anims.stop()
+          console.log(`[bunkerView] Сброшены все старые анимации перед запуском движения`)
+
+          const walkAnim = `${profession}_walk`
+          console.log(`[bunkerView] Ищем анимацию walk: ${walkAnim}`)
+          
+          // Проверяем анимацию в scene.anims (где она создается)
+          const sceneHasWalk = this.scene.anims.exists(walkAnim)
+          console.log(`[bunkerView] Анимация walk в scene.anims: ${sceneHasWalk}`)
+
+                      if (sceneHasWalk) {
+              // Используем scene.anims.play() для воспроизведения анимации
+              this.scene.anims.play(walkAnim, agent.sprite)
+              console.log(`[bunkerView] ✅ УСПЕШНО запущена анимация ходьбы: ${walkAnim}`)
+              
+              // ДИАГНОСТИКА АНИМАЦИИ: Проверяем детали анимации
+              const anim = this.scene.anims.get(walkAnim)
+              if (anim) {
+                console.log(`[bunkerView] 🔍 ДИАГНОСТИКА АНИМАЦИИ ${walkAnim}:`)
+                console.log(`[bunkerView] - Количество кадров: ${anim.frames.length}`)
+                console.log(`[bunkerView] - Скорость: ${anim.frameRate}`)
+                console.log(`[bunkerView] - Первый кадр: ${anim.frames[0]?.textureKey || 'unknown'}`)
+                console.log(`[bunkerView] - Последний кадр: ${anim.frames[anim.frames.length-1]?.textureKey || 'unknown'}`)
+                console.log(`[bunkerView] - Текущий кадр спрайта: ${agent.sprite.anims.currentFrame?.textureKey || 'unknown'}`)
+              }
+            } else {
+            // Если анимация ходьбы не существует, попробуем idle
+            const idleAnim = `${profession}_idle`
+            console.log(`[bunkerView] Ищем анимацию idle: ${idleAnim}`)
+            
+            // Проверяем анимацию в scene.anims
+            const sceneHasIdle = this.scene.anims.exists(idleAnim)
+            console.log(`[bunkerView] Анимация idle в scene.anims: ${sceneHasIdle}`)
+
+            if (sceneHasIdle) {
+              // Используем scene.anims.play() для воспроизведения анимации
+              this.scene.anims.play(idleAnim, agent.sprite)
+              console.log(`[bunkerView] ✅ Запущена анимация idle (ходьба не найдена): ${idleAnim}`)
+            } else {
+              console.log(`[bunkerView] ❌ Ни анимация ходьбы, ни idle не найдены: ${walkAnim}, ${idleAnim}`)
+              // Попробуем найти доступные анимации
+              if (agent.sprite.anims && agent.sprite.anims.anims) {
+                const allAnims = Array.from(agent.sprite.anims.anims.keys())
+                console.log(`[bunkerView] Доступные анимации на спрайте:`, allAnims)
+
+                // Попробуем запустить первую доступную анимацию
+                if (allAnims.length > 0) {
+                  const firstAnim = allAnims[0]
+                  console.log(`[bunkerView] Пробуем запустить первую доступную анимацию: ${firstAnim}`)
+                  // Используем scene.anims.play() для воспроизведения анимации
+                  if (typeof firstAnim === 'string') {
+                    this.scene.anims.play(firstAnim, agent.sprite)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+    // Для старых спрайтов (не на поверхности) используем старую логику
+    if (!(agent as any).onSurface) {
+      // ВОССТАНАВЛИВАЕМ МАСШТАБ ПОВЕРХНОСТИ И НАПРАВЛЕНИЕ перед началом движения
+      if ((agent as any).surfaceScaleX && (agent as any).surfaceScaleY) {
+        const surfaceScaleX = (agent as any).surfaceScaleX
+        const surfaceScaleY = (agent as any).surfaceScaleY
+        // Используем сохраненное исходное направление для правильного зеркалирования
+        const directionScaleX = (agent as any).originalSurfaceDirection || -1
+
+        if (agent.sprite) {
+          agent.sprite.setOrigin(0.5, 1) // Устанавливаем правильный origin для движения
+          agent.sprite.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+      if (agent.shirt) {
+        agent.shirt.setOrigin(0.5, 1)
+        agent.shirt.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+      if (agent.pants) {
+        agent.pants.setOrigin(0.5, 1)
+        agent.pants.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+      if (agent.footwear) {
+        agent.footwear.setOrigin(0.5, 1)
+        agent.footwear.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+      }
+      if (agent.hair) {
+        agent.hair.setOrigin(0.5, 1)
+        agent.hair.setScale(surfaceScaleX * directionScaleX, surfaceScaleY)
+        }
+      }
+    }
+
+    const gameScene = this.scene as any
+    const surfaceRect = gameScene.lastSurfaceRect
+    if (!surfaceRect) return
+
+    const targetX = -50 // За левую границу
+
+    console.log(`[bunkerView] Движение от X=${agent.rect.x} к targetX=${targetX}`)
+
+    if (gameScene.tweens) {
+      const tween = gameScene.tweens.add({
+        targets: [agent.rect, agent.sprite, agent.shirt, agent.pants, agent.footwear, agent.hair].filter(obj => obj),
+        x: targetX,
+        duration: Math.abs(targetX - agent.rect.x) * 50, // 50мс на пиксель
+        ease: 'Linear',
+        onUpdate: () => {
+          if (agent.healthBar) {
+            agent.healthBar.setPosition(agent.rect.x, agent.rect.y - 20)
+          }
+          // Проверяем врагов на каждом шаге
+          this.checkSurfaceEnemies(agent)
+        },
+        onComplete: () => {
+          console.log(`[bunkerView] Житель ${(agent as any).profession} ушел за границу`)
+          this.handleResidentDeath(agent)
+        }
+      })
+
+      ;(agent as any).surfaceTween = tween
+    }
+  }
+
+  private handleResidentDeath(agent: any): void {
+    console.log(`[bunkerView] Житель ${(agent as any).profession} погиб на поверхности`)
+
+    // Получаем ссылку на GameScene
+    const gameScene = this.scene as any
+
+    // Останавливаем все активные tween'ы
+    if ((agent as any).surfaceTween) {
+      ;(agent as any).surfaceTween.stop()
+      ;(agent as any).surfaceTween = null
+    }
+    if ((agent as any).fallTween) {
+      ;(agent as any).fallTween.stop()
+      ;(agent as any).fallTween = null
+    }
+
+    // Останавливаем атаку
+    if ((agent as any).surfaceAttackTimer) {
+      clearInterval((agent as any).surfaceAttackTimer)
+      ;(agent as any).surfaceAttackTimer = null
+    }
+
+    // Останавливаем атаки врагов на этого жителя
+    if (gameScene && gameScene.enemyQueueItems) {
+      for (const enemy of gameScene.enemyQueueItems) {
+        if (enemy && (enemy as any).attackTimer) {
+          clearInterval((enemy as any).attackTimer)
+          ;(enemy as any).attackTimer = null
+        }
+      }
+    }
+
+    // Останавливаем все fallback таймеры
+    if ((agent as any).hurtFallbackTimer) {
+      clearTimeout((agent as any).hurtFallbackTimer)
+      ;(agent as any).hurtFallbackTimer = null
+    }
+    if ((agent as any).deathFallbackTimer) {
+      clearTimeout((agent as any).deathFallbackTimer)
+      ;(agent as any).deathFallbackTimer = null
+    }
+
+    // ПОКАЗЫВАЕМ АНИМАЦИЮ СМЕРТИ перед удалением
+    // Добавляем небольшую задержку, чтобы житель успел увидеть урон и анимацию hurt
+    setTimeout(() => {
+      this.playDeathAnimation(agent, () => {
+        // Callback выполняется после завершения анимации смерти
+        this.finalizeResidentDeath(agent, gameScene)
+      })
+    }, 1500) // 1.5 секунды задержки перед анимацией смерти
+  }
+
+  /**
+   * Воспроизводит анимацию смерти для жителя
+   */
+  private playDeathAnimation(agent: any, onComplete: () => void): void {
+    if (!agent || !agent.sprite) {
+      console.log(`[bunkerView] Не удается воспроизвести анимацию смерти - нет спрайта`)
+      onComplete()
+      return
+    }
+
+    const profession = (agent as any).profession || 'безработный'
+    const deadAnim = `${profession}_dead`
+    
+    console.log(`[bunkerView] Воспроизводим анимацию смерти: ${deadAnim}`)
+    
+    // Проверяем, существует ли анимация смерти в scene.anims
+    if (this.scene.anims.exists(deadAnim)) {
+      // Останавливаем текущую анимацию
+      agent.sprite.anims.stop()
+      
+      // Воспроизводим анимацию смерти
+      this.scene.anims.play(deadAnim, agent.sprite)
+      console.log(`[bunkerView] ✅ Анимация смерти запущена: ${deadAnim}`)
+      
+      // Ждем завершения анимации смерти
+      console.log(`[bunkerView] Ждем завершения анимации смерти: ${deadAnim}`)
+      
+      // Используем событие завершения анимации спрайта
+      const onAnimationComplete = () => {
+        console.log(`[bunkerView] ✅ Анимация смерти завершена по событию: ${deadAnim}`)
+        onComplete()
+      }
+      
+      // Подписываемся на событие завершения анимации
+      agent.sprite.once('animationcomplete', onAnimationComplete)
+      
+      // Также устанавливаем таймер на случай, если событие не сработает
+      const fallbackTimer = setTimeout(() => {
+        console.log(`[bunkerView] ⚠️ Таймер fallback для анимации смерти: ${deadAnim}`)
+        // Отписываемся от события
+        agent.sprite.off('animationcomplete', onAnimationComplete)
+        onComplete()
+      }, 3000) // Максимум 3 секунды на анимацию смерти
+      
+      // Сохраняем ссылку на fallback таймер
+      ;(agent as any).deathFallbackTimer = fallbackTimer
+      
+      // Очищаем таймер при завершении анимации
+      agent.sprite.once('animationcomplete', () => {
+        clearTimeout(fallbackTimer)
+        ;(agent as any).deathFallbackTimer = null
+      })
+    } else {
+      console.log(`[bunkerView] ❌ Анимация смерти не найдена: ${deadAnim}`)
+      
+      // Если анимация смерти не найдена, показываем fallback эффект
+      this.playDeathFallback(agent, onComplete)
+    }
+  }
+
+  /**
+   * Fallback эффект смерти если нет анимации dead
+   */
+  private playDeathFallback(agent: any, onComplete: () => void): void {
+    if (!agent || !agent.sprite) {
+      onComplete()
+      return
+    }
+    
+    console.log(`[bunkerView] Показываем fallback эффект смерти`)
+    
+          // Создаем эффект затухания с покачиванием
+      const gameScene = this.scene as any
+      if (gameScene.tweens) {
+        // Сначала покачиваем спрайт
+        const shakeTween = gameScene.tweens.add({
+          targets: [agent.sprite, agent.shirt, agent.pants, agent.footwear, agent.hair].filter(obj => obj),
+          x: agent.sprite.x + 5,
+          duration: 100,
+          yoyo: true,
+          repeat: 3,
+          onComplete: () => {
+            // Затем затухаем
+            const fadeTween = gameScene.tweens.add({
+              targets: [agent.sprite, agent.shirt, agent.pants, agent.footwear, agent.hair].filter(obj => obj),
+              alpha: 0,
+              duration: 1500,
+              ease: 'Power2',
+              onComplete: () => {
+                console.log(`[bunkerView] ✅ Fallback эффект смерти завершен`)
+                onComplete()
+              }
+            })
+            
+            // Сохраняем ссылку на tween для возможной отмены
+            ;(agent as any).deathFallbackTween = fadeTween
+          }
+        })
+        
+        // Сохраняем ссылку на tween для возможной отмены
+        ;(agent as any).deathShakeTween = shakeTween
+      } else {
+        // Если нет tweens, просто ждем
+        setTimeout(() => {
+          console.log(`[bunkerView] ✅ Fallback эффект смерти завершен (таймер)`)
+          onComplete()
+        }, 2000) // Увеличено до 2 секунд
+      }
+  }
+
+  /**
+   * Определяет правильный масштаб по X для направления движения
+   * @param agent - агент (житель/враг)
+   * @param direction - направление движения ('left', 'right')
+   * @returns масштаб по X (1 для вправо, -1 для влево)
+   */
+  private getDirectionScaleX(agent: any, direction: 'left' | 'right'): number {
+    // Проверяем, есть ли сохраненное исходное направление
+    const originalDirection = (agent as any).originalSurfaceDirection
+    
+    if (originalDirection !== undefined) {
+      console.log(`[bunkerView] getDirectionScaleX: используем сохраненное исходное направление=${originalDirection}`)
+      
+      // Если у нас есть сохраненное направление, используем его
+      if (direction === 'left') {
+        // Для движения влево используем сохраненное направление
+        return originalDirection
+      } else if (direction === 'right') {
+        // Для движения вправо инвертируем сохраненное направление
+        return -originalDirection
+      }
+    }
+    
+    // Для новых спрайтов на поверхности используем setFlipX вместо scaleX
+    if ((agent as any).onSurface && agent.sprite) {
+      if (direction === 'left') {
+        // Для движения влево спрайт должен смотреть влево
+        // Исходные спрайты смотрят вправо, поэтому зеркалим (flipX = true)
+        agent.sprite.setFlipX(true)
+        return 1  // Положительный масштаб для правильного размера
+      } else {
+        // Для движения вправо спрайт должен смотреть вправо
+        // Исходные спрайты уже смотрят вправо, поэтому не зеркалим (flipX = false)
+        agent.sprite.setFlipX(false)
+        return 1  // Положительный масштаб для правильного размера
+      }
+    }
+    
+    // Fallback: проверяем текущее направление спрайта
+    const currentScaleX = agent.sprite?.scaleX || 1
+    
+    console.log(`[bunkerView] getDirectionScaleX: fallback - текущий scaleX=${currentScaleX}, нужное направление=${direction}`)
+    
+    // ЛОГИКА: для движения влево нужно, чтобы спрайт смотрел влево (scaleX < 0)
+    // Если спрайт уже смотрит влево, НЕ зеркалим (возвращаем 1)
+    // Если спрайт смотрит вправо, зеркалим (возвращаем -1)
+    
+    if (direction === 'left') {
+      // Нужно движение влево
+      if (currentScaleX < 0) {
+        // Спрайт уже смотрит влево, НЕ зеркалим
+        console.log(`[bunkerView] getDirectionScaleX: fallback - спрайт уже смотрит влево (scaleX=${currentScaleX}), НЕ зеркалим, возвращаем 1`)
+        return 1
+      } else {
+        // Спрайт смотрит вправо, зеркалим для движения влево
+        console.log(`[bunkerView] getDirectionScaleX: fallback - спрайт смотрит вправо (scaleX=${currentScaleX}), зеркалим для движения влево, возвращаем -1`)
+        return -1
+      }
+    } else if (direction === 'right') {
+      // Нужно движение вправо
+      if (currentScaleX > 0) {
+        // Спрайт уже смотрит вправо, НЕ зеркалим
+        console.log(`[bunkerView] getDirectionScaleX: fallback - спрайт уже смотрит вправо (scaleX=${currentScaleX}), НЕ зеркалим, возвращаем 1`)
+        return 1
+      } else {
+        // Спрайт смотрит влево, зеркалим для движения вправо
+        console.log(`[bunkerView] getDirectionScaleX: fallback - спрайт смотрит влево (scaleX=${currentScaleX}), зеркалим для движения вправо, возвращаем -1`)
+        return -1
+      }
+    }
+    
+    // По умолчанию не зеркалим
+    console.log(`[bunkerView] getDirectionScaleX: fallback - неизвестное направление, возвращаем 1`)
+    return 1
+  }
+
+  /**
+   * Финальное удаление жителя после анимации смерти
+   */
+  private finalizeResidentDeath(agent: any, gameScene: any): void {
+    console.log(`[bunkerView] Финальное удаление жителя ${(agent as any).profession}`)
+
+    // Останавливаем все fallback таймеры
+    if ((agent as any).hurtFallbackTimer) {
+      clearTimeout((agent as any).hurtFallbackTimer)
+      ;(agent as any).hurtFallbackTimer = null
+    }
+    if ((agent as any).deathFallbackTimer) {
+      clearTimeout((agent as any).deathFallbackTimer)
+      ;(agent as any).deathFallbackTimer = null
+    }
+
+    // Удаляем из очереди поверхности
+    if (gameScene && gameScene.surfaceQueue) {
+      gameScene.surfaceQueue.remove(agent.rect)
+      if (agent.sprite) gameScene.surfaceQueue.remove(agent.sprite)
+      if (agent.shirt) gameScene.surfaceQueue.remove(agent.shirt)
+      if (agent.pants) gameScene.surfaceQueue.remove(agent.pants)
+      if (agent.footwear) gameScene.surfaceQueue.remove(agent.footwear)
+      if (agent.hair) gameScene.surfaceQueue.remove(agent.hair)
+      if (agent.healthBar) gameScene.surfaceQueue.remove(agent.healthBar)
+    }
+
+    // Удаляем из массива residentAgents
+    const index = this.residentAgents.indexOf(agent)
+    if (index >= 0) {
+      this.residentAgents.splice(index, 1)
+    }
+
+    // Уведомляем GameScene
+    if (gameScene && typeof gameScene.removeResidentFromBunker === 'function') {
+      gameScene.removeResidentFromBunker(agent.id, 'Изгнан на поверхность')
+    }
+
+    // Уничтожаем объекты
+    if (agent.rect) agent.rect.destroy()
+    if (agent.sprite) agent.sprite.destroy()
+    if (agent.shirt) agent.shirt.destroy()
+    if (agent.pants) agent.pants.destroy()
+    if (agent.footwear) agent.footwear.destroy()
+    if (agent.hair) agent.hair.destroy()
+    if (agent.healthBar) agent.healthBar.destroy()
+  }
+
+  private checkSurfaceEnemies(resident: any): void {
+    const gameScene = this.scene as any
+    if (!gameScene || !gameScene.enemyQueueItems) return
+
+    // Не атакуем во время падения
+    if ((resident as any).fallTween && (resident as any).fallTween.isPlaying()) {
+      return
+    }
+
+    // Находим врагов на поверхности
+    const surfaceEnemies = gameScene.enemyQueueItems.filter((enemy: any) =>
+      enemy && enemy.rect && !enemy.exiting && enemy.health > 0
+    )
+
+    if (surfaceEnemies.length === 0) {
+      // Нет врагов - прекращаем атаку
+      if ((resident as any).surfaceAttackTimer) {
+        clearInterval((resident as any).surfaceAttackTimer)
+        ;(resident as any).surfaceAttackTimer = null
+      }
+      return
+    }
+
+    // Есть враги - начинаем атаку
+    if (!(resident as any).surfaceAttackTimer) {
+      console.log(`[bunkerView] Житель ${resident.profession} начинает обороняться от ${surfaceEnemies.length} врагов`)
+
+      ;(resident as any).surfaceAttackTimer = setInterval(() => {
+        this.performSurfaceAttack(resident, surfaceEnemies)
+      }, 2000) // Атака каждые 2 секунды
+    }
+
+    // Враги также атакуют жителей
+    for (const enemy of surfaceEnemies) {
+      if (enemy && enemy.health > 0 && !(enemy as any).attackTimer) {
+        // Создаем таймер атаки для каждого врага
+        ;(enemy as any).attackTimer = setInterval(() => {
+          if (enemy && enemy.health > 0 && resident && resident.health > 0) {
+            this.handleEnemyAttackOnResident(enemy, resident)
+          } else {
+            // Очищаем таймер если кто-то умер
+            if ((enemy as any).attackTimer) {
+              clearInterval((enemy as any).attackTimer)
+              ;(enemy as any).attackTimer = null
+            }
+          }
+        }, 3000) // Враги атакуют каждые 3 секунды
+      }
+    }
+  }
+
+  private performSurfaceAttack(attacker: any, enemies: any[]): void {
+    if (!attacker || attacker.health <= 0) return
+
+    // Находим ближайшего живого врага
+    let nearestEnemy = null
+    let minDistance = Infinity
+
+    for (const enemy of enemies) {
+      if (!enemy || !enemy.rect || enemy.health <= 0) continue
+
+      const distance = Phaser.Math.Distance.Between(
+        attacker.rect.x, attacker.rect.y,
+        enemy.rect.x, enemy.rect.y
+      )
+
+      if (distance < minDistance) {
+        minDistance = distance
+        nearestEnemy = enemy
+      }
+    }
+
+    if (nearestEnemy) {
+      // Наносим урон врагу
+      const damage = attacker.attackDamage || 20
+      nearestEnemy.health = Math.max(0, nearestEnemy.health - damage)
+
+      console.log(`[bunkerView] Житель ${attacker.profession} атакует врага (${damage} урона, здоровье врага: ${nearestEnemy.health})`)
+
+      // Обновляем шкалу здоровья врага
+      if (nearestEnemy.healthBar) {
+        const gameScene = this.scene as any
+        if (gameScene.drawHealthBar) {
+          gameScene.drawHealthBar(nearestEnemy)
+        }
+      }
+
+      // Проверяем смерть врага
+      if (nearestEnemy.health <= 0) {
+        console.log(`[bunkerView] Враг убит жителем ${attacker.profession}`)
+        this.handleEnemyDeath(nearestEnemy)
+      }
+    }
+  }
+
+  /**
+   * Обрабатывает атаку врага на жителя на поверхности
+   */
+  private handleEnemyAttackOnResident(enemy: any, resident: any): void {
+    if (!enemy || !resident || resident.health <= 0) return
+
+    // Наносим урон жителю
+    const damage = enemy.attackDamage || 15
+    resident.health = Math.max(0, resident.health - damage)
+
+    console.log(`[bunkerView] Враг атакует жителя ${resident.profession} (${damage} урона, здоровье жителя: ${resident.health})`)
+
+    // Воспроизводим анимацию hurt для жителя
+    this.playHurtAnimation(resident)
+
+    // Обновляем шкалу здоровья жителя
+    if (resident.healthBar) {
+      const gameScene = this.scene as any
+      if (gameScene.drawHealthBar) {
+        gameScene.drawHealthBar(resident)
+      }
+    }
+
+    // Проверяем смерть жителя
+    if (resident.health <= 0) {
+      console.log(`[bunkerView] Житель ${resident.profession} убит врагом на поверхности`)
+      this.handleResidentDeath(resident)
+    }
+  }
+
+  private handleEnemyDeath(enemy: any): void {
+    console.log(`[bunkerView] Враг убит на поверхности`)
+
+    // Удаляем врага из очереди поверхности
+    const gameScene = this.scene as any
+    if (gameScene && gameScene.surfaceEnemyQueue) {
+      gameScene.surfaceEnemyQueue.remove(enemy.rect)
+      if (enemy.sprite) gameScene.surfaceEnemyQueue.remove(enemy.sprite)
+      if (enemy.shirt) gameScene.surfaceEnemyQueue.remove(enemy.shirt)
+      if (enemy.pants) gameScene.surfaceEnemyQueue.remove(enemy.pants)
+      if (enemy.footwear) gameScene.surfaceEnemyQueue.remove(enemy.footwear)
+      if (enemy.hair) gameScene.surfaceEnemyQueue.remove(enemy.hair)
+      if (enemy.healthBar) gameScene.surfaceEnemyQueue.remove(enemy.healthBar)
+    }
+
+    // Удаляем врага из массива enemyQueueItems
+    if (gameScene && gameScene.enemyQueueItems) {
+      const index = gameScene.enemyQueueItems.indexOf(enemy)
+      if (index >= 0) {
+        gameScene.enemyQueueItems.splice(index, 1)
+      }
+    }
+
+    // Уничтожаем объекты
+    if (enemy.rect) enemy.rect.destroy()
+    if (enemy.sprite) enemy.sprite.destroy()
+    if (enemy.shirt) enemy.shirt.destroy()
+    if (enemy.pants) enemy.pants.destroy()
+    if (enemy.footwear) enemy.footwear.destroy()
+    if (enemy.hair) enemy.hair.destroy()
+    if (enemy.healthBar) enemy.healthBar.destroy()
+  }
+
+  /**
+   * Воспроизводит анимацию hurt для жителя при получении урона
+   */
+  private playHurtAnimation(agent: any): void {
+    if (!agent || !agent.sprite) {
+      console.log(`[bunkerView] Не удается воспроизвести hurt анимацию - нет спрайта`)
+      return
+    }
+
+    const profession = (agent as any).profession || 'безработный'
+    const hurtAnim = `${profession}_hurt`
+    
+    console.log(`[bunkerView] Воспроизводим анимацию hurt: ${hurtAnim}`)
+    
+    // Проверяем, существует ли анимация hurt в scene.anims
+    if (this.scene.anims.exists(hurtAnim)) {
+      // Останавливаем текущую анимацию
+      agent.sprite.anims.stop()
+      
+      // Воспроизводим анимацию hurt
+      this.scene.anims.play(hurtAnim, agent.sprite)
+      console.log(`[bunkerView] ✅ Анимация hurt запущена: ${hurtAnim}`)
+      
+      // Через некоторое время возвращаемся к анимации walk (если житель жив)
+      if (agent.health > 0) {
+        // Сохраняем ссылку на hurt fallback таймер
+        ;(agent as any).hurtFallbackTimer = setTimeout(() => {
+          if (agent && agent.health > 0 && (agent as any).onSurface) {
+            const walkAnim = `${profession}_walk`
+            if (this.scene.anims.exists(walkAnim)) {
+              this.scene.anims.play(walkAnim, agent.sprite)
+              console.log(`[bunkerView] ✅ Возвращаемся к анимации walk после hurt: ${walkAnim}`)
+            }
+          }
+        }, 2000) // 2 секунды анимации hurt (увеличено для лучшей видимости)
+      }
+    } else {
+      console.log(`[bunkerView] ❌ Анимация hurt не найдена: ${hurtAnim}`)
+      
+      // Если анимация hurt не найдена, показываем fallback эффект
+      this.flashSprite(agent)
+      
+      // Через некоторое время возвращаемся к анимации walk (если житель жив)
+      if (agent.health > 0) {
+        // Сохраняем ссылку на hurt fallback таймер
+        ;(agent as any).hurtFallbackTimer = setTimeout(() => {
+          if (agent && agent.health > 0 && (agent as any).onSurface) {
+            const walkAnim = `${profession}_walk`
+            if (this.scene.anims.exists(walkAnim)) {
+              this.scene.anims.play(walkAnim, agent.sprite)
+              console.log(`[bunkerView] ✅ Возвращаемся к анимации walk после hurt fallback: ${walkAnim}`)
+            }
+          }
+        }, 2000) // 2 секунды fallback эффекта
+      }
+    }
+  }
+
+  /**
+   * Мигает спрайтом жителя при получении урона (fallback если нет анимации hurt)
+   */
+  private flashSprite(agent: any): void {
+    if (!agent || !agent.sprite) return
+    
+    console.log(`[bunkerView] Мигаем спрайтом как fallback для hurt эффекта`)
+    
+    // Создаем эффект мигания
+    const gameScene = this.scene as any
+    if (gameScene.tweens) {
+      const flashTween = gameScene.tweens.add({
+        targets: [agent.sprite, agent.shirt, agent.pants, agent.footwear, agent.hair].filter(obj => obj),
+        alpha: 0.3,
+        duration: 100,
+        yoyo: true,
+        repeat: 3,
+        onComplete: () => {
+          // Возвращаем нормальную прозрачность
+          if (agent.sprite) agent.sprite.setAlpha(1)
+          if (agent.shirt) agent.shirt.setAlpha(1)
+          if (agent.pants) agent.pants.setAlpha(1)
+          if (agent.footwear) agent.footwear.setAlpha(1)
+          if (agent.hair) agent.hair.setAlpha(1)
+          
+          console.log(`[bunkerView] ✅ Мигание завершено, возвращаемся к нормальному состоянию`)
+        }
+      })
+      
+      // Сохраняем ссылку на tween для возможной отмены
+      ;(agent as any).flashTween = flashTween
     }
   }
 }

@@ -34,7 +34,7 @@ export class GameScene extends Phaser.Scene {
   private pauseBtn?: Phaser.GameObjects.Text
   private populationBtn?: Phaser.GameObjects.Text
   private happinessBtn?: Phaser.GameObjects.Text
-  private defenseBtn?: Phaser.GameObjects.Text
+  // private defenseBtn?: Phaser.GameObjects.Text // Убираем кнопку defence
   private ammoBtn?: Phaser.GameObjects.Text
   private comfortBtn?: Phaser.GameObjects.Text
   private foodBtn?: Phaser.GameObjects.Text
@@ -64,9 +64,9 @@ export class GameScene extends Phaser.Scene {
   private personTop?: Phaser.GameObjects.Container
   private personBottom?: Phaser.GameObjects.Container
   private personEntranceImage?: Phaser.GameObjects.Image
-  private acceptBtnObj?: Phaser.GameObjects.Text
-  private denyBtnObj?: Phaser.GameObjects.Text
-  private defendBtnObj?: Phaser.GameObjects.Text
+  private acceptBtnObj?: Phaser.GameObjects.Sprite
+  private denyBtnObj?: Phaser.GameObjects.Sprite
+  // private defendBtnObj?: Phaser.GameObjects.Text // Убираем кнопку defence
   private personPreview?: Phaser.GameObjects.Rectangle
   private personPreviewSprite?: Phaser.GameObjects.Sprite
   private personPreviewShirt?: Phaser.GameObjects.Sprite
@@ -1425,10 +1425,6 @@ export class GameScene extends Phaser.Scene {
     this.happinessBtn.setStroke('#555555', 1)
     this.happinessBtn.on('pointerdown', () => this.openResourceOverlay('СЧАСТЬЕ'))
 
-    this.defenseBtn = this.add.text(0, Math.round(28 * s), '', { ...buttonStyle, color: '#ffca28' }).setOrigin(0).setInteractive({ useHandCursor: true })
-    this.defenseBtn.setStroke('#555555', 1)
-    this.defenseBtn.on('pointerdown', () => this.openResourceOverlay('ЗАЩИТА'))
-
     this.ammoBtn = this.add.text(0, Math.round(28 * s), '', { ...buttonStyle, color: '#90caf9' }).setOrigin(0).setInteractive({ useHandCursor: true })
     this.ammoBtn.setStroke('#555555', 1)
     this.ammoBtn.on('pointerdown', () => this.openResourceOverlay('ПАТРОНЫ'))
@@ -1486,7 +1482,7 @@ export class GameScene extends Phaser.Scene {
       color: '#e0e0e0'
     })
 
-    this.topBar.add([barBg, topAccent, bottomAccent, innerBorder, this.dayText, this.populationBtn!, this.happinessBtn!, this.defenseBtn!, this.ammoBtn!, this.comfortBtn!, this.foodBtn!, this.waterBtn!, this.moneyBtn!, this.resourcesText, this.abilitiesBtn, this.pauseBtn, this.inventoryBtn!, this.enemyCountText!, this.experienceBg!, this.experienceFg!, this.levelText!, this.xpText!])
+    this.topBar.add([barBg, topAccent, bottomAccent, innerBorder, this.dayText, this.populationBtn!, this.happinessBtn!, this.ammoBtn!, this.comfortBtn!, this.foodBtn!, this.waterBtn!, this.moneyBtn!, this.resourcesText, this.abilitiesBtn, this.pauseBtn, this.inventoryBtn!, this.enemyCountText!, this.experienceBg!, this.experienceFg!, this.levelText!, this.xpText!])
     this.topBar.setDepth(1000)
 
     // Areas containers
@@ -1805,18 +1801,41 @@ export class GameScene extends Phaser.Scene {
     this.personPreview.setVisible(false)
     console.log('[DEBUG] Создана рамка превью:', this.personPreview)
     this.personTop.add(this.personPreview)
-    this.acceptBtnObj = this.add.text(0, 0, `[ ${t('accept')} ]`, { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#81c784' }).setInteractive({ useHandCursor: true })
-    this.denyBtnObj = this.add.text(0, 0, `[ ${t('deny')} ]`, { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#e57373' }).setInteractive({ useHandCursor: true })
-    this.defendBtnObj = this.add.text(0, 0, `[ ${'DEFENSE'} ]`, { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#ff8a65' }).setInteractive({ useHandCursor: true })
+    this.acceptBtnObj = this.add.sprite(0, 0, 'button_green').setOrigin(0.5).setInteractive({ useHandCursor: true })
+    this.denyBtnObj = this.add.sprite(0, 0, 'button_red').setOrigin(0.5).setInteractive({ useHandCursor: true })
+    
+    // Устанавливаем первый кадр (состояние покоя)
+    this.acceptBtnObj.setFrame(0)
+    this.denyBtnObj.setFrame(0)
+    
     // Изначально скрываем все кнопки
     this.acceptBtnObj.setVisible(false)
     this.denyBtnObj.setVisible(false)
-    this.defendBtnObj.setVisible(false)
-    this.acceptBtnObj.on('pointerdown', () => this.decideCurrent(true))
-    this.denyBtnObj.on('pointerdown', () => this.decideCurrent(false))
-    this.defendBtnObj.on('pointerdown', () => this.showToast('Битва: WIP'))
+    this.acceptBtnObj.on('pointerdown', () => {
+      // Воспроизводим анимацию нажатия
+      if (this.acceptBtnObj) {
+        this.acceptBtnObj.play('button_green_press')
+        // Сбрасываем анимацию после завершения
+        this.acceptBtnObj.once('animationcomplete', () => {
+          this.acceptBtnObj?.setFrame(0) // Возвращаемся к первому кадру
+        })
+      }
+      // Вызываем функцию принятия
+      this.decideCurrent(true)
+    })
+    this.denyBtnObj.on('pointerdown', () => {
+      // Воспроизводим анимацию нажатия
+      if (this.denyBtnObj) {
+        this.denyBtnObj.play('button_red_press')
+        // Сбрасываем анимацию после завершения
+        this.denyBtnObj.once('animationcomplete', () => {
+          this.denyBtnObj?.setFrame(0) // Возвращаемся к первому кадру
+        })
+      }
+      // Вызываем функцию отказа
+      this.decideCurrent(false)
+    })
     this.personTop.add([entranceImg, this.acceptBtnObj, this.denyBtnObj])
-    this.personTop.add(this.defendBtnObj)
     // Надпись "нет мест"
     this.noSpaceLabel = this.add.text(0, 0, 'НЕТ МЕСТ', { fontFamily: THEME.fonts.body, fontSize: '12px', color: '#e57373' }).setOrigin(0.5)
     this.noSpaceLabel.setVisible(false)
@@ -2194,32 +2213,26 @@ export class GameScene extends Phaser.Scene {
     const hasVisitors = this.queueItems.length > 0
     const capacity = this.getBunkerCapacity()
     const hasCapacity = this.bunkerResidents.length < capacity
-    const showDecision = !isNight && !hasEnemies && hasVisitors && hasCapacity
+    const showAccept = !isNight && !hasEnemies && hasVisitors && hasCapacity
+    const showDeny = !isNight && !hasEnemies && hasVisitors
     const showDefense = hasEnemies
 
-    if (this.acceptBtnObj && this.denyBtnObj && this.defendBtnObj) {
-      this.acceptBtnObj.setVisible(showDecision)
-      this.denyBtnObj.setVisible(showDecision)
-      this.defendBtnObj.setVisible(showDefense)
+    if (this.acceptBtnObj && this.denyBtnObj) {
+      this.acceptBtnObj.setVisible(showAccept)
+      this.denyBtnObj.setVisible(showDeny)
       
       // Позиционирование Accept/Deny (всегда, независимо от видимости)
-      this.acceptBtnObj.setFontSize(btnFont)
-      this.denyBtnObj.setFontSize(btnFont)
+      // Устанавливаем размер спрайтов кнопок
+      const buttonScale = parseInt(btnFont, 10) / 12 // Масштабируем относительно базового размера 12px
+      this.acceptBtnObj.setScale(buttonScale)
+      this.denyBtnObj.setScale(buttonScale)
       const space = 24 * s
       const y = topH - pad - this.acceptBtnObj.height / 2
       const totalW = this.acceptBtnObj.width + this.denyBtnObj.width + space
       const startX = rect.width / 2 - totalW / 2
       this.acceptBtnObj.setPosition(startX + this.acceptBtnObj.width / 2, y)
       this.denyBtnObj.setPosition(startX + this.acceptBtnObj.width + space + this.denyBtnObj.width / 2, y)
-      this.acceptBtnObj.setOrigin(0.5)
-      this.denyBtnObj.setOrigin(0.5)
-      
-      // Позиционирование Defense (всегда, независимо от видимости)
-      this.defendBtnObj.setFontSize(btnFont)
-      const defenseY = topH - pad - this.defendBtnObj.height / 2
-      const defenseX = rect.width * 0.72
-      this.defendBtnObj.setPosition(defenseX, defenseY)
-      this.defendBtnObj.setOrigin(0.5)
+      // Origin уже установлен в 0.5 при создании
     }
 
     // Оружие (только ночью, левый нижний угол personTop)
@@ -3977,11 +3990,14 @@ export class GameScene extends Phaser.Scene {
     const showDecision = !isNight && !hasEnemies && hasVisitors
     const showDefense = isNight && hasEnemies
     const showPersonDetails = hasVisitors || hasEnemies
+    const capacity = this.getBunkerCapacity()
+    const hasCapacity = this.bunkerResidents.length < capacity
+    const showAccept = !isNight && !hasEnemies && hasVisitors && hasCapacity
+    const showDeny = !isNight && !hasEnemies && hasVisitors
 
     // Принудительно обновляем видимость кнопок
-    if (this.acceptBtnObj) this.acceptBtnObj.setVisible(showDecision)
-    if (this.denyBtnObj) this.denyBtnObj.setVisible(showDecision)
-    if (this.defendBtnObj) this.defendBtnObj.setVisible(showDefense)
+    if (this.acceptBtnObj) this.acceptBtnObj.setVisible(showAccept)
+    if (this.denyBtnObj) this.denyBtnObj.setVisible(showDeny)
     
     // Принудительно обновляем видимость деталей
     if (this.personNameText) this.personNameText.setVisible(showPersonDetails)
@@ -4163,6 +4179,9 @@ export class GameScene extends Phaser.Scene {
       const [r] = this.bunkerResidents.splice(idx, 1)
       // Можно в будущем логировать причину/статистику
       this.updateResourcesText()
+      // После изменения состава жителей: обновляем видимость/лейаут приёмной панели
+      this.updateUIVisibility()
+      if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
       this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
       if (reason) this.showToast(`${r.name} удалён: ${reason}`)
     }
@@ -4388,7 +4407,6 @@ export class GameScene extends Phaser.Scene {
     if (compact) {
       this.populationBtn?.setText(`👥 ${population}/${capacity}`)
       this.happinessBtn?.setText(`😊 ${this.happiness}%`)
-      this.defenseBtn?.setText(`🛡️ ${this.defense}%`)
       this.ammoBtn?.setText(`🔫 ${this.ammo}`)
       this.comfortBtn?.setText(`🛋️ ${this.comfort}%`)
       this.foodBtn?.setText(`🍖 ${this.food}`)
@@ -4399,7 +4417,6 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.populationBtn?.setText(`${t('population').toUpperCase()}: ${population}/${capacity}`)
       this.happinessBtn?.setText(`Happiness: ${this.happiness}%`)
-      this.defenseBtn?.setText(`Defense: ${this.defense}%`)
       this.ammoBtn?.setText(`Ammo: ${this.ammo}`)
       this.comfortBtn?.setText(`Comfort: ${this.comfort}%`)
       this.foodBtn?.setText(`${t('food')}: ${this.food}`)
@@ -4595,11 +4612,6 @@ export class GameScene extends Phaser.Scene {
         this.happinessBtn.setPosition(resourceX, baseY)
         resourceX += this.happinessBtn.width + 8
       }
-      if (this.defenseBtn) {
-        this.defenseBtn.setFontSize(iconSize)
-        this.defenseBtn.setPosition(resourceX, baseY)
-        resourceX += this.defenseBtn.width + 8
-      }
       if (this.ammoBtn) {
         this.ammoBtn.setFontSize(iconSize)
         this.ammoBtn.setPosition(resourceX, baseY)
@@ -4668,10 +4680,6 @@ export class GameScene extends Phaser.Scene {
       if (this.happinessBtn) {
         this.happinessBtn.setPosition(cursorX, baseY)
         cursorX += this.happinessBtn.width + 12
-      }
-      if (this.defenseBtn) {
-        this.defenseBtn.setPosition(cursorX, baseY)
-        cursorX += this.defenseBtn.width + 12
       }
       if (this.ammoBtn) {
         this.ammoBtn.setPosition(cursorX, baseY)
@@ -5205,7 +5213,7 @@ export class GameScene extends Phaser.Scene {
 
     // Hide individual UI elements
     const elementsToHide = [
-      this.dayText, this.populationBtn, this.happinessBtn, this.defenseBtn,
+      this.dayText, this.populationBtn, this.happinessBtn,
       this.ammoBtn, this.comfortBtn, this.foodBtn, this.waterBtn, this.moneyBtn,
       this.abilitiesBtn, this.pauseBtn, this.inventoryBtn, this.enemyCountText,
       this.resourcesText, this.experienceBg, this.experienceFg, this.levelText, this.xpText
@@ -5228,7 +5236,7 @@ export class GameScene extends Phaser.Scene {
 
     // Show individual UI elements (fallback method)
     const elementsToShow = [
-      this.dayText, this.populationBtn, this.happinessBtn, this.defenseBtn,
+      this.dayText, this.populationBtn, this.happinessBtn,
       this.ammoBtn, this.comfortBtn, this.foodBtn, this.waterBtn, this.moneyBtn,
       this.abilitiesBtn, this.pauseBtn, this.inventoryBtn, this.enemyCountText,
       this.resourcesText, this.experienceBg, this.experienceFg, this.levelText, this.xpText
@@ -5533,6 +5541,15 @@ export class GameScene extends Phaser.Scene {
 
     console.warn('[GameScene] Resident not found with ID:', id);
     return null;
+  }
+
+  public onResidentPositionChanged(residentId: number, roomIndex: number, x: number, y: number): void {
+    const resident = this.bunkerResidents.find(r => r.id === residentId)
+    if (resident) {
+      console.log(`[GameScene] Житель ${resident.profession} (ID: ${residentId}) перемещен в комнату ${roomIndex}`)
+      // Здесь можно добавить дополнительную логику для обработки перемещения жителя
+      // Например, обновление статистики или проверку специальных условий
+    }
   }
 
   // Cleanup - called when scene is destroyed
