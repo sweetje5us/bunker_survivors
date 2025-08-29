@@ -102,6 +102,7 @@ export class GameScene extends Phaser.Scene {
   private simpleBunker?: SimpleBunkerView
 
   private visitorsRemaining = 3
+  private readonly MAX_QUEUE_SIZE = 10 // Максимальное количество персонажей в очереди
   private surfaceQueue?: Phaser.GameObjects.Container
   private queueItems: { id: number; rect: Phaser.GameObjects.Rectangle; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite; exiting?: boolean }[] = []
   private nextVisitorId = 1
@@ -110,7 +111,7 @@ export class GameScene extends Phaser.Scene {
   private lastSurfaceRect?: Phaser.Geom.Rectangle
   // Enemies
   private surfaceEnemyQueue?: Phaser.GameObjects.Container
-  private enemyQueueItems: { id: number; rect: Phaser.GameObjects.Rectangle; type: string; exiting?: boolean; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite }[] = []
+  private enemyQueueItems: { id: number; rect: Phaser.GameObjects.Rectangle; type: string; exiting?: boolean; blockedFromEntry?: boolean; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite }[] = []
   private nextEnemyId = 1
   private enemyArrivalEvent?: Phaser.Time.TimerEvent
   private _previewBusy: boolean = false
@@ -1109,6 +1110,10 @@ export class GameScene extends Phaser.Scene {
   // Вражеский урон по ресурсу "Защита" раз в час
   private processEnemyDefenseDamage(hour: number): void {
     if (this.enemyQueueItems.length === 0) return
+    
+    // Логируем текущий баланс бункера каждый час
+    const balanceInfo = this.getBunkerBalanceInfo()
+    console.log(`[processEnemyDefenseDamage] Час ${hour}: Жители: ${balanceInfo.residents}, Враги: ${balanceInfo.enemies}, Статус: ${balanceInfo.balanceStatus}`)
     const damageByType = (type: string): number => {
       switch (type) {
         case 'МАРОДЕР': return 1
@@ -1128,7 +1133,29 @@ export class GameScene extends Phaser.Scene {
       this.updateEntranceBackground()
 
       // Проверяем: если защита упала до 0, враг заходит в бункер
-      if (this.defense <= 0) {
+      // Но только если он не заблокирован
+      if (this.defense <= 0 && !(first as any).blockedFromEntry) {
+        // Дополнительная проверка: может ли враг войти в бункер
+        if (this.bunkerEnemies.length >= this.bunkerResidents.length) {
+          console.log(`[processEnemyDefenseDamage] Защита упала до 0, но враг ${first.type} не может войти: врагов (${this.bunkerEnemies.length}) >= жителей (${this.bunkerResidents.length})`)
+          
+          // Показываем уведомление
+          if (typeof window !== 'undefined' && (window as any).showToast) {
+            (window as any).showToast(`Враг ${first.type} не может войти: бункер переполнен врагами!`);
+          }
+          
+          // Помечаем врага как заблокированного
+          (first as any).blockedFromEntry = true
+          
+          // Враг остается в очереди, но не может войти
+          // Восстанавливаем немного защиты, чтобы враг не мог войти
+          this.defense = Math.max(1, this.defense)
+          this.updateResourcesText()
+          this.updateEntranceBackground()
+          
+          return // Прерываем дальнейшую логику
+        }
+        
         this.enemyEntersBunker(first)
         return // Прерываем дальнейшую логику, враг ушел в бункер
       }
@@ -1146,10 +1173,17 @@ export class GameScene extends Phaser.Scene {
       } catch {}
     }
     // Остальные враги: урон раз в 12/6/2 часа по сложности
-    const cadence = this.difficulty === 'easy' ? 12 : this.difficulty === 'normal' ? 6 : 2
+    const cadence = this.difficulty === 'normal' ? 6 : this.difficulty === 'easy' ? 12 : 2
     for (let i = 1; i < this.enemyQueueItems.length; i++) {
       if (hour % cadence !== 0) break
       const it = this.enemyQueueItems[i] as any
+      
+      // Пропускаем заблокированных врагов
+      if ((it as any).blockedFromEntry) {
+        console.log(`[processEnemyDefenseDamage] Враг ${it.type} заблокирован, пропускаем атаку`)
+        continue
+      }
+      
       const d = damageByType(it.type)
       this.defense = Math.max(0, this.defense - d)
       // Обновляем фон двери при изменении защиты
@@ -1164,6 +1198,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private enemyEntersBunker(enemy: any): void {
+    // Проверяем, может ли враг войти в бункер
+    if (this.bunkerEnemies.length >= this.bunkerResidents.length) {
+      console.log(`[enemyEntersBunker] Враг ${enemy.type} не может войти в бункер: врагов (${this.bunkerEnemies.length}) >= жителей (${this.bunkerResidents.length})`)
+      
+      // Показываем уведомление
+      if (typeof window !== 'undefined' && (window as any).showToast) {
+        (window as any).showToast(`Враг ${enemy.type} не может войти: бункер переполнен врагами!`);
+      }
+      
+      // Помечаем врага как заблокированного
+      (enemy as any).blockedFromEntry = true
+      
+      // Враг остается в очереди, но не может войти
+      // Просто прерываем выполнение метода
+      return
+    }
+    
     // Помечаем врага как входящего в бункер
     enemy.enteringBunker = true
     
@@ -1210,6 +1261,9 @@ export class GameScene extends Phaser.Scene {
           
           // Сразу обновляем превью для следующего врага
           this.updatePersonInfoFromQueue()
+          
+          // Проверяем возможность возобновления прихода персонажей
+          this.checkAndResumeArrivals()
         }
       })
     } else {
@@ -1224,6 +1278,9 @@ export class GameScene extends Phaser.Scene {
         ;(this as any)._previewCurrentIsEnemy = false
         ;(this as any)._previewCurrentId = null
       }
+      
+      // Проверяем возможность возобновления прихода персонажей
+      this.checkAndResumeArrivals()
     }
     
     // Анимация в блоке поверхности: выход за правую границу экрана
@@ -1290,6 +1347,9 @@ export class GameScene extends Phaser.Scene {
           this.enemyHpBg?.setVisible(false)
           this.enemyHpFg?.setVisible(false)
         }
+        
+        // Проверяем возможность возобновления прихода персонажей
+        this.checkAndResumeArrivals()
       }
     })
     
@@ -1298,6 +1358,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemyInBunker(enemy: any): void {
+    // Дополнительная проверка безопасности перед добавлением врага
+    if (this.bunkerEnemies.length >= this.bunkerResidents.length) {
+      console.log(`[spawnEnemyInBunker] КРИТИЧЕСКАЯ ОШИБКА: Попытка добавить врага ${enemy.type} когда врагов (${this.bunkerEnemies.length}) >= жителей (${this.bunkerResidents.length})`)
+      return // Не добавляем врага
+    }
+    
     // Создаем запись о враге как о "жителе" бункера, но с пометкой что это враг
     const enemyResident = {
       id: enemy.id,
@@ -1335,6 +1401,10 @@ export class GameScene extends Phaser.Scene {
     this.updateResourcesText()
 
     console.log(`[GameScene] Враг ${enemy.type} (ID: ${enemy.id}) полностью обработан, время=${Date.now()}`)
+    
+    // Логируем обновленный баланс бункера
+    const balanceInfo = this.getBunkerBalanceInfo()
+    console.log(`[spawnEnemyInBunker] Обновленный баланс: Жители: ${balanceInfo.residents}, Враги: ${balanceInfo.enemies}, Статус: ${balanceInfo.balanceStatus}`)
   }
 
   constructor() {
@@ -2157,7 +2227,12 @@ export class GameScene extends Phaser.Scene {
       this.layoutContainer(this.bunkerArea!, bunkerRect)
       this.simpleBunker?.layout(new Phaser.Geom.Rectangle(0, 0, Math.max(1, bunkerRect.width - 2), Math.max(1, bunkerRect.height - 2)))
       // Синхронизация количества визуальных жителей
-      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
+      // Используем syncResidentsWithoutDuplicates чтобы не создавать дубликаты
+      if (this.simpleBunker && typeof (this.simpleBunker as any).syncResidentsWithoutDuplicates === 'function') {
+        (this.simpleBunker as any).syncResidentsWithoutDuplicates(this.bunkerResidents.length + this.bunkerEnemies.length)
+      } else {
+        this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
+      }
     }
 
     // Info
@@ -2547,7 +2622,16 @@ export class GameScene extends Phaser.Scene {
     if (this.phase !== 'day') return
     // Если есть враги — люди не приходят
     if (this.enemyQueueItems.length > 0) return
-    if (this.queueItems.length >= 8) return
+    
+    // Проверяем размер очереди жителей
+    if (this.queueItems.length >= this.MAX_QUEUE_SIZE) {
+      console.log(`[maybeArriveVisitor] Очередь жителей заполнена (${this.queueItems.length}/${this.MAX_QUEUE_SIZE}), новых жителей не добавляем`)
+      return
+    }
+    
+    console.log(`[maybeArriveVisitor] Приходит житель. Сложность: ${this.difficulty}, День: ${this.dayNumber}, Комфорт: ${this.comfort}%, Размер очереди жителей: ${this.queueItems.length + 1}/${this.MAX_QUEUE_SIZE}`)
+    
+    // Приходит обычный житель
     const v = this.enqueueVisitor(true)
     if (!this.lastSurfaceRect || !v) return
     const rect = this.lastSurfaceRect
@@ -2605,21 +2689,130 @@ export class GameScene extends Phaser.Scene {
     let base = 5000
     switch (this.difficulty) {
       case 'easy':
-        base = 4200
+        base = 3000 // Жители приходят чаще на легкой сложности
         break
       case 'normal':
-        base = 5000
+        base = 5000 // Стандартный интервал
         break
       case 'hard':
-        base = 6500
+        base = 8000 // Жители приходят реже на сложной сложности
         break
       default:
         base = 5000
     }
+    
+    // Влияние комфорта на интервал прихода жителей
+    // Чем выше комфорт, тем чаще приходят жители
+    const comfortFactor = Math.max(0.3, 1 - (this.comfort / 100) * 0.4)
+    base *= comfortFactor
+    
+    // Влияние количества дней на интервал прихода жителей
+    // С каждым днем жители приходят реже
+    const dayFactor = Math.max(0.5, 1 + (this.dayNumber - 1) * 0.1)
+    base *= dayFactor
+    
     const jitter = Phaser.Math.Clamp(Phaser.Math.FloatBetween(0.6, 1.5), 0.6, 1.5)
     const minDelay = 1800
     const delay = Math.max(minDelay, Math.floor(base * jitter))
+    
+    console.log(`[computeVisitorArrivalDelay] Сложность: ${this.difficulty}, День: ${this.dayNumber}, Комфорт: ${this.comfort}%, Базовая задержка: ${base}ms, Финальная задержка: ${delay}ms`)
+    
     return delay
+  }
+
+
+
+  /**
+   * Проверяет возможность возобновления логики прихода персонажей
+   * Вызывается когда персонаж покидает очередь
+   */
+  private checkAndResumeArrivals(): void {
+    // Проверяем очереди отдельно для жителей и врагов
+    
+    // Для жителей (только днем)
+    if (this.phase === 'day' && this.queueItems.length < this.MAX_QUEUE_SIZE && !this.arrivalEvent) {
+      console.log(`[checkAndResumeArrivals] Очередь жителей освободилась (${this.queueItems.length}/${this.MAX_QUEUE_SIZE}), планируем новое прибытие`)
+      this.scheduleVisitorArrival()
+    }
+    
+    // Для врагов (только ночью)
+    if (this.phase === 'night' && this.enemyQueueItems.length < this.MAX_QUEUE_SIZE && !this.enemyArrivalEvent) {
+      console.log(`[checkAndResumeArrivals] Очередь врагов освободилась (${this.enemyQueueItems.length}/${this.MAX_QUEUE_SIZE}), планируем новое прибытие`)
+      this.scheduleEnemyArrival()
+    }
+  }
+
+  /**
+   * Получает информацию о балансе врагов и жителей в бункере
+   */
+  public getBunkerBalanceInfo(): { residents: number; enemies: number; canEnemiesEnter: boolean; balanceStatus: string } {
+    const residents = this.bunkerResidents.length
+    const enemies = this.bunkerEnemies.length
+    const canEnemiesEnter = enemies < residents
+    
+    let balanceStatus = 'Сбалансирован'
+    if (enemies === 0) {
+      balanceStatus = 'Безопасен'
+    } else if (enemies < residents) {
+      balanceStatus = 'Под контролем'
+    } else if (enemies === residents) {
+      balanceStatus = 'Критический баланс'
+    } else {
+      balanceStatus = 'Переполнен врагами!'
+    }
+    
+    return {
+      residents,
+      enemies,
+      canEnemiesEnter,
+      balanceStatus
+    }
+  }
+
+  /**
+   * Разблокирует врагов в очереди, если появилось место в бункере
+   */
+  private unblockEnemiesIfPossible(): void {
+    if (this.bunkerEnemies.length < this.bunkerResidents.length) {
+      let unblockedCount = 0
+      
+      // Проходим по всем врагам в очереди и разблокируем их
+      this.enemyQueueItems.forEach(enemy => {
+        if (enemy.blockedFromEntry) {
+          enemy.blockedFromEntry = false
+          unblockedCount++
+          console.log(`[unblockEnemiesIfPossible] Враг ${enemy.type} разблокирован`)
+        }
+      })
+      
+      if (unblockedCount > 0) {
+        console.log(`[unblockEnemiesIfPossible] Разблокировано ${unblockedCount} врагов`)
+        this.showToast(`Враги в очереди разблокированы!`)
+      }
+    }
+  }
+
+  /**
+   * Удаляет врага из бункера при смерти
+   */
+  public removeEnemyFromBunker(id: number, reason?: string): void {
+    const idx = this.bunkerEnemies.findIndex(e => e.id === id)
+    if (idx >= 0) {
+      const [enemy] = this.bunkerEnemies.splice(idx, 1)
+      console.log(`[GameScene] Удаляем мертвого врага ${enemy.name} (ID: ${enemy.id}) из bunkerEnemies: ${reason}`)
+      
+      // Обновляем визуальное отображение бункера
+      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
+      
+      // Обновляем счетчик населения
+      this.updateResourcesText()
+      
+      // Показываем уведомление о смерти врага
+      this.showToast(`💀 Враг ${enemy.enemyType} уничтожен: ${reason}`)
+      
+      // Проверяем возможность разблокировки врагов в очереди
+      this.unblockEnemiesIfPossible()
+    }
   }
 
   // scheduleVisitorArrival уже определён выше (динамический, с джиттером)
@@ -3117,6 +3310,15 @@ export class GameScene extends Phaser.Scene {
 
   private maybeArriveEnemy(): void {
     if (this.phase !== 'night') return
+    
+    // Проверяем размер очереди врагов
+    if (this.enemyQueueItems.length >= this.MAX_QUEUE_SIZE) {
+      console.log(`[maybeArriveEnemy] Очередь врагов заполнена (${this.enemyQueueItems.length}/${this.MAX_QUEUE_SIZE}), новых врагов не добавляем`)
+      return
+    }
+    
+    console.log(`[maybeArriveEnemy] Приходит враг. Размер очереди врагов: ${this.enemyQueueItems.length + 1}/${this.MAX_QUEUE_SIZE}`)
+    
     const v = this.enqueueEnemy(true)
     if (!this.lastSurfaceRect || !v) return
     const rect = this.lastSurfaceRect
@@ -3255,6 +3457,9 @@ export class GameScene extends Phaser.Scene {
           rect.destroy()
           sprite?.destroy()
           this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
+          
+          // Проверяем возможность возобновления прихода персонажей
+          this.checkAndResumeArrivals()
         } })
       } else {
         // Покажем плашку "нет мест" и оставим человека в очереди (не выкидываем)
@@ -3320,6 +3525,9 @@ export class GameScene extends Phaser.Scene {
         rect.destroy()
         sprite?.destroy()
         if (!(this as any)._previewBusy) this.updatePersonInfoFromQueue()
+        
+        // Проверяем возможность возобновления прихода персонажей
+        this.checkAndResumeArrivals()
       }})
     }
     // Плавное перемещение очереди после принятия/отклонения жителя
@@ -3353,6 +3561,9 @@ export class GameScene extends Phaser.Scene {
 
     // Обновляем сразу после очистки массива
     this.updatePersonInfoFromQueue()
+    
+    // Проверяем возможность возобновления прихода персонажей
+    this.checkAndResumeArrivals()
 
     // Также очищаем блок превью при наступлении ночи
     this.dispersePreviewCitizens()
@@ -4169,7 +4380,23 @@ export class GameScene extends Phaser.Scene {
       insaneSince: undefined,
       intent: 'peaceful' // Мирное поведение по умолчанию
     })
+    
+    // Обновляем ресурсы
     this.updateResourcesText()
+    
+    // Синхронизируем с bunkerView для создания визуального жителя
+    // Важно: передаем общее количество жителей + врагов для правильной синхронизации
+    // Но НЕ создаем дубликатов существующих агентов
+    // Используем специальный флаг для предотвращения дублирования
+    if (this.simpleBunker && typeof (this.simpleBunker as any).syncResidentsWithoutDuplicates === 'function') {
+      (this.simpleBunker as any).syncResidentsWithoutDuplicates(this.bunkerResidents.length + this.bunkerEnemies.length)
+    } else {
+      this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
+    }
+    
+    // Обновляем видимость/лейаут приёмной панели
+    this.updateUIVisibility()
+    if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
   }
 
   // Механика смерти/удаления жителя (освобождает место)
@@ -4184,6 +4411,9 @@ export class GameScene extends Phaser.Scene {
       if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
       this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
       if (reason) this.showToast(`${r.name} удалён: ${reason}`)
+      
+      // Проверяем возможность разблокировки врагов в очереди
+      this.unblockEnemiesIfPossible()
     }
   }
 
@@ -4202,6 +4432,9 @@ export class GameScene extends Phaser.Scene {
         ? `${r.name} убит в драке между жителями!`
         : `${r.name} погиб в бою с врагами!`
       this.showToast(`💀 ${deathMessage}`)
+      
+      // Проверяем возможность разблокировки врагов в очереди
+      this.unblockEnemiesIfPossible()
     }
   }
 
@@ -4525,6 +4758,9 @@ export class GameScene extends Phaser.Scene {
           (newFirst as any).arrivedAtPosition = true
         }
       }
+      
+      // Проверяем возможность возобновления прихода персонажей
+      this.checkAndResumeArrivals()
     } })
     if (this.lastSurfaceRect) this.layoutEnemyQueue(this.lastSurfaceRect, true) // smooth=true
     if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
@@ -5069,21 +5305,34 @@ export class GameScene extends Phaser.Scene {
     let base = 8000
     switch (this.difficulty) {
       case 'easy':
-        base = 9000
+        base = 12000 // Враги приходят реже на легкой сложности
         break
       case 'normal':
-        base = 8000
+        base = 8000 // Стандартный интервал
         break
       case 'hard':
-        base = 6500
+        base = 5000 // Враги приходят чаще на сложной сложности
         break
       default:
         base = 8000
     }
+    
+    // Влияние комфорта на интервал прихода врагов
+    // Чем выше комфорт, тем реже приходят враги
+    const comfortFactor = Math.max(0.5, 1 + (this.comfort / 100) * 0.5)
+    base *= comfortFactor
+    
+    // Влияние количества дней на интервал прихода врагов
+    // С каждым днем враги приходят чаще
     const daysPassed = Math.max(0, this.dayNumber - 1)
-    const factor = Math.pow(0.94, daysPassed)
+    const dayFactor = Math.pow(0.92, daysPassed) // Более агрессивное увеличение частоты
+    base *= dayFactor
+    
     const minDelay = 2200
-    const delay = Math.max(minDelay, Math.floor(base * factor))
+    const delay = Math.max(minDelay, Math.floor(base))
+    
+    console.log(`[computeEnemyArrivalDelay] Сложность: ${this.difficulty}, День: ${this.dayNumber}, Комфорт: ${this.comfort}%, Базовая задержка: ${base}ms, Финальная задержка: ${delay}ms`)
+    
     return delay
   }
 

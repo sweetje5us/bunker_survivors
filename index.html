@@ -1391,6 +1391,9 @@
       const container = document.getElementById('population-list');
       if (!container) return;
 
+      // Сбрасываем состояние модального окна - показываем список жителей
+      window.showPopulationList();
+
       container.innerHTML = '';
 
       if (residents && residents.length > 0) {
@@ -1427,6 +1430,9 @@
 
     window.openResidentDetail = function(index) {
       console.log('Opening resident detail for index:', index);
+
+      // Сохраняем индекс текущего жителя для использования в revealHiddenSkill
+      window.currentResidentIndex = index;
 
       // Get resident data from stored residents
       let resident = window.currentResidentsData ? window.currentResidentsData[index] : null;
@@ -1472,15 +1478,13 @@
 
       console.log('Showing details for resident:', resident.name, 'health:', resident.health);
 
-      // Populate resident detail modal
+      // Populate resident detail content
       if (typeof window.populateResidentDetailModal === 'function') {
         window.populateResidentDetailModal(resident);
       }
 
-      // Open resident detail modal
-      if (typeof window.openModal === 'function') {
-        window.openModal('resident-detail-modal');
-      }
+      // Switch to resident detail view in the same modal
+      window.showResidentDetail();
     };
 
     // Resident detail modal functions
@@ -1488,14 +1492,23 @@
       const container = document.getElementById('resident-detail-content');
       if (!container) return;
 
-      // Format skills
+      // Format skills - only first skill is visible, others are hidden
       const skillsList = resident.skills && resident.skills.length > 0
-        ? resident.skills.map(skill =>
-            `<div class="skill-item ${skill.positive ? 'positive' : 'negative'}">
-              <span class="skill-text">${skill.text}</span>
-              <span class="skill-effect">${skill.positive ? '✓' : '✗'}</span>
-            </div>`
-          ).join('')
+        ? resident.skills.map((skill, index) => {
+            if (index === 0) {
+              // First skill - fully visible
+              return `<div class="skill-item ${skill.positive ? 'positive' : 'negative'}">
+                <span class="skill-text">${skill.text}</span>
+                <span class="skill-effect">${skill.positive ? '✓' : '✗'}</span>
+              </div>`;
+            } else {
+              // Hidden skills - show as "???" with click to reveal
+              return `<div class="skill-item hidden-skill" data-skill-index="${index}" onclick="revealHiddenSkill(this, ${index})">
+                <span class="skill-text">???</span>
+                <span class="skill-effect">?</span>
+              </div>`;
+            }
+          }).join('')
         : '<div class="no-skills">Нет навыков</div>';
 
       // Create resident detail HTML
@@ -1534,27 +1547,6 @@
           <div class="detail-section status-info">
             <h3>Состояние</h3>
             <div class="status-meters">
-              <div class="status-meter">
-                <div class="meter-label">Голод</div>
-                <div class="meter-bar">
-                  <div class="meter-fill hunger" style="width: ${resident.hunger}%"></div>
-                </div>
-                <span class="meter-value">${Math.round(resident.hunger)}%</span>
-              </div>
-              <div class="status-meter">
-                <div class="meter-label">Жажда</div>
-                <div class="meter-bar">
-                  <div class="meter-fill thirst" style="width: ${resident.thirst}%"></div>
-                </div>
-                <span class="meter-value">${Math.round(resident.thirst)}%</span>
-              </div>
-              <div class="status-meter">
-                <div class="meter-label">Энергия</div>
-                <div class="meter-bar">
-                  <div class="meter-fill energy" style="width: ${resident.energy}%"></div>
-                </div>
-                <span class="meter-value">${Math.round(resident.energy)}%</span>
-              </div>
               <div class="status-meter">
                 <div class="meter-label">Здоровье</div>
                 <div class="meter-bar">
@@ -3459,6 +3451,94 @@
     window.debugOpenInventory = function() {
       console.log('Debug: Opening inventory modal');
       window.openInventory();
+    };
+
+    // Функции для переключения между видами в модальном окне населения
+    window.showResidentDetail = function() {
+      console.log('[showResidentDetail] Switching to resident detail view');
+      
+      // Скрываем список жителей
+      const listView = document.getElementById('population-list-view');
+      if (listView) {
+        listView.style.display = 'none';
+      }
+      
+      // Показываем подробности жителя
+      const detailView = document.getElementById('resident-detail-view');
+      if (detailView) {
+        detailView.style.display = 'block';
+        // Добавляем небольшую задержку для плавной анимации
+        setTimeout(() => {
+          detailView.classList.add('active');
+        }, 10);
+      }
+      
+      // Обновляем заголовок модального окна
+      const title = document.getElementById('population-modal-title');
+      if (title) {
+        title.textContent = 'ПОДРОБНОСТИ О ЖИТЕЛЕ';
+      }
+    };
+
+    window.showPopulationList = function() {
+      console.log('[showPopulationList] Switching back to population list view');
+      
+      // Скрываем подробности жителя
+      const detailView = document.getElementById('resident-detail-view');
+      if (detailView) {
+        detailView.classList.remove('active');
+        setTimeout(() => {
+          detailView.style.display = 'none';
+        }, 300); // Ждем окончания анимации
+      }
+      
+      // Показываем список жителей
+      const listView = document.getElementById('population-list-view');
+      if (listView) {
+        listView.style.display = 'block';
+      }
+      
+      // Возвращаем оригинальный заголовок
+      const title = document.getElementById('population-modal-title');
+      if (title) {
+        title.textContent = 'РЕЕСТР ВЫЖИВШИХ';
+      }
+    };
+
+    // Функция для раскрытия скрытых навыков при клике
+    window.revealHiddenSkill = function(element, skillIndex) {
+      console.log(`[revealHiddenSkill] Revealing skill at index: ${skillIndex}`);
+      
+      // Получаем данные о жителе
+      const resident = window.currentResidentsData ? window.currentResidentsData[window.currentResidentIndex] : null;
+      if (!resident || !resident.skills || !resident.skills[skillIndex]) {
+        console.warn('[revealHiddenSkill] Resident or skill data not available');
+        return;
+      }
+      
+      const skill = resident.skills[skillIndex];
+      console.log(`[revealHiddenSkill] Skill data:`, skill);
+      
+      // Раскрываем навык - показываем название и окрашиваем по контексту
+      element.classList.remove('hidden-skill');
+      element.classList.add(skill.positive ? 'positive' : 'negative');
+      
+      // Обновляем содержимое
+      const skillText = element.querySelector('.skill-text');
+      const skillEffect = element.querySelector('.skill-effect');
+      
+      if (skillText) {
+        skillText.textContent = skill.text;
+      }
+      
+      if (skillEffect) {
+        skillEffect.textContent = skill.positive ? '✓' : '✗';
+      }
+      
+      // Убираем обработчик клика, так как навык уже раскрыт
+      element.onclick = null;
+      
+      console.log(`[revealHiddenSkill] Skill "${skill.text}" revealed successfully`);
     };
   </script>
 

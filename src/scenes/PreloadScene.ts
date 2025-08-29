@@ -7,9 +7,6 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Предварительная загрузка шрифтов для главного меню
-    this.preloadFonts()
-
     const width = this.scale.width
     const height = this.scale.height
     const progressBar = this.add.rectangle(width / 2, height / 2, 400, 24, 0x2e7d32).setOrigin(0.5)
@@ -381,37 +378,6 @@ export class PreloadScene extends Phaser.Scene {
       frames: this.anims.generateFrameNumbers('button_red', { start: 0, end: 5 }),
       frameRate: 12,
       repeat: 0
-    })
-  }
-
-  private preloadFonts(): void {
-    // Создаем временные текстовые объекты для предварительной загрузки шрифтов
-    // Это поможет Phaser понять, какие шрифты нужны и загрузить их
-    
-    // Создаем скрытый текст с нужными шрифтами
-    const testText1 = this.add.text(-1000, -1000, 'ВХОД ВОСПРЕЩЕН', {
-      fontFamily: '"28 Days Later Cyr Regular", monospace',
-      fontSize: '64px'
-    })
-    
-    const testText2 = this.add.text(-1000, -1000, 'NO ENTRY', {
-      fontFamily: '"28 Days Later Cyr Regular", monospace',
-      fontSize: '32px'
-    })
-    
-    const testText3 = this.add.text(-1000, -1000, 'НАЧАТЬ ОБОРОНУ', {
-      fontFamily: '"Press Start 2P", monospace',
-      fontSize: '18px'
-    })
-    
-    // Сразу удаляем тестовые тексты
-    testText1.destroy()
-    testText2.destroy()
-    testText3.destroy()
-    
-    // Добавляем небольшую задержку для загрузки шрифтов
-    this.time.delayedCall(100, () => {
-      console.log('Шрифты предварительно загружены')
     })
   }
 }

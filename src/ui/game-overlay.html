@@ -43,11 +43,14 @@
         }
 
         .game-header {
-            background: linear-gradient(180deg, var(--bunker-bg) 0%, #2a2a2a 100%);
-            border-bottom: 3px solid var(--bunker-accent);
+            background: #000000 !important;
+            border-bottom: 4px solid #ff0000 !important;
             padding: 8px 16px;
             position: relative;
             min-height: 60px;
+            box-shadow: 
+                0 0 30px rgba(255, 0, 0, 0.4),
+                inset 0 0 20px rgba(255, 0, 0, 0.2) !important;
         }
 
         .game-header::before {
@@ -56,8 +59,9 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 3px;
-            background: var(--bunker-accent);
+            height: 4px;
+            background: #ff0000 !important;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
         }
 
         .game-header::after {
@@ -66,8 +70,9 @@
             bottom: 0;
             left: 0;
             right: 0;
-            height: 3px;
-            background: var(--bunker-dark-accent);
+            height: 4px;
+            background: #cc0000 !important;
+            box-shadow: 0 0 10px rgba(204, 0, 0, 0.5) !important;
         }
 
         .top-row {
@@ -80,10 +85,11 @@
         }
 
         .game-time {
-            color: var(--bunker-gold);
-            text-shadow: 1px 1px 0 var(--bunker-dark-accent);
+            color: #ff0000 !important;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
             font-size: 12px;
             white-space: nowrap;
+            font-weight: bold !important;
         }
 
         .action-buttons {
@@ -93,30 +99,43 @@
         }
 
         .btn {
-            background: #2a2a2a;
-            color: var(--bunker-text);
-            border: 2px solid #555555;
-            padding: 4px 8px;
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 2px solid #444 !important;
+            padding: 6px 10px !important;
             cursor: pointer;
             pointer-events: auto;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease !important;
             font-size: 8px;
             min-width: 60px;
             text-align: center;
+            border-radius: 6px !important;
+            font-weight: bold !important;
         }
 
         .btn:hover {
-            background: #3a3a3a;
-            border-color: var(--bunker-gold);
-            transform: translateY(-1px);
+            background: #2a2a2a !important;
+            border-color: #ff0000 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .btn:active {
-            transform: translateY(0);
+            transform: translateY(0) !important;
         }
 
         .inventory-btn {
-            font-size: 10px;
+            font-size: 10px !important;
+            background: #ff0000 !important;
+            color: #000000 !important;
+            border-color: #ff0000 !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
+        }
+
+        .inventory-btn:hover {
+            background: #cc0000 !important;
+            border-color: #cc0000 !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5) !important;
         }
 
         .bottom-row {
@@ -135,20 +154,26 @@
         }
 
         .resource-item {
-            background: #2a2a2a;
-            border: 1px solid #555555;
-            padding: 2px 6px;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
+            padding: 4px 8px !important;
             font-size: 8px;
-            color: var(--bunker-text);
+            color: #ffffff !important;
             min-width: 60px;
             text-align: center;
             pointer-events: auto;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease !important;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 4px;
+            border-radius: 6px !important;
+        }
+
+        /* Убеждаемся, что все элементы ресурсов имеют белый текст */
+        .resource-item * {
+            color: #ffffff !important;
         }
 
         .resource-item .resource-icon {
@@ -160,15 +185,37 @@
         }
 
         .resource-item:hover {
-            background: #3a3a3a;
-            border-color: var(--bunker-gold);
+            background: #2a2a2a !important;
+            border-color: #ff0000 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3) !important;
         }
 
-        .resource-item.happiness { color: #81c784; }
-        .resource-item.defense { color: #ffca28; }
-        .resource-item.ammo { color: #90caf9; }
-        .resource-item.comfort { color: #ce93d8; }
-        .resource-item.enemies { color: var(--bunker-red); }
+        /* Специальные стили для определенных ресурсов - переопределяем общий белый цвет */
+        .resource-item.happiness { 
+            color: #ffffff !important; 
+        }
+        .resource-item.defense { 
+            color: #ffffff !important; 
+        }
+        .resource-item.ammo { 
+            color: #ffffff !important; 
+        }
+        .resource-item.comfort { 
+            color: #ffffff !important; 
+        }
+        .resource-item.enemies { 
+            color: #ffffff !important; 
+        }
+
+        /* Убеждаемся, что все дочерние элементы также имеют белый цвет */
+        .resource-item.happiness *,
+        .resource-item.defense *,
+        .resource-item.ammo *,
+        .resource-item.comfort *,
+        .resource-item.enemies * {
+            color: #ffffff !important;
+        }
 
         .experience-section {
             display: flex;
@@ -178,14 +225,15 @@
         }
 
         .level-display {
-            color: var(--bunker-gold);
+            color: #ff0000 !important;
             font-size: 10px;
-            text-shadow: 1px 1px 0 var(--bunker-dark-accent);
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
             white-space: nowrap;
+            font-weight: bold !important;
         }
 
         .xp-display {
-            color: var(--bunker-text);
+            color: #ffffff !important;
             font-size: 8px;
             white-space: nowrap;
         }
@@ -199,17 +247,20 @@
         .progress-bar {
             width: 100%;
             height: 12px;
-            background: #333333;
-            border: 2px solid #555555;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
             position: relative;
             overflow: hidden;
+            border-radius: 6px !important;
         }
 
         .progress-fill {
             height: 100%;
-            background: var(--bunker-green);
+            background: linear-gradient(90deg, #ff0000, #cc0000) !important;
             transition: width 0.3s ease;
             width: 0%;
+            border-radius: 4px !important;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
         }
 
         /* Mobile responsive */
@@ -251,6 +302,7 @@
                 font-size: 9px;
                 flex: 1;
                 text-align: left;
+                color: #ff0000 !important;
             }
 
             .action-buttons {
@@ -260,24 +312,38 @@
 
             .btn {
                 font-size: 6px;
-                padding: 2px 4px;
+                padding: 3px 6px !important;
                 min-width: 35px;
                 height: 20px;
+                background: #1a1a1a !important;
+                color: #ffffff !important;
+                border: 2px solid #444 !important;
             }
 
             .inventory-btn {
                 font-size: 7px;
                 min-width: 45px;
+                background: #ff0000 !important;
+                color: #000000 !important;
+                border-color: #ff0000 !important;
             }
 
             .resource-item {
                 font-size: 6px;
-                padding: 1px 3px;
+                padding: 2px 4px !important;
                 min-width: 30px;
                 height: 18px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                background: #1a1a1a !important;
+                color: #ffffff !important;
+                border: 2px solid #444 !important;
+            }
+
+            /* Убеждаемся, что все элементы ресурсов имеют белый текст на мобильных */
+            .resource-item * {
+                color: #ffffff !important;
             }
 
             .resident-item {
@@ -296,18 +362,23 @@
 
             .level-display {
                 font-size: 7px;
+                color: #ff0000 !important;
             }
 
             .xp-display {
                 font-size: 6px;
+                color: #ffffff !important;
             }
 
             .progress-bar {
                 height: 8px;
+                background: #1a1a1a !important;
+                border: 2px solid #444 !important;
             }
 
             .progress-fill {
                 height: 8px;
+                background: linear-gradient(90deg, #ff0000, #cc0000) !important;
             }
         }
 
@@ -328,20 +399,32 @@
 
             .game-time {
                 font-size: 8px;
+                color: #ff0000 !important;
             }
 
             .btn {
                 font-size: 5px;
-                padding: 1px 3px;
+                padding: 2px 4px !important;
                 min-width: 30px;
                 height: 16px;
+                background: #1a1a1a !important;
+                color: #ffffff !important;
+                border: 2px solid #444 !important;
             }
 
             .resource-item {
                 font-size: 5px;
-                padding: 1px 2px;
+                padding: 2px 3px !important;
                 min-width: 25px;
                 height: 16px;
+                background: #1a1a1a !important;
+                color: #ffffff !important;
+                border: 2px solid #444 !important;
+            }
+
+            /* Убеждаемся, что все элементы ресурсов имеют белый текст на очень маленьких экранах */
+            .resource-item * {
+                color: #ffffff !important;
             }
 
             .resident-item {
@@ -370,7 +453,7 @@
             pointer-events: none;
         }
 
-        /* Modal Styles */
+        /* Modal Styles - новый дизайн в стиле окна жителей */
         .modal {
             display: none;
             position: fixed;
@@ -378,27 +461,27 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9) !important;
             z-index: 20000;
             pointer-events: auto;
         }
 
         .modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 50%, #1a0000 100%);
-            border: 3px solid #8b0000;
-            border-radius: 12px;
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            background: #000000 !important;
+            border: 4px solid #ff0000 !important;
+            border-radius: 8px;
             min-width: 300px;
-            max-width: 90vw;
-            max-height: 90vh;
+            max-width: 95vw;
+            max-height: 95vh;
             overflow: hidden;
             box-shadow: 
-                0 0 20px rgba(139, 0, 0, 0.8),
-                0 0 40px rgba(255, 0, 0, 0.3),
-                inset 0 0 20px rgba(139, 0, 0, 0.3);
+                0 0 30px rgba(255, 0, 0, 0.4),
+                inset 0 0 20px rgba(255, 0, 0, 0.3) !important;
+            animation: modalAppear 0.3s ease-out !important;
         }
 
         .modal-content.large {
@@ -407,66 +490,52 @@
         }
 
         .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 25px;
-            background: linear-gradient(180deg, #8b0000 0%, #654321 100%);
-            color: #ffcc00;
-            border-bottom: 2px solid #ff0000;
-            position: relative;
-        }
-
-        .modal-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, #ff0000, #ffcc00, #ff0000);
-            animation: scan 2s linear infinite;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 15px 20px !important;
+            background: #000000 !important;
+            border-bottom: 2px solid #ff0000 !important;
+            text-align: center !important;
+            color: #ffffff !important;
         }
 
         .modal-header h2 {
-            margin: 0;
-            font-size: 18px;
-            text-shadow: 
-                0 0 10px #ffcc00,
-                0 0 20px #ffcc00;
-            font-family: 'Press Start 2P', monospace;
-            letter-spacing: 1px;
+            margin: 0 !important;
+            font-size: 16px !important;
+            color: #ff0000 !important;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
+            flex: 1 !important;
         }
 
         .close-btn {
-            background: none;
-            border: none;
-            color: #ff0000;
-            font-size: 28px;
-            cursor: pointer;
-            padding: 0;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            border-radius: 4px;
+            background: none !important;
+            border: none !important;
+            color: #ff0000 !important;
+            font-size: 24px !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            width: 30px !important;
+            height: 30px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: color 0.3s ease !important;
         }
 
         .close-btn:hover {
-            background: rgba(255, 0, 0, 0.2);
-            color: #ffcc00;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
-            transform: scale(1.1);
+            color: #ffffff !important;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5) !important;
+            background: none !important;
+            border-radius: 0 !important;
         }
 
         .modal-body {
-            padding: 25px;
-            color: #ffcc00;
+            padding: 20px;
+            color: #ffffff !important;
+            background: #000000 !important;
             overflow-y: auto;
-            max-height: calc(95vh - 120px);
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
+            max-height: calc(95vh - 80px);
         }
 
         /* Specific styles for inventory modal */
@@ -480,139 +549,96 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px 25px;
-            margin: 12px 0;
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            border: 3px solid #8b0000;
-            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+            background: #2a2a2a;
+            border: 1px solid #555555;
+            border-radius: 4px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .resident-item::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.1), transparent);
-            transition: left 0.5s ease;
+            transition: all 0.2s ease;
         }
 
         .resident-item:hover {
-            background: linear-gradient(135deg, #3a1a1a 0%, #4a2a2a 100%);
-            border-color: #ffcc00;
-            transform: translateY(-3px);
-            box-shadow: 
-                0 0 20px rgba(255, 204, 0, 0.4),
-                0 0 40px rgba(255, 0, 0, 0.3);
-        }
-
-        .resident-item:hover::before {
-            left: 100%;
+            background: #3a3a3a;
+            border-color: var(--bunker-gold);
         }
 
         .resident-info {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 2px;
         }
 
         .resident-name {
-            font-size: 16px;
+            font-size: 12px;
             font-weight: bold;
-            color: #ffcc00;
-            text-shadow: 0 0 8px rgba(255, 204, 0, 0.6);
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            color: var(--bunker-gold);
         }
 
         .resident-profession {
-            font-size: 12px;
-            color: #ff6666;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-size: 10px;
+            color: var(--bunker-text);
         }
 
-        .resident-status {
-            font-size: 14px;
-            font-weight: bold;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 8px 16px;
-            border-radius: 6px;
-            border: 2px solid;
-        }
-
-        .resident-status.status-active {
-            color: #4CAF50;
-            border-color: #4CAF50;
-            background: rgba(76, 175, 80, 0.1);
-            box-shadow: 0 0 15px rgba(76, 175, 80, 0.3);
-        }
-
-        .resident-status.status-injured {
-            color: #ff9800;
-            border-color: #ff9800;
-            background: rgba(255, 152, 0, 0.1);
-            box-shadow: 0 0 15px rgba(255, 152, 0, 0.3);
-        }
-
-        .resident-status.status-critical {
-            color: #f44336;
-            border-color: #f44336;
-            background: rgba(244, 67, 54, 0.1);
-            box-shadow: 0 0 15px rgba(244, 67, 54, 0.3);
-        }
-
-        /* Resource Modal */
+        /* Resource Modal - новый дизайн */
         .resource-details {
             display: grid;
-            gap: 20px;
+            gap: 15px;
         }
 
         .resource-stat {
             display: flex;
             justify-content: space-between;
-            padding: 15px 20px;
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            border-radius: 8px;
-            border: 2px solid #8b0000;
-            transition: all 0.3s ease;
-        }
-
-        .resource-stat.positive {
-            border-left: 4px solid #4CAF50;
-            box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
-        }
-
-        .resource-stat.negative {
-            border-left: 4px solid #f44336;
-            box-shadow: 0 0 10px rgba(244, 67, 54, 0.3);
-        }
-
-        .resource-stat.neutral {
-            border-left: 4px solid #ffcc00;
-            box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
-        }
-
-        .resource-stat.neutral span:first-child {
-            color: #ffcc00;
-            font-weight: bold;
+            padding: 12px;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
         }
 
         .resource-stat:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 20px rgba(139, 0, 0, 0.5);
+            border-color: #ff0000 !important;
+            background: #2a2a2a !important;
+            transform: translateX(5px) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
         }
 
-        /* Menu Modal */
+        .resource-stat.positive {
+            border-left: 4px solid #4CAF50 !important;
+        }
+
+        .resource-stat.negative {
+            border-left: 4px solid #f44336 !important;
+        }
+
+        .resource-stat.neutral {
+            border-left: 4px solid #ff0000 !important;
+        }
+
+        .resource-stat.neutral span:first-child {
+            color: #ff0000 !important;
+            font-weight: bold !important;
+        }
+
+        .resource-stat span {
+            color: #ffffff !important;
+        }
+
+        .resource-description {
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
+            border-radius: 8px !important;
+            padding: 15px !important;
+            margin-top: 15px !important;
+        }
+
+        .resource-description p {
+            color: #ffffff !important;
+            margin: 0 !important;
+            line-height: 1.5 !important;
+        }
+
+        /* Menu Modal - новый дизайн */
         .menu-options {
             display: flex;
             flex-direction: column;
@@ -620,61 +646,36 @@
         }
 
         .menu-btn {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            color: #ffcc00;
-            border: 2px solid #8b0000;
-            padding: 18px 25px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-radius: 8px;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .menu-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.1), transparent);
-            transition: left 0.5s ease;
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 2px solid #444 !important;
+            padding: 15px !important;
+            font-size: 14px !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            border-radius: 8px !important;
+            font-weight: bold !important;
         }
 
         .menu-btn:hover {
-            background: linear-gradient(135deg, #3a1a1a 0%, #4a2a2a 100%);
-            border-color: #ffcc00;
-            transform: translateY(-3px);
-            box-shadow: 
-                0 0 20px rgba(255, 204, 0, 0.4),
-                0 0 40px rgba(255, 0, 0, 0.3);
-            color: #ffffff;
-        }
-
-        .menu-btn:hover::before {
-            left: 100%;
+            background: #2a2a2a !important;
+            border-color: #ff0000 !important;
+            transform: translateX(5px) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .menu-btn.danger {
-            border-color: #ff0000;
-            color: #ff6666;
+            border-color: #f44336 !important;
+            color: #f44336 !important;
         }
 
         .menu-btn.danger:hover {
-            background: linear-gradient(135deg, #4a1a1a 0%, #5a2a2a 100%);
-            border-color: #ff6666;
-            color: #ffffff;
-            box-shadow: 
-                0 0 20px rgba(255, 0, 0, 0.4),
-                0 0 40px rgba(255, 102, 102, 0.3);
+            background: rgba(244, 67, 54, 0.1) !important;
+            border-color: #ff0000 !important;
+            color: #ffffff !important;
         }
 
-        /* Inventory Modal */
+        /* Inventory Modal - новый дизайн */
         .inventory-container {
             display: grid;
             grid-template-columns: 1fr 2fr;
@@ -682,13 +683,15 @@
         }
 
         .equipment-section h3,
-        .inventory-section h3 {
-            color: #ffcc00;
-            margin-bottom: 15px;
-            text-align: center;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 14px;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        .inventory-section h3,
+        .resources-section h3 {
+            color: #ff0000 !important;
+            margin-bottom: 15px !important;
+            text-align: center !important;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
+            font-size: 16px !important;
+            border-bottom: 2px solid #ff0000 !important;
+            padding-bottom: 10px !important;
         }
 
         .equipment-slots {
@@ -698,66 +701,37 @@
         }
 
         .equip-slot {
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
-            border: 2px solid #8b0000;
-            padding: 20px 12px;
-            text-align: center;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-radius: 8px;
-            min-height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .equip-slot::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.1), transparent);
-            transition: left 0.5s ease;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
+            padding: 20px 12px !important;
+            text-align: center !important;
+            font-size: 12px !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            border-radius: 8px !important;
+            min-height: 60px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
 
         .equip-slot:hover {
-            border-color: #ffcc00;
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
-        }
-
-        .equip-slot:hover::before {
-            left: 100%;
+            border-color: #ff0000 !important;
+            background: #2a2a2a !important;
+            transform: translateX(5px) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .equip-slot.equipped {
-            border-color: #4CAF50;
-            background: linear-gradient(135deg, #1a2a1a 0%, #2a3a2a 100%);
-            box-shadow: 0 0 15px rgba(76, 175, 80, 0.3);
+            border-color: #4CAF50 !important;
+            background: rgba(76, 175, 80, 0.1) !important;
         }
 
-        /* Weapon slot specific styles */
+        /* Weapon slot specific styles - новый дизайн */
         .weapon-slot {
             position: relative;
             min-height: 80px;
             padding: 15px;
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
-            border: 3px solid #8b0000;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .weapon-slot:hover {
-            border-color: #ffcc00;
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
         }
 
         .weapon-display {
@@ -767,7 +741,6 @@
             gap: 10px;
             justify-content: center;
             min-height: 60px;
-            padding: 10px;
         }
 
         .weapon-icon {
@@ -775,13 +748,6 @@
             height: 32px;
             object-fit: contain;
             image-rendering: pixelated;
-            filter: drop-shadow(0 0 8px rgba(255, 204, 0, 0.5));
-            transition: all 0.3s ease;
-        }
-
-        .weapon-slot:hover .weapon-icon {
-            filter: drop-shadow(0 0 12px rgba(255, 204, 0, 0.8));
-            transform: scale(1.05);
         }
 
         /* Specific weapon sizes for main display */
@@ -806,11 +772,10 @@
         }
 
         .weapon-name {
-            font-size: 11px;
-            color: #ffcc00;
-            text-align: center;
-            font-family: 'Press Start 2P', monospace;
-            text-shadow: 0 0 5px rgba(255, 204, 0, 0.5);
+            font-size: 12px !important;
+            color: #ffffff !important;
+            text-align: center !important;
+            font-weight: bold !important;
         }
 
         .weapon-dropdown {
@@ -818,14 +783,14 @@
             top: 100%;
             left: 0;
             right: 0;
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
-            border: 3px solid #8b0000;
-            border-radius: 8px;
-            z-index: 30000;
+            background: #000000 !important;
+            border: 3px solid #ff0000 !important;
+            border-radius: 8px !important;
+            z-index: 25000;
             display: none;
             box-shadow: 
-                0 4px 8px rgba(139, 0, 0, 0.8),
-                0 8px 16px rgba(255, 0, 0, 0.3);
+                0 4px 8px rgba(0, 0, 0, 0.8),
+                0 0 20px rgba(255, 0, 0, 0.3) !important;
         }
 
         .weapon-dropdown.show {
@@ -836,13 +801,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 18px 15px;
+            padding: 15px 10px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            border-bottom: 2px solid #8b0000;
-            min-height: 65px;
+            transition: all 0.3s ease !important;
+            border-bottom: 1px solid #444;
+            min-height: 60px;
             position: relative;
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
         }
 
         .weapon-option:last-child {
@@ -850,33 +814,31 @@
         }
 
         .weapon-option:hover:not(.locked) {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            border-color: #ffcc00;
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
+            background: #2a2a2a !important;
+            border-color: #ff0000 !important;
+            transform: translateX(5px) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .weapon-option.locked {
             opacity: 0.4;
             cursor: not-allowed;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
         }
 
         .weapon-option.locked::after {
             content: '🔒';
             position: absolute;
-            top: 8px;
-            right: 8px;
-            font-size: 16px;
-            color: #ff0000;
-            background: rgba(139, 0, 0, 0.8);
+            top: 5px;
+            right: 5px;
+            font-size: 14px;
+            color: var(--bunker-red);
+            background: rgba(0, 0, 0, 0.7);
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 2px solid #8b0000;
         }
 
         .weapon-option-icon {
@@ -884,13 +846,6 @@
             image-rendering: pixelated;
             max-width: 100%;
             max-height: 40px;
-            filter: drop-shadow(0 0 5px rgba(255, 204, 0, 0.3));
-            transition: all 0.3s ease;
-        }
-
-        .weapon-option:hover .weapon-option-icon {
-            filter: drop-shadow(0 0 8px rgba(255, 204, 0, 0.6));
-            transform: scale(1.05);
         }
 
         /* Specific weapon sizes in dropdown */
@@ -917,26 +872,28 @@
         .inventory-grid {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
-            gap: 4px;
+            gap: 6px;
         }
 
         .inventory-slot {
-            background: #1a1a1a;
-            border: 1px solid #444;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
             aspect-ratio: 1;
             cursor: pointer;
-            transition: all 0.2s ease;
-            border-radius: 2px;
+            transition: all 0.3s ease !important;
+            border-radius: 6px !important;
             position: relative;
         }
 
         .inventory-slot:hover {
-            border-color: var(--bunker-gold);
-            background: #2a2a2a;
+            border-color: #ff0000 !important;
+            background: #2a2a2a !important;
+            transform: scale(1.05) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .inventory-slot.occupied {
-            background: #2a2a2a;
+            background: #2a2a2a !important;
         }
 
         /* Drag and Drop Styles */
@@ -977,7 +934,7 @@
             font-size: 16px;
         }
 
-        /* Resources Section Styles */
+        /* Resources Section Styles - новый дизайн */
         .resources-section {
             margin-bottom: 20px;
         }
@@ -985,20 +942,28 @@
         .resources-grid {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 4px;
+            gap: 6px;
         }
 
         .resource-slot {
-            background: #1a1a1a;
-            border: 1px solid #444;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
             aspect-ratio: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 2px;
+            border-radius: 6px !important;
             position: relative;
-            padding: 4px;
+            padding: 6px !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .resource-slot:hover {
+            border-color: #ff0000 !important;
+            background: #2a2a2a !important;
+            transform: scale(1.05) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .resource-slot .resource-icon {
@@ -1010,15 +975,16 @@
         }
 
         .resource-slot .resource-quantity {
-            font-size: 10px;
-            color: var(--bunker-gold);
-            font-weight: bold;
+            font-size: 11px !important;
+            color: #ff0000 !important;
+            font-weight: bold !important;
             margin-bottom: 1px;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .resource-slot .resource-name {
-            font-size: 7px;
-            color: #888;
+            font-size: 8px !important;
+            color: #ffffff !important;
             text-align: center;
             line-height: 1;
         }
@@ -1033,7 +999,7 @@
             border-radius: 1px;
         }
 
-        /* Abilities Modal */
+        /* Abilities Modal - новый дизайн */
         .abilities-container {
             display: flex;
             flex-direction: column;
@@ -1041,153 +1007,147 @@
         }
 
         .ability-points {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            border: 3px solid #ffcc00;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 0 20px rgba(255, 204, 0, 0.3);
+            background: #1a1a1a !important;
+            border: 3px solid #ff0000 !important;
+            border-radius: 8px !important;
+            padding: 20px !important;
+            text-align: center !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.3) !important;
         }
 
         .ability-points h3 {
-            color: #ffcc00;
-            margin: 0 0 15px 0;
-            font-size: 16px;
-            font-family: 'Press Start 2P', monospace;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+            color: #ff0000 !important;
+            margin: 0 0 15px 0 !important;
+            font-size: 16px !important;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
         }
 
         .points-display {
-            font-size: 28px;
-            color: #4CAF50;
-            font-weight: bold;
-            margin-bottom: 8px;
-            text-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+            font-size: 28px !important;
+            color: #4CAF50 !important;
+            font-weight: bold !important;
+            margin-bottom: 5px !important;
+            text-shadow: 0 0 10px rgba(76, 175, 80, 0.5) !important;
         }
 
         .category-tabs {
             display: flex;
             gap: 8px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             flex-wrap: wrap;
         }
 
         .category-tab {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            border: 2px solid #8b0000;
-            color: #ffcc00;
-            padding: 12px 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-radius: 8px;
-            font-size: 12px;
-            min-width: 90px;
-            text-align: center;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
+            color: #ffffff !important;
+            padding: 10px 15px !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            border-radius: 6px !important;
+            font-size: 11px !important;
+            min-width: 90px !important;
+            text-align: center !important;
+            font-weight: bold !important;
         }
 
         .category-tab:hover {
-            border-color: #ffcc00;
-            background: linear-gradient(135deg, #3a1a1a 0%, #4a2a2a 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
+            border-color: #ff0000 !important;
+            background: #2a2a2a !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .category-tab.active {
-            border-color: #ffcc00;
-            background: linear-gradient(135deg, #ffcc00 0%, #ffaa00 100%);
-            color: #1a0000;
-            box-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+            border-color: #ff0000 !important;
+            background: #ff0000 !important;
+            color: #000000 !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5) !important;
         }
 
         .ability-tree {
             position: relative;
             min-height: 400px;
             min-width: 800px;
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
-            border: 3px solid #8b0000;
-            border-radius: 12px;
-            padding: 25px;
+            background: #000000 !important;
+            border: 3px solid #ff0000 !important;
+            border-radius: 8px !important;
+            padding: 20px;
             overflow: auto;
-            box-shadow: 
-                0 0 20px rgba(139, 0, 0, 0.5),
-                inset 0 0 20px rgba(139, 0, 0, 0.3);
+            box-shadow: inset 0 0 20px rgba(255, 0, 0, 0.2) !important;
         }
 
         .ability-node {
             position: absolute;
-            width: 130px;
-            height: 85px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #1d242c 0%, #2a2a2a 100%);
-            border: 3px solid #8b0000;
+            width: 120px;
+            height: 80px;
+            border-radius: 8px;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.3s ease !important;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
-            color: #ffcc00;
-            box-shadow: 0 0 15px rgba(139, 0, 0, 0.5);
+            font-size: 10px;
+            color: #ffffff !important;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
             text-align: center;
-            padding: 8px;
-            font-family: 'Press Start 2P', monospace;
+            padding: 5px;
         }
 
         .ability-node:hover {
-            border-color: #ffcc00;
-            box-shadow: 0 0 25px rgba(255, 204, 0, 0.6);
-            transform: scale(1.1);
+            border-color: #ff0000 !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5) !important;
+            transform: scale(1.1) !important;
         }
 
         .ability-node.locked {
-            opacity: 0.4;
+            opacity: 0.3;
             cursor: not-allowed;
-            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
-            border-color: #666;
+            background: #1a1a1a !important;
+            border-color: #444 !important;
         }
 
         .ability-node.unlocked {
-            border-color: #4CAF50;
-            background: linear-gradient(135deg, #1a2a1a 0%, #2a3a2a 100%);
-            box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
+            border-color: #4CAF50 !important;
+            background: #2a2a2a !important;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.3) !important;
         }
 
         .ability-node.learned {
-            border-color: #ffcc00;
-            background: linear-gradient(135deg, #2a2a1a 0%, #3a3a2a 100%);
-            box-shadow: 0 0 25px rgba(255, 204, 0, 0.6);
+            border-color: #ff0000 !important;
+            background: #3a3a3a !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5) !important;
         }
 
         .ability-node.maxed {
-            border-color: #ffcc00;
-            background: linear-gradient(135deg, #2a2a00 0%, #3a3a1a 100%);
-            color: #ffcc00;
-            box-shadow: 0 0 30px rgba(255, 204, 0, 0.8);
+            border-color: #ff0000 !important;
+            background: #000000 !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.7) !important;
         }
 
         .ability-node.maxed .name {
-            color: #ffcc00;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.8);
+            color: var(--bunker-gold);
         }
 
         .ability-node.maxed .description {
-            color: #ffcc00;
+            color: var(--bunker-text);
+            opacity: 0.9;
         }
 
         .ability-node.maxed .bonus {
-            color: #4CAF50;
+            color: var(--bunker-green);
         }
 
         .ability-node .level {
             position: absolute;
             top: -5px;
             right: -5px;
-            background: var(--bunker-gold);
-            color: var(--bunker-bg);
+            background: #ff0000 !important;
+            color: #000000 !important;
             border-radius: 50%;
             width: 20px;
             height: 20px;
@@ -1196,36 +1156,40 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
         }
 
         .ability-node .name {
             font-weight: bold;
-            color: var(--bunker-gold);
+            color: #ff0000 !important;
             margin-bottom: 2px;
             line-height: 1.2;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .ability-node .description {
             font-size: 8px;
             line-height: 1.1;
-            opacity: 0.8;
+            opacity: 0.9 !important;
+            color: #ffffff !important;
         }
 
         .ability-node .bonus {
             font-size: 8px;
-            color: var(--bunker-green);
+            color: #4CAF50 !important;
             font-weight: bold;
             margin-top: 2px;
         }
 
         .ability-node .bonus.current {
-            color: var(--bunker-gold);
+            color: #ff0000 !important;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .ability-tooltip {
             position: fixed;
-            background: #2a2a2a;
-            border: 2px solid var(--bunker-gold);
+            background: #000000 !important;
+            border: 3px solid #ff0000 !important;
             border-radius: 8px;
             padding: 15px;
             width: 250px;
@@ -1233,7 +1197,9 @@
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.3s ease;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            box-shadow: 
+                0 0 20px rgba(0, 0, 0, 0.8),
+                0 0 30px rgba(255, 0, 0, 0.3) !important;
         }
 
         .ability-tooltip.show {
@@ -1241,26 +1207,27 @@
         }
 
         .ability-tooltip h4 {
-            color: var(--bunker-gold);
+            color: #ff0000 !important;
             margin: 0 0 10px 0;
             font-size: 12px;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .ability-tooltip .description {
-            color: var(--bunker-text);
+            color: #ffffff !important;
             font-size: 10px;
             margin-bottom: 10px;
             line-height: 1.4;
         }
 
         .ability-tooltip .cost {
-            color: var(--bunker-green);
+            color: #4CAF50 !important;
             font-size: 10px;
             font-weight: bold;
         }
 
         .ability-tooltip .requirements {
-            color: #888;
+            color: #888 !important;
             font-size: 9px;
             font-style: italic;
             margin-top: 8px;
@@ -1283,16 +1250,16 @@
         }
 
         .connection-line.unlocked {
-            stroke: var(--bunker-green);
+            stroke: #4CAF50 !important;
             opacity: 0.6;
         }
 
         .connection-line.learned {
-            stroke: var(--bunker-gold);
+            stroke: #ff0000 !important;
             opacity: 0.8;
         }
 
-        /* Room Selection Styles */
+        /* Room Selection Styles - новый дизайн */
         .room-selection-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1301,25 +1268,26 @@
         }
 
         .room-option {
-            background: var(--bunker-bg);
-            border: 2px solid var(--bunker-border);
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
             border-radius: 8px;
             padding: 15px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.3s ease !important;
             text-align: center;
         }
 
         .room-option:hover {
-            border-color: var(--bunker-gold);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-color: #ff0000 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(255, 0, 0, 0.3) !important;
         }
 
         .room-option.selected {
-            border-color: var(--bunker-gold);
-            background: var(--bunker-gold);
-            color: var(--bunker-bg);
+            border-color: #ff0000 !important;
+            background: #ff0000 !important;
+            color: #000000 !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5) !important;
         }
 
         .room-option .room-icon {
@@ -1332,137 +1300,127 @@
             font-weight: bold;
             margin-bottom: 8px;
             font-size: 1.1em;
+            color: #ffffff !important;
         }
 
         .room-option .room-description {
             font-size: 0.9em;
-            color: var(--bunker-text-light);
+            color: #cccccc !important;
             line-height: 1.4;
         }
 
         .room-option .room-cost {
             margin-top: 10px;
             font-weight: bold;
-            color: var(--bunker-gold);
+            color: #ff0000 !important;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .room-option.selected .room-cost {
-            color: var(--bunker-bg);
+            color: #000000 !important;
         }
 
-        /* Room categories and requirements */
+        /* Room categories and requirements - новый дизайн */
         .room-option.critical-room {
-            border-color: var(--bunker-gold);
-            background: linear-gradient(135deg, var(--bunker-bg), #2a2a2a);
+            border-color: #ff0000 !important;
+            background: linear-gradient(135deg, #000000, #1a1a1a) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .room-option.advanced-room {
-            border-color: var(--bunker-green);
+            border-color: #4CAF50 !important;
         }
 
         .room-option.locked-room {
             opacity: 0.5;
             cursor: not-allowed;
-            background: #1a1a1a;
-            border-color: #666;
+            background: #1a1a1a !important;
+            border-color: #666 !important;
         }
 
         .room-option.locked-room:hover {
-            transform: none;
-            box-shadow: none;
+            transform: none !important;
+            box-shadow: none !important;
         }
 
         .room-option.unlocked-room {
             opacity: 1;
             cursor: pointer;
-            background: var(--bunker-bg);
-            border-color: var(--bunker-green);
+            background: #1a1a1a !important;
+            border-color: #4CAF50 !important;
         }
 
         .room-option.unlocked-room:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            border-color: var(--bunker-gold);
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3) !important;
+            border-color: #ff0000 !important;
         }
 
         .room-option .room-requirement {
             margin-top: 8px;
             font-size: 0.8em;
-            color: var(--bunker-gold);
+            color: #ff0000 !important;
             font-style: italic;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .room-option.locked-room .room-requirement {
-            color: #888;
+            color: #888 !important;
         }
 
         .room-option.unlocked-room .room-requirement {
-            color: var(--bunker-green);
+            color: #4CAF50 !important;
+            text-shadow: 0 0 5px rgba(76, 175, 80, 0.5) !important;
         }
 
         /* Resident Detail Modal Styles */
         .resident-details {
             display: grid;
-            gap: 25px;
+            gap: 20px;
         }
 
         .detail-section {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            border: 2px solid #8b0000;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 0 15px rgba(139, 0, 0, 0.3);
+            background: #2a2a2a;
+            border: 1px solid #555555;
+            border-radius: 8px;
+            padding: 20px;
         }
 
         .detail-section h3 {
-            color: #ffcc00;
-            margin: 0 0 20px 0;
+            color: var(--bunker-gold);
+            margin: 0 0 15px 0;
             text-align: center;
-            border-bottom: 2px solid #8b0000;
-            padding-bottom: 15px;
-            font-size: 16px;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+            border-bottom: 1px solid #555555;
+            padding-bottom: 10px;
+            font-size: 14px;
         }
 
         .detail-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 15px;
         }
 
         .detail-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 15px;
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
-            border-radius: 8px;
-            border: 1px solid #8b0000;
-            transition: all 0.3s ease;
-        }
-
-        .detail-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(139, 0, 0, 0.4);
+            padding: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            border: 1px solid #444;
         }
 
         .detail-item .label {
-            color: #ff6666;
+            color: #888;
             font-weight: bold;
-            font-size: 12px;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-size: 11px;
         }
 
         .detail-item .value {
-            color: #ffcc00;
+            color: var(--bunker-text);
             text-align: right;
-            font-size: 12px;
-            font-family: 'Press Start 2P', monospace;
+            font-size: 11px;
         }
 
         .status-meters {
@@ -1668,68 +1626,69 @@
             }
         }
 
-        /* Стили для журнала уведомлений */
+        /* Стили для журнала уведомлений - новый дизайн */
         .journal-container {
             padding: 20px;
         }
 
         .journal-info {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 25px;
-            border: 2px solid #8b0000;
-            box-shadow: 0 0 15px rgba(139, 0, 0, 0.3);
+            background: #1a1a1a !important;
+            padding: 20px !important;
+            border-radius: 8px !important;
+            margin-bottom: 20px !important;
+            border: 2px solid #444 !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2) !important;
         }
 
         .journal-info p {
-            margin-bottom: 18px;
-            color: #ffcc00;
-            font-size: 14px;
-            font-family: 'Press Start 2P', monospace;
-            line-height: 1.4;
+            margin-bottom: 15px;
+            color: #ffffff !important;
+            font-size: 0.9em;
         }
 
         .journal-stats {
             display: flex;
-            gap: 25px;
+            gap: 20px;
             flex-wrap: wrap;
         }
 
         .stat-item {
-            color: #ffcc00;
-            font-size: 12px;
-            font-family: 'Press Start 2P', monospace;
+            color: #ffffff !important;
+            font-size: 0.8em;
+        }
+
+        .stat-item strong {
+            color: #ff0000 !important;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .journal-day {
-            margin-bottom: 30px;
-            border: 2px solid #8b0000;
-            border-radius: 12px;
+            margin-bottom: 25px;
+            border: 2px solid #444 !important;
+            border-radius: 8px;
             overflow: hidden;
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
+            background: #1a1a1a !important;
         }
 
         .day-header {
-            background: linear-gradient(135deg, #8b0000 0%, #654321 100%);
-            color: #ffcc00;
-            padding: 18px 25px;
+            background: linear-gradient(135deg, #ff0000, #cc0000) !important;
+            color: #000000 !important;
+            padding: 12px 20px;
             margin: 0;
-            font-size: 16px;
-            border-bottom: 2px solid #ff0000;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 1.1em;
+            border-bottom: 2px solid #ff0000 !important;
+            font-weight: bold !important;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5) !important;
         }
 
         .day-notifications {
-            background: linear-gradient(135deg, #1a0000 0%, #2a0a0a 100%);
+            background: #000000 !important;
         }
 
         .notification-item {
-            padding: 20px 25px;
-            border-bottom: 2px solid #8b0000;
-            transition: all 0.3s ease;
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+            transition: all 0.3s ease !important;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -1740,14 +1699,15 @@
         }
 
         .notification-item:hover {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            transform: translateX(5px);
+            background: #1a1a1a !important;
+            border-left: 4px solid #ff0000 !important;
+            transform: translateX(5px) !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2) !important;
         }
 
         .notification-item.unread {
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(76, 175, 80, 0.05) 100%);
-            border-left: 5px solid #4CAF50;
-            box-shadow: 0 0 10px rgba(76, 175, 80, 0.2);
+            background: rgba(76, 175, 80, 0.1) !important;
+            border-left: 4px solid #4CAF50 !important;
         }
 
         .notification-item.read {
@@ -1770,62 +1730,57 @@
             gap: 15px;
         }
 
-        /* Стили для фильтров журнала */
+        /* Стили для фильтров журнала - новый дизайн */
         .journal-filters {
-            background: linear-gradient(135deg, #2a0a0a 0%, #3a1a1a 100%);
-            padding: 25px;
-            border-radius: 12px;
-            margin-bottom: 25px;
-            border: 2px solid #8b0000;
-            box-shadow: 0 0 15px rgba(139, 0, 0, 0.3);
+            background: #1a1a1a !important;
+            padding: 20px;
+            border-radius: 8px !important;
+            margin-bottom: 20px !important;
+            border: 2px solid #444 !important;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2) !important;
         }
 
         .filter-section {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
 
         .filter-section h4 {
-            color: #ffcc00;
-            margin-bottom: 15px;
-            font-size: 14px;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            color: #ff0000 !important;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5) !important;
         }
 
         .tag-filters {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 15px;
         }
 
         .tag-filter {
-            background: linear-gradient(135deg, #8b0000 0%, #654321 100%);
-            color: #ffcc00;
-            padding: 8px 16px;
-            border-radius: 25px;
-            font-size: 11px;
-            cursor: pointer;
-            border: 2px solid #8b0000;
-            transition: all 0.3s ease;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            padding: 8px 15px !important;
+            border-radius: 20px !important;
+            font-size: 0.8em !important;
+            cursor: pointer !important;
+            border: 2px solid #444 !important;
+            transition: all 0.3s ease !important;
         }
 
         .tag-filter:hover {
-            background: linear-gradient(135deg, #654321 0%, #8b0000 100%);
-            border-color: #ffcc00;
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
+            background: #2a2a2a !important;
+            border-color: #ff0000 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3) !important;
         }
 
         .tag-filter.active {
-            background: linear-gradient(135deg, #ffcc00 0%, #ffaa00 100%);
-            color: #1a0000;
-            border-color: #ffcc00;
-            box-shadow: 0 0 20px rgba(255, 204, 0, 0.5);
+            background: #ff0000 !important;
+            color: #000000 !important;
+            border-color: #ff0000 !important;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5) !important;
         }
 
         .type-filters {
@@ -1839,7 +1794,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
-            color: #ccc;
+            color: #ffffff !important;
             font-size: 0.8em;
             cursor: pointer;
         }
@@ -1847,7 +1802,7 @@
         .filter-checkbox input[type="checkbox"] {
             width: 16px;
             height: 16px;
-            accent-color: var(--bunker-gold);
+            accent-color: #ff0000 !important;
         }
 
         .filter-actions {
@@ -1857,27 +1812,25 @@
         }
 
         .btn-secondary {
-            background: linear-gradient(135deg, #8b0000 0%, #654321 100%);
-            color: #ffcc00;
-            border: 2px solid #8b0000;
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.3s ease;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 2px solid #444 !important;
+            padding: 10px 18px !important;
+            border-radius: 6px !important;
+            cursor: pointer !important;
+            font-size: 0.8em !important;
+            transition: all 0.3s ease !important;
+            font-weight: bold !important;
         }
 
         .btn-secondary:hover {
-            background: linear-gradient(135deg, #654321 0%, #8b0000 100%);
-            border-color: #ffcc00;
-            transform: translateY(-2px);
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.3);
+            background: #2a2a2a !important;
+            border-color: #ff0000 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3) !important;
         }
 
-        /* Стили для меток уведомлений */
+        /* Стили для меток уведомлений - новый дизайн */
         .notification-tags {
             display: flex;
             gap: 6px;
@@ -1885,71 +1838,75 @@
         }
 
         .notification-tag {
-            background: linear-gradient(135deg, #8b0000 0%, #654321 100%);
-            color: #ffcc00;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-size: 9px;
-            border: 1px solid #8b0000;
-            font-family: 'Press Start 2P', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            padding: 4px 10px !important;
+            border-radius: 12px !important;
+            font-size: 0.7em !important;
+            border: 1px solid #444 !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .notification-tag:hover {
+            transform: scale(1.05) !important;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.3) !important;
         }
 
         .notification-tag.resident {
-            background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
-            border-color: #2e7d32;
+            background: #2e7d32 !important;
+            border-color: #2e7d32 !important;
         }
 
         .notification-tag.enemy {
-            background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%);
-            border-color: #c62828;
+            background: #c62828 !important;
+            border-color: #c62828 !important;
         }
 
         .notification-tag.resource {
-            background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
-            border-color: #1565c0;
+            background: #1565c0 !important;
+            border-color: #1565c0 !important;
         }
 
         .notification-tag.building {
-            background: linear-gradient(135deg, #6a1b9a 0%, #4a148c 100%);
-            border-color: #6a1b9a;
+            background: #6a1b9a !important;
+            border-color: #6a1b9a !important;
         }
 
         .notification-tag.combat {
-            background: linear-gradient(135deg, #d84315 0%, #bf360c 100%);
-            border-color: #d84315;
+            background: #d84315 !important;
+            border-color: #d84315 !important;
         }
 
         .notification-tag.system {
-            background: linear-gradient(135deg, #424242 0%, #212121 100%);
-            border-color: #424242;
+            background: #424242 !important;
+            border-color: #424242 !important;
         }
 
-        /* Негативные события */
+        /* Негативные события - новый дизайн */
         .notification-item.error {
-            border-left-color: var(--bunker-red);
-            background: rgba(244, 67, 54, 0.15);
+            border-left-color: #f44336 !important;
+            background: rgba(244, 67, 54, 0.15) !important;
             border-left-width: 6px;
         }
 
         .notification-item.warning {
-            border-left-color: #ff9800;
-            background: rgba(255, 152, 0, 0.15);
+            border-left-color: #ff9800 !important;
+            background: rgba(255, 152, 0, 0.15) !important;
             border-left-width: 6px;
         }
 
         .notification-item.negative {
-            border-left-color: #d32f2f;
-            background: rgba(211, 47, 47, 0.1);
+            border-left-color: #d32f2f !important;
+            background: rgba(211, 47, 47, 0.1) !important;
         }
 
 
         .notification-type {
-            padding: 2px 8px;
-            border-radius: 12px;
-            background: #444;
-            color: #ddd;
+            padding: 3px 10px !important;
+            border-radius: 12px !important;
+            background: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 1px solid #444 !important;
         }
 
         .notification-actions {
@@ -1957,56 +1914,63 @@
         }
 
         .mark-read-btn {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.7em;
-            transition: all 0.2s ease;
+            background: #4CAF50 !important;
+            color: #000000 !important;
+            border: none !important;
+            padding: 8px 15px !important;
+            border-radius: 6px !important;
+            cursor: pointer !important;
+            font-size: 0.7em !important;
+            transition: all 0.3s ease !important;
+            font-weight: bold !important;
         }
 
         .mark-read-btn:hover:not(:disabled) {
-            background: #45a049;
+            background: #45a049 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3) !important;
         }
 
         .mark-read-btn:disabled {
-            background: #666;
-            cursor: default;
+            background: #666 !important;
+            cursor: default !important;
         }
 
         .no-notifications {
             text-align: center;
-            color: #888;
+            color: #888 !important;
             padding: 40px;
             font-size: 1.1em;
+            background: #1a1a1a !important;
+            border: 2px solid #444 !important;
+            border-radius: 8px !important;
+            margin: 20px 0 !important;
         }
 
-        /* Стили для типов уведомлений */
+        /* Стили для типов уведомлений - новый дизайн */
         .notification-item.success {
-            border-left-color: #4CAF50;
+            border-left-color: #4CAF50 !important;
         }
 
         .notification-item.warning {
-            border-left-color: #FF9800;
+            border-left-color: #FF9800 !important;
         }
 
         .notification-item.error {
-            border-left-color: #f44336;
+            border-left-color: #f44336 !important;
         }
 
         .notification-item.info {
-            border-left-color: #2196F3;
+            border-left-color: #2196F3 !important;
         }
 
-        /* Счетчик уведомлений */
+        /* Счетчик уведомлений - новый дизайн */
         .notification-counter {
             position: absolute;
             top: -5px;
             right: -5px;
-            background: #f44336;
-            color: white;
+            background: #ff0000 !important;
+            color: #000000 !important;
             border-radius: 50%;
             width: 18px;
             height: 18px;
@@ -2015,9 +1979,10 @@
             align-items: center;
             justify-content: center;
             font-weight: bold;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
         }
 
-        /* Анимация черепа населения */
+        /* Анимация черепа населения - новый дизайн */
         .population-container {
             position: relative;
             display: flex;
@@ -2038,10 +2003,11 @@
         }
 
         .population-count {
-            color: var(--bunker-text);
+            color: #ffffff !important;
             font-size: 8px;
             line-height: 1;
             margin-top: 1px; /* Небольшой отступ для лучшего выравнивания */
+            font-weight: bold !important;
         }
 
         /* Ключевые кадры анимации черепа */
@@ -2073,20 +2039,325 @@
             animation: skull-to-alive 1s ease-in-out forwards;
         }
 
+        /* Новый дизайн для модального окна населения - только черный, белый и красный */
+        #population-modal .modal-content {
+            background: #000000 !important;
+            border: 4px solid #ff0000 !important;
+            box-shadow: 
+                0 0 30px rgba(255, 0, 0, 0.4),
+                inset 0 0 20px rgba(255, 0, 0, 0.3) !important;
+            animation: modalAppear 0.3s ease-out !important;
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            min-width: 600px !important;
+            max-width: 95vw !important;
+            max-height: 95vh !important;
+            overflow: hidden !important;
+        }
+
+        #population-modal .modal-header {
+            background: #000000 !important;
+            border-bottom: 2px solid #ff0000 !important;
+            text-align: center !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 15px 20px !important;
+            color: #ffffff !important;
+        }
+
+        #population-modal .modal-header h2 {
+            color: #ff0000 !important;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5) !important;
+            flex: 1 !important;
+            margin: 0 !important;
+            font-size: 16px !important;
+        }
+
+        #population-modal .close-btn {
+            color: #ff0000 !important;
+            transition: color 0.3s ease !important;
+            background: none !important;
+            border: none !important;
+            font-size: 24px !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            width: 30px !important;
+            height: 30px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        #population-modal .close-btn:hover {
+            color: #ffffff !important;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5) !important;
+            background: none !important;
+            border-radius: 0 !important;
+        }
+
+        #population-modal .resident-item {
+            background: #000000 !important;
+            border: 2px solid #ff0000 !important;
+            padding: 20px !important;
+            margin: 15px 0 !important;
+            transition: all 0.3s ease !important;
+            border-radius: 8px !important;
+        }
+
+        #population-modal .resident-item:hover {
+            border-color: #ffffff !important;
+            background: #1a1a1a !important;
+            transform: translateX(5px) !important;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3) !important;
+        }
+
+        #population-modal .resident-name {
+            color: #ffffff !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+        }
+
+        #population-modal .resident-profession {
+            color: #ff0000 !important;
+            font-size: 14px !important;
+            font-style: italic !important;
+        }
+
+        /* Переопределяем общие стили модального окна для населения */
+        #population-modal.modal {
+            background: rgba(0, 0, 0, 0.9) !important;
+        }
+
+        /* Стили для подзаголовка */
+        #population-modal .modal-subtitle {
+            text-align: center !important;
+            color: #ffffff !important;
+            font-size: 12px !important;
+            margin-bottom: 20px !important;
+            border-bottom: 1px solid #ff0000 !important;
+            padding-bottom: 10px !important;
+            font-family: 'Press Start 2P', monospace !important;
+        }
+
+        /* Улучшаем общий вид модального окна */
+        #population-modal .modal-body {
+            color: #ffffff !important;
+            background: #000000 !important;
+        }
+
+        /* Анимация появления модального окна */
         @keyframes modalAppear {
             from {
                 opacity: 0;
-                transform: scale(0.8) translateY(-50px);
+                transform: scale(0.8) translate(-50%, -50%) translateY(-50px);
             }
             to {
                 opacity: 1;
-                transform: scale(1) translateY(0);
+                transform: scale(1) translate(-50%, -50%) translateY(0);
             }
         }
 
-        @keyframes scan {
-            0% { background-position: -100% 0; }
-            100% { background-position: 100% 0; }
+        /* Стили для переключения между видами в модальном окне населения */
+        #population-modal #population-list-view,
+        #population-modal #resident-detail-view {
+            transition: opacity 0.3s ease;
+        }
+
+        #population-modal #resident-detail-view {
+            opacity: 0;
+        }
+
+        #population-modal #resident-detail-view.active {
+            opacity: 1;
+        }
+
+        #population-modal .back-button {
+            background: #444 !important;
+            color: #fff !important;
+            border: 1px solid #666 !important;
+            padding: 12px !important;
+            font-size: 14px !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+            border-radius: 4px !important;
+            width: 100% !important;
+            margin-bottom: 15px !important;
+        }
+
+        #population-modal .back-button:hover {
+            background: #555 !important;
+            border-color: #777 !important;
+        }
+
+        /* Стили для детального представления жителя */
+        #population-modal .resident-details {
+            display: grid;
+            gap: 15px;
+            max-height: calc(95vh - 200px);
+            overflow: hidden;
+        }
+
+        #population-modal .detail-section {
+            background: #2a2a2a !important;
+            border: 1px solid #555555 !important;
+            border-radius: 8px !important;
+            padding: 15px !important;
+        }
+
+        #population-modal .detail-section h3 {
+            color: #ff0000 !important;
+            margin: 0 0 10px 0 !important;
+            text-align: center !important;
+            border-bottom: 1px solid #555555 !important;
+            padding-bottom: 8px !important;
+            font-size: 13px !important;
+        }
+
+        #population-modal .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        #population-modal .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            background: #1a1a1a !important;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+
+        #population-modal .detail-item .label {
+            color: #888 !important;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        #population-modal .detail-item .value {
+            color: #ffffff !important;
+            text-align: right;
+            font-size: 11px;
+        }
+
+        #population-modal .status-meters {
+            display: grid;
+            gap: 10px;
+        }
+
+        #population-modal .status-meter {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #population-modal .meter-label {
+            color: #ff0000 !important;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        #population-modal .meter-bar {
+            height: 16px;
+            background: #333333;
+            border: 2px solid #555555;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #population-modal .meter-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+            border-radius: 6px;
+        }
+
+        #population-modal .meter-fill.health {
+            background: linear-gradient(90deg, #4CAF50, #388E3C);
+        }
+
+        #population-modal .meter-value {
+            color: #ffffff !important;
+            font-size: 11px;
+            font-weight: bold;
+            text-align: right;
+        }
+
+        #population-modal .skills-grid {
+            display: grid;
+            gap: 6px;
+        }
+
+        #population-modal .skill-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #555555;
+        }
+
+        #population-modal .skill-item.positive {
+            background: rgba(76, 175, 80, 0.1) !important;
+            border-color: #4CAF50 !important;
+        }
+
+        #population-modal .skill-item.negative {
+            background: rgba(244, 67, 54, 0.1) !important;
+            border-color: #f44336 !important;
+        }
+
+        #population-modal .skill-text {
+            color: #ffffff !important;
+            font-size: 11px;
+        }
+
+        #population-modal .skill-effect {
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        #population-modal .skill-item.positive .skill-effect {
+            color: #4CAF50 !important;
+        }
+
+        #population-modal .skill-item.negative .skill-effect {
+            color: #f44336 !important;
+        }
+
+        #population-modal .no-skills {
+            text-align: center;
+            color: #888 !important;
+            font-style: italic;
+            padding: 15px;
+        }
+
+        /* Стили для скрытых навыков */
+        #population-modal .skill-item.hidden-skill {
+            background: #1a1a1a !important;
+            border-color: #666 !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+        }
+
+        #population-modal .skill-item.hidden-skill:hover {
+            background: #2a2a2a !important;
+            border-color: #ff0000 !important;
+            transform: scale(1.02) !important;
+        }
+
+        #population-modal .skill-item.hidden-skill .skill-text {
+            color: #666 !important;
+            font-style: italic !important;
+        }
+
+        #population-modal .skill-item.hidden-skill .skill-effect {
+            color: #666 !important;
+            font-weight: normal !important;
         }
     </style>
 </head>
@@ -2172,17 +2443,35 @@
 
 <!-- Modal Windows -->
 <div id="population-modal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h2>Население бункера</h2>
-      <button class="close-btn" onclick="closeModal('population-modal')">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div id="population-list">
-        <!-- Population list will be populated by JavaScript -->
+      <div class="modal-content large">
+      <div class="modal-header">
+        <h2 id="population-modal-title">РЕЕСТР ВЫЖИВШИХ</h2>
+        <button class="close-btn" onclick="closeModal('population-modal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Список жителей -->
+        <div id="population-list-view">
+          <div class="modal-subtitle" style="text-align: center; color: #ffffff; font-size: 12px; margin-bottom: 20px; border-bottom: 1px solid #ff0000; padding-bottom: 10px;">
+            СТАТУС: ОБНОВЛЕНО 05.12.2024
+          </div>
+          <div id="population-list">
+            <!-- Population list will be populated by JavaScript -->
+          </div>
+        </div>
+        
+        <!-- Подробности жителя -->
+        <div id="resident-detail-view" style="display: none;">
+          <div style="margin-bottom: 15px;">
+            <button class="back-button" onclick="showPopulationList()">
+              ← Назад к списку жителей
+            </button>
+          </div>
+          <div id="resident-detail-content">
+            <!-- Resident detail content will be populated by JavaScript -->
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 </div>
 
 <div id="resource-modal" class="modal">
@@ -2366,25 +2655,7 @@
       </div>
     </div>
 
-<!-- Resident Detail Modal -->
-<div id="resident-detail-modal" class="modal">
-  <div class="modal-content large">
-    <div class="modal-header">
-      <h2>Подробности о жителе</h2>
-      <button class="close-btn" onclick="closeModal('resident-detail-modal'); closeModal('population-modal'); openResidents();">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div style="margin-bottom: 15px;">
-        <button class="menu-btn" onclick="closeModal('resident-detail-modal'); openResidents();" style="width: 100%;">
-          ← Назад к списку жителей
-        </button>
-      </div>
-      <div id="resident-detail-content">
-        <!-- Resident detail content will be populated by JavaScript -->
-      </div>
-    </div>
-  </div>
-</div>
+
 
 <script>
         // Game UI Bridge - connects Phaser game data to HTML overlay

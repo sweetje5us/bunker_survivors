@@ -3575,6 +3575,20 @@ export class SimpleBunkerView {
   
   public syncResidents(expectedCount: number): void {
     console.log(`[bunkerView] syncResidents НАЧАЛО: ожидается=${expectedCount}, текущее время=${Date.now()}`)
+    
+    // Вызываем основную логику синхронизации
+    this.syncResidentsInternal(expectedCount, false)
+  }
+
+  public syncResidentsWithoutDuplicates(expectedCount: number): void {
+    console.log(`[bunkerView] syncResidentsWithoutDuplicates НАЧАЛО: ожидается=${expectedCount}, предотвращаем дубликаты, текущее время=${Date.now()}`)
+    
+    // Вызываем основную логику синхронизации с флагом предотвращения дубликатов
+    this.syncResidentsInternal(expectedCount, true)
+  }
+
+  private syncResidentsInternal(expectedCount: number, preventDuplicates: boolean): void {
+    console.log(`[bunkerView] syncResidentsInternal: ожидается=${expectedCount}, preventDuplicates=${preventDuplicates}, текущее время=${Date.now()}`)
 
     // Получаем объединенный массив жителей и врагов
       const game: any = this.scene
@@ -3656,19 +3670,26 @@ export class SimpleBunkerView {
     // Получаем живых жителей
     const livingResidents = (game.bunkerResidents || []).filter((resident: any) => resident && resident.health > 0)
 
-    // Объединяем живых жителей и новых врагов
-    const allUnits = [...livingResidents, ...livingEnemies]
+    // Получаем существующих врагов из bunkerEnemies (не только новых)
+    const existingEnemies = (game.bunkerEnemies || []).filter((enemy: any) => enemy && enemy.health > 0)
+    
+    // Объединяем живых жителей и всех живых врагов
+    const allUnits = [...livingResidents, ...existingEnemies]
     const livingUnits = allUnits.filter(unit => unit && unit.health > 0)
 
     // Проверяем соответствие ожиданиям
     const currentAgentCount = this.residentAgents.length
-    const expectedNewUnits = livingUnits.length
-    const totalExpected = currentAgentCount + livingEnemies.length
+    const expectedTotalUnits = livingUnits.length
 
-    console.log(`[bunkerView] syncResidents: ожидается=${expectedCount}, живых жителей=${livingResidents.length}, новых врагов=${livingEnemies.length}, текущих агентов=${currentAgentCount}`)
+    console.log(`[bunkerView] syncResidents: ожидается=${expectedCount}, живых жителей=${livingResidents.length}, существующих врагов=${existingEnemies.length}, текущих агентов=${currentAgentCount}, ожидается всего=${expectedTotalUnits}`)
 
-    if (expectedCount !== totalExpected) {
-      console.log(`[bunkerView] ВНИМАНИЕ: несоответствие в подсчете! Ожидалось ${expectedCount}, будет ${totalExpected} агентов`)
+    if (expectedCount !== expectedTotalUnits) {
+      console.log(`[bunkerView] ВНИМАНИЕ: несоответствие в подсчете! Ожидалось ${expectedCount}, будет ${expectedTotalUnits} агентов`)
+      
+      // Если ожидается меньше чем есть, это может быть ошибка - не удаляем живых врагов
+      if (expectedCount < expectedTotalUnits) {
+        console.warn(`[bunkerView] ПРЕДУПРЕЖДЕНИЕ: Ожидается ${expectedCount} агентов, но есть ${expectedTotalUnits} живых юнитов. Возможно, это ошибка в подсчете.`)
+      }
     }
     
     // Очищаем существующих агентов, которые больше не нужны
@@ -3689,6 +3710,9 @@ export class SimpleBunkerView {
               ;(agent as any).attackTimer = null
             }
             this.residentAgents.splice(i, 1)
+          } else {
+            // Враг жив - НЕ удаляем его!
+            console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) жив (здоровье: ${agent.health}), сохраняем`)
           }
         } else {
           // Для жителей: проверяем, существует ли в живых юнитах
@@ -3714,7 +3738,7 @@ export class SimpleBunkerView {
       }
     }
     
-        // Создаем агентов только для живых юнитов
+            // Создаем агентов только для живых юнитов
     for (let i = 0; i < livingUnits.length; i++) {
       const res = livingUnits[i]
 
@@ -3748,7 +3772,8 @@ export class SimpleBunkerView {
             console.log(`[bunkerView] Житель ${res.profession} (ID: ${res.id}) выздоровел - снимаем агрессивность`)
           }
 
-        continue
+          // ВАЖНО: НЕ создаем нового агента для существующего жителя
+          continue
         }
       } else {
         // Для врагов проверяем, не существует ли уже агент с таким же ID
@@ -3757,6 +3782,33 @@ export class SimpleBunkerView {
         )
         if (existingEnemyAgent) {
           console.log(`[bunkerView] Агент для врага ${res.enemyType} (ID: ${res.id}) уже существует, пропускаем создание`)
+          continue
+        }
+      }
+      
+      // Дополнительная проверка для предотвращения дубликатов жителей
+      if (preventDuplicates && !res.isEnemy) {
+        const existingAgent = this.residentAgents.find(a => a && !a.isEnemy && a.id === res.id)
+        if (existingAgent) {
+          console.log(`[bunkerView] ПРЕДОТВРАЩАЕМ создание дубликата жителя ${res.profession} (ID: ${res.id}) - агент уже существует`)
+          continue
+        }
+      }
+      
+      // Дополнительная проверка: не создаем агентов для жителей, которые уже имеют агентов
+      if (!res.isEnemy) {
+        const existingAgent = this.residentAgents.find(a => a && !a.isEnemy && a.id === res.id)
+        if (existingAgent) {
+          console.log(`[bunkerView] Житель ${res.profession} (ID: ${res.id}) уже имеет агента, пропускаем создание`)
+          continue
+        }
+      }
+      
+      // Дополнительная проверка: не создаем агентов для жителей с одинаковыми ID
+      if (!res.isEnemy) {
+        const duplicateAgent = this.residentAgents.find(a => a && !a.isEnemy && a.id === res.id)
+        if (duplicateAgent) {
+          console.log(`[bunkerView] ОШИБКА: Дубликат жителя ${res.profession} (ID: ${res.id}) уже существует! Пропускаем создание`)
           continue
         }
       }
@@ -3786,12 +3838,11 @@ export class SimpleBunkerView {
         console.log(`[DEBUG] Враг ${res.enemyType} (ID: ${res.id}) будет создан как агент`)
         
         // Проверяем, не существует ли уже агент для этого врага
-        // Убираем эту проверку - теперь создаем агентов для всех врагов
-        // const existingAgent = this.residentAgents.find(a => a && a.isEnemy && a.id === res.id)
-        // if (existingAgent) {
-        //   console.warn(`[DEBUG] Враг ${res.enemyType} (ID: ${res.id}) уже существует в residentAgents! Пропускаем создание дубликата`)
-        //   continue
-        // }
+        const existingEnemyAgent = this.residentAgents.find(a => a && a.isEnemy && a.id === res.id)
+        if (existingEnemyAgent) {
+          console.log(`[bunkerView] Агент для врага ${res.enemyType} (ID: ${res.id}) уже существует, пропускаем создание`)
+          continue
+        }
         
         let enemySpriteKey = null
         let animationKey = null
@@ -4050,45 +4101,33 @@ export class SimpleBunkerView {
         }
       }
     }
-    while (this.residentAgents.length > expectedCount) {
+    // Удаляем лишних агентов, если их больше чем ожидается
+    // НО НЕ удаляем врагов без причины - они должны жить до своей смерти
+    while (this.residentAgents.length > expectedTotalUnits) {
       const a = this.residentAgents.pop()!
-      
-      // Удаляем врагов с высокими ID (1000+) если их слишком много
-      // Это означает, что они были созданы ранее, но больше не нужны
-      if (a.isEnemy && a.id && a.id >= 1000) {
-        console.log(`[DEBUG] Удаляем лишнего врага ${a.enemyType} (ID: ${a.id}) - превышен лимит агентов`)
-        // Очищаем графические объекты
-        if (a.rect) a.rect.destroy()
-        if (a.sprite) a.sprite.destroy()
-        if (a.healthBar) a.healthBar.destroy()
-        // Очищаем таймер атаки если есть
-        if ((a as any).attackTimer) {
-          clearTimeout((a as any).attackTimer)
-          ;(a as any).attackTimer = null
-        }
-        continue // Переходим к следующему агенту
-      }
       
       // НЕ удаляем врагов с обычными ID - они должны жить до своей смерти
       if (a.isEnemy) {
-        console.warn(`[DEBUG] syncResidents пытается удалить врага ${a.enemyType} (ID: ${a.id}) - это ошибка! Возвращаем обратно`)
+        console.warn(`[bunkerView] syncResidents пытается удалить врага ${a.enemyType} (ID: ${a.id}) - это ошибка! Возвращаем обратно`)
         this.residentAgents.push(a) // Возвращаем врага обратно
         break // Прерываем цикл удаления
       }
+      
+      console.log(`[bunkerView] Удаляем лишнего жителя ${a.profession} (ID: ${a.id}) - превышен лимит агентов`)
+      
+      // Очищаем графические объекты
+      if (a.rect) a.rect.destroy()
+      if (a.sprite) a.sprite.destroy()
+      if (a.shirt) a.shirt?.destroy()
+      if (a.pants) a.pants?.destroy()
+      if (a.footwear) a.footwear?.destroy()
+      if (a.hair) a.hair?.destroy()
+      if (a.healthBar) a.healthBar.destroy()
       
       // Очищаем таймер атаки если есть
       if ((a as any).attackTimer) {
         clearTimeout((a as any).attackTimer)
         ;(a as any).attackTimer = null
-      }
-      
-      a.rect.destroy()
-      // Уничтожаем спрайт специализации если есть
-      a.sprite?.destroy()
-      // Уничтожаем шкалу здоровья если есть
-      if (a.healthBar) {
-        a.healthBar.destroy()
-        console.log(`[DEBUG] Шкала здоровья агента ${a.profession} (ID: ${a.id}) уничтожена`)
       }
     }
     this.residentAgents.forEach(a => {
@@ -4154,8 +4193,10 @@ export class SimpleBunkerView {
       }
     }
 
-    console.log(`[bunkerView] syncResidents КОНЕЦ: создано агентов=${this.residentAgents.length}, время=${Date.now()}`)
+    console.log(`[bunkerView] syncResidentsInternal КОНЕЦ: создано агентов=${this.residentAgents.length}, время=${Date.now()}`)
   }
+
+
 
   private assignRandomPosition(agent: { rect: Phaser.GameObjects.Rectangle; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite; roomIndex?: number; target?: Phaser.Math.Vector2; path?: Phaser.Math.Vector2[]; dwellUntil?: number; goingToRest?: boolean }): void {
     if (this.roomRects.length === 0) return
@@ -6746,6 +6787,12 @@ export class SimpleBunkerView {
         console.log(`[DEBUG] Житель ${agent.profession} (ID: ${agent.id}) сбросил цель атаки`)
       }
     })
+    
+    // Уведомляем GameScene об удалении врага из бункера
+    const gameScene = this.scene as any
+    if (gameScene.removeEnemyFromBunker) {
+      gameScene.removeEnemyFromBunker(enemy.id, 'убит жителями')
+    }
   }
 
   // Функция для инициализации боевых параметров жителя
