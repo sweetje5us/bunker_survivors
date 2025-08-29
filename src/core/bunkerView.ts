@@ -179,6 +179,111 @@ export class SimpleBunkerView {
     return agent || null;
   }
 
+  /**
+   * Удаляет агента жителя по ID
+   * Вызывается при смерти жителя для синхронизации с GameScene
+   */
+  public removeResidentAgent(id: number): void {
+    console.log(`[SimpleBunkerView] removeResidentAgent вызван для ID: ${id}`);
+    
+    const agentIndex = this.residentAgents.findIndex(a => a.id === id);
+    if (agentIndex === -1) {
+      console.log(`[SimpleBunkerView] Агент жителя с ID ${id} не найден`);
+      return;
+    }
+
+    const agent = this.residentAgents[agentIndex];
+    console.log(`[SimpleBunkerView] Удаляем агента жителя: ${agent.profession || 'неизвестно'} (ID: ${id})`);
+
+    // Удаляем все спрайты агента
+    if (agent.sprite) {
+      console.log(`[SimpleBunkerView] Уничтожаем спрайт агента ${id}`);
+      agent.sprite.destroy();
+    }
+    if (agent.shirt) {
+      agent.shirt.destroy();
+    }
+    if (agent.pants) {
+      agent.pants.destroy();
+    }
+    if (agent.footwear) {
+      agent.footwear.destroy();
+    }
+    if (agent.hair) {
+      agent.hair.destroy();
+    }
+    if (agent.rect) {
+      agent.rect.destroy();
+    }
+
+    // Удаляем все эффекты
+    if (agent.sleepFx) {
+      agent.sleepFx.destroy();
+    }
+    if (agent.workFx) {
+      agent.workFx.destroy();
+    }
+    if (agent.healthBar) {
+      agent.healthBar.destroy();
+    }
+
+    // Удаляем из массива
+    this.residentAgents.splice(agentIndex, 1);
+
+    console.log(`[SimpleBunkerView] Агент жителя ${id} успешно удален. Осталось агентов: ${this.residentAgents.length}`);
+  }
+
+  /**
+   * Удаляет агента врага по ID
+   * Вызывается при смерти врага для синхронизации с GameScene
+   */
+  public removeEnemyAgent(id: number): void {
+    const agentIndex = this.residentAgents.findIndex(a => a.id === id && a.isEnemy);
+    if (agentIndex === -1) {
+      console.log(`[SimpleBunkerView] Агент врага с ID ${id} не найден`);
+      return;
+    }
+
+    const agent = this.residentAgents[agentIndex];
+    console.log(`[SimpleBunkerView] Удаляем агента врага: ${agent.id} (ID: ${id})`);
+
+    // Удаляем все спрайты агента
+    if (agent.sprite) {
+      agent.sprite.destroy();
+    }
+    if (agent.shirt) {
+      agent.shirt.destroy();
+    }
+    if (agent.pants) {
+      agent.pants.destroy();
+    }
+    if (agent.footwear) {
+      agent.footwear.destroy();
+    }
+    if (agent.hair) {
+      agent.hair.destroy();
+    }
+    if (agent.rect) {
+      agent.rect.destroy();
+    }
+
+    // Удаляем все эффекты
+    if (agent.sleepFx) {
+      agent.sleepFx.destroy();
+    }
+    if (agent.workFx) {
+      agent.workFx.destroy();
+    }
+    if (agent.healthBar) {
+      agent.healthBar.destroy();
+    }
+
+    // Удаляем из массива
+    this.residentAgents.splice(agentIndex, 1);
+
+    console.log(`[SimpleBunkerView] Агент врага ${id} успешно удален. Осталось агентов: ${this.residentAgents.length}`);
+  }
+
   constructor(scene: Phaser.Scene, parent: Phaser.GameObjects.Container) {
     this.scene = scene
     this.parent = parent
@@ -481,6 +586,12 @@ export class SimpleBunkerView {
     for (const agent of this.residentAgents) {
       if (!agent || agent.isEnemy || (agent.isCoward && !((agent as any).intent === 'hostile'))) continue
 
+      // Пропускаем мертвых жителей (animLock === 'dead')
+      if (agent.animLock === 'dead') {
+        console.log(`[checkCombatStatus] Пропускаем мертвого жителя ${agent.profession} (ID: ${agent.id}) - animLock=dead`)
+        continue
+      }
+
       // Если житель в боевом режиме, проверяем его цель
       if (agent.animLock === 'attack' || (agent as any).combatTarget || (agent as any).enemyTargetId) {
         let targetStillValid = false
@@ -512,9 +623,9 @@ export class SimpleBunkerView {
 
           // Определяем, что делать дальше в зависимости от типа жителя
           if ((agent as any).intent === 'hostile' && agent.isAggressive) {
-            // Безумный житель - ищем новую цель среди жителей
+            // Безумный житель - ищем новую цель среди жителей (исключаем мертвых)
             const otherResidents = this.residentAgents.filter(a =>
-              a && !a.isEnemy && a.id !== agent.id && (a.health || 0) > 0
+              a && !a.isEnemy && a.id !== agent.id && (a.health || 0) > 0 && a.animLock !== 'dead'
             )
 
             if (otherResidents.length > 0) {
@@ -4581,6 +4692,12 @@ export class SimpleBunkerView {
         continue
       }
 
+      // Пропускаем мертвых жителей (animLock === 'dead')
+      if (agent.animLock === 'dead') {
+        console.log(`[bunkerView] Пропускаем мертвого жителя ${agent.profession} (ID: ${agent.id}) - animLock=dead`)
+        continue
+      }
+
       // Пропускаем жителей, которые находятся в режиме перетаскивания
       if (agent.id && this.residentsBeingDragged.has(agent.id)) {
         console.log(`[bunkerView] Пропускаем жителя ${agent.profession} (ID: ${agent.id}) - находится в режиме перетаскивания`)
@@ -6578,11 +6695,8 @@ export class SimpleBunkerView {
       console.warn(`[DEBUG] Агент ${agent.profession} (ID: ${agent.id}) не найден в residentAgents`)
     }
     
-    // Уведомляем GameScene об удалении жителя (но НЕ вызываем syncResidents)
-    const gameScene = this.scene as any
-    if (gameScene.removeDeadResident) {
-      gameScene.removeDeadResident(agent.id)
-    }
+    // НЕ уведомляем GameScene об удалении жителя, так как это может вызвать циклический вызов
+    // GameScene уже знает о смерти жителя и сам управляет процессом
     
     // Проверяем состояние врагов после удаления жителя
     const remainingEnemies = this.residentAgents.filter(a => a && a.isEnemy)
@@ -6738,14 +6852,26 @@ export class SimpleBunkerView {
           animationKey = `${prof}_dead`
           console.log(`[DEBUG] Найдена dead анимация для специализации: ${animationKey}`)
         } else {
-          // Fallback на базовые анимации
-          if (this.scene.anims.exists('unemployed_dead')) {
-            animationKey = 'unemployed_dead'
-            console.log(`[DEBUG] Используем fallback dead анимацию: unemployed_dead`)
-          } else {
+          // Fallback на базовые анимации - проверяем несколько вариантов
+          const fallbackAnimations = [
+            'unemployed_dead',
+            'civilian_dead', 
+            'worker_dead',
+            'dead'
+          ]
+          
+          for (const fallbackAnim of fallbackAnimations) {
+            if (this.scene.anims.exists(fallbackAnim)) {
+              animationKey = fallbackAnim
+              console.log(`[DEBUG] Используем fallback dead анимацию: ${fallbackAnim}`)
+              break
+            }
+          }
+          
+          if (!animationKey) {
             console.warn(`[setDeadAnimation] Не найдена ни специализированная, ни fallback dead анимация для ${prof}`)
             // Если анимация не найдена, сразу уничтожаем
-            this.removeDeadResident(agent)
+            this.removeResidentAgent(agent.id)
             return
           }
         }
@@ -6758,24 +6884,46 @@ export class SimpleBunkerView {
         console.log(`[DEBUG] Воспроизводится dead анимация: ${animationKey} для ${agent.isEnemy ? 'врага' : 'жителя'} ${agent.profession || agent.enemyType}`)
         
         // Через 1000ms уничтожаем агента
+        console.log(`[setDeadAnimation] Устанавливаем таймер на 1000ms для удаления агента ${agent.id}`)
         setTimeout(() => {
+          console.log(`[setDeadAnimation] Таймер истек для агента ${agent.id}, animLock=${agent.animLock}`)
+          
+          // Проверяем, что агент все еще существует в массиве
+          const agentStillExists = this.residentAgents.some(a => a && a.id === agent.id)
+          if (!agentStillExists) {
+            console.log(`[setDeadAnimation] Агент ${agent.id} уже удален из массива, пропускаем удаление`)
+            return
+          }
+          
           if (agent.animLock === 'dead') {
+            console.log(`[setDeadAnimation] Таймер истек, удаляем агента ${agent.id}`)
             if (agent.isEnemy) {
               this.removeDeadEnemy(agent)
             } else {
-              this.removeDeadResident(agent)
+              // Для жителей используем публичный метод removeResidentAgent
+              this.removeResidentAgent(agent.id)
             }
+          } else {
+            console.log(`[setDeadAnimation] Агент ${agent.id} больше не мертв (animLock=${agent.animLock}), пропускаем удаление`)
           }
         }, 1000)
       } catch (e) {
         console.warn(`[setDeadAnimation] Не удалось воспроизвести dead анимацию ${animationKey}:`, e)
         // Если анимация не работает, сразу уничтожаем
-        this.removeDeadResident(agent)
+        if (agent.isEnemy) {
+          this.removeDeadEnemy(agent)
+        } else {
+          this.removeResidentAgent(agent.id)
+        }
       }
     } else {
       console.warn(`[setDeadAnimation] Анимация ${animationKey} не найдена для dead анимации`)
       // Если анимация не найдена, сразу уничтожаем
-      this.removeDeadResident(agent)
+      if (agent.isEnemy) {
+        this.removeDeadEnemy(agent)
+      } else {
+        this.removeResidentAgent(agent.id)
+      }
     }
   }
 
@@ -7054,6 +7202,12 @@ export class SimpleBunkerView {
     for (const agent of this.residentAgents) {
       if (!agent || agent.isEnemy || (agent.isCoward && !((agent as any).intent === 'hostile'))) continue
 
+      // Пропускаем мертвых жителей (animLock === 'dead')
+      if (agent.animLock === 'dead') {
+        console.log(`[checkInsaneResidents] Пропускаем мертвого жителя ${agent.profession} (ID: ${agent.id}) - animLock=dead`)
+        continue
+      }
+
       // Проверяем безумных жителей
       if ((agent as any).intent === 'hostile' && agent.isAggressive) {
         console.log(`[checkInsaneResidents] Найден безумный житель ${agent.profession} (ID: ${agent.id}), animLock=${agent.animLock}, combatTarget=${(agent as any).combatTarget}`)
@@ -7086,9 +7240,9 @@ export class SimpleBunkerView {
     agent.dwellUntil = undefined
     agent.combatTarget = undefined
 
-    // Ищем ближайшую цель для атаки (жителей)
+    // Ищем ближайшую цель для атаки (жителей) - исключаем мертвых
     const livingResidents = this.residentAgents.filter(a =>
-      a && !a.isEnemy && (a.health || 0) > 0
+      a && !a.isEnemy && (a.health || 0) > 0 && a.animLock !== 'dead'
     )
 
     if (livingResidents.length > 0) {
@@ -7152,9 +7306,9 @@ export class SimpleBunkerView {
     agent.combatTarget = undefined
     ;(agent as any).enemyTargetId = undefined
 
-    // Ищем ближайшую цель для атаки
+    // Ищем ближайшую цель для атаки - исключаем мертвых
     const livingResidents = this.residentAgents.filter(a =>
-      a && !a.isEnemy && a.id !== agent.id && (a.health || 0) > 0
+      a && !a.isEnemy && a.id !== agent.id && (a.health || 0) > 0 && a.animLock !== 'dead'
     )
 
     if (livingResidents.length > 0) {
@@ -7212,7 +7366,7 @@ export class SimpleBunkerView {
     // Если у безумного жителя нет цели или цель мертва, ищем новую
     if (!(agent as any).enemyTargetId || !agent.target) {
       const livingResidents = this.residentAgents.filter(a =>
-        a && !a.isEnemy && a.id !== agent.id && (a.health || 0) > 0
+        a && !a.isEnemy && a.id !== agent.id && (a.health || 0) > 0 && a.animLock !== 'dead'
       )
 
       if (livingResidents.length > 0) {
@@ -7297,6 +7451,12 @@ export class SimpleBunkerView {
 
     for (const agent of this.residentAgents) {
       if (!agent) continue
+
+      // Пропускаем мертвых жителей (animLock === 'dead')
+      if (agent.animLock === 'dead') {
+        console.log(`[checkStuckAgents] Пропускаем мертвого жителя ${agent.profession} (ID: ${agent.id}) - animLock=dead`)
+        continue
+      }
 
       // Проверяем, не застрял ли агент (не движется и нет целей)
       const isStuck = agent.animLock === null || agent.animLock === 'idle'
@@ -7427,6 +7587,9 @@ export class SimpleBunkerView {
     for (const agent of this.residentAgents) {
       if (!agent || agent.isEnemy || (agent as any).away) continue
       
+      // Пропускаем мертвых жителей
+      if (agent.animLock === 'dead') continue
+      
       // Пропускаем жителей, которые уже в боевом режиме
       if (agent.animLock === 'attack' || (agent as any).combatTarget) continue
       
@@ -7463,6 +7626,9 @@ export class SimpleBunkerView {
   private checkEnemyDetectionInRoom(agent: any): void {
     // НЕ ОБРАБАТЫВАЕМ жителей, которые уже в боевом режиме
     if (agent.animLock === 'attack' || (agent as any).combatTarget) return
+
+    // Пропускаем мертвых жителей
+    if (agent.animLock === 'dead') return
 
     // Трусы вообще не реагируют на врагов
     if ((agent as any).isCoward) return

@@ -210,6 +210,10 @@ export class GameScene extends Phaser.Scene {
   private paper = 15
   private glass = 5
 
+  // Потребление ресурсов
+  private foodConsumptionMultiplier = 1
+  private waterConsumptionMultiplier = 1
+
   
   private hasSkill(skills: Array<{ text: string; positive: boolean }> | undefined, name: string): boolean {
     if (!Array.isArray(skills)) return false
@@ -228,6 +232,234 @@ export class GameScene extends Phaser.Scene {
     }
     console.log(`[GameScene] getCurrentMoral() возвращает: ${moralValue}`)
     return moralValue
+  }
+
+  /**
+   * Рассчитывает множители потребления ресурсов на основе количества дней и сложности
+   */
+  private calculateResourceConsumptionMultipliers(): void {
+    const daysPassed = Math.max(0, this.dayNumber - 1)
+    
+    switch (this.difficulty) {
+      case 'easy':
+        // Каждые 10 дней +1 ед. к потреблению на жителя
+        this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 10)
+        this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 10)
+        break
+      case 'normal':
+        // Каждые 7 дней +1 ед. к потреблению на жителя
+        this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 7)
+        this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 7)
+        break
+      case 'hard':
+        // Каждые 7 дней +2 ед. к потреблению на жителя
+        this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 7) * 2
+        this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 7) * 2
+        break
+      default:
+        this.foodConsumptionMultiplier = 1
+        this.waterConsumptionMultiplier = 1
+    }
+    
+    console.log(`[calculateResourceConsumptionMultipliers] День ${this.dayNumber}, Сложность: ${this.difficulty}, Множители: еда=${this.foodConsumptionMultiplier}, вода=${this.waterConsumptionMultiplier}`)
+  }
+
+  /**
+   * Рассчитывает почасовое потребление ресурсов
+   */
+  private calculateHourlyResourceConsumption(): { foodConsumption: number; waterConsumption: number } {
+    const residentCount = this.bunkerResidents.length
+    const foodConsumption = residentCount * 1 * this.foodConsumptionMultiplier
+    const waterConsumption = residentCount * 1 * this.waterConsumptionMultiplier
+    
+    return { foodConsumption, waterConsumption }
+  }
+
+  /**
+   * Обрабатывает почасовое потребление ресурсов и наносит урон при нехватке
+   */
+  private processHourlyResourceConsumption(): void {
+    const { foodConsumption, waterConsumption } = this.calculateHourlyResourceConsumption()
+    
+    console.log(`[processHourlyResourceConsumption] Начинаем обработку: потребление еды=${foodConsumption}, воды=${waterConsumption}, жителей=${this.bunkerResidents.length}`)
+    
+    // Проверяем, есть ли жители для потребления ресурсов
+    if (this.bunkerResidents.length === 0) {
+      console.log(`[processHourlyResourceConsumption] ⚠️ Нет жителей, пропускаем потребление ресурсов`)
+      return
+    }
+    
+    // Расходуем ресурсы
+    const oldFood = this.food
+    const oldWater = this.water
+    
+    // Рассчитываем потребление с учетом доступных ресурсов
+    const actualFoodConsumption = Math.min(foodConsumption, this.food)
+    const actualWaterConsumption = Math.min(waterConsumption, this.water)
+    
+    // Обновляем ресурсы (не уходим в отрицательные значения)
+    this.food = Math.max(0, this.food - foodConsumption)
+    this.water = Math.max(0, this.water - waterConsumption)
+    
+    console.log(`[processHourlyResourceConsumption] Расход ресурсов: еда ${oldFood} → ${this.food} (-${actualFoodConsumption}), вода ${oldWater} → ${this.water} (-${actualWaterConsumption})`)
+    
+    // Проверяем нехватку ресурсов и наносим урон
+    const foodShortage = foodConsumption - actualFoodConsumption
+    const waterShortage = waterConsumption - actualWaterConsumption
+    
+    if (foodShortage > 0) {
+      console.log(`[processHourlyResourceConsumption] ⚠️ Обнаружена нехватка еды: ${foodShortage} ед.! Обрабатываем урон от голода...`)
+      this.handleResourceShortage(oldFood, -foodShortage, 'food', 'голод')
+    } else {
+      console.log(`[processHourlyResourceConsumption] ✅ Еды достаточно: ${this.food}`)
+    }
+    
+    if (waterShortage > 0) {
+      console.log(`[processHourlyResourceConsumption] ⚠️ Обнаружена нехватка воды: ${waterShortage} ед.! Обрабатываем урон от жажды...`)
+      this.handleResourceShortage(oldWater, -waterShortage, 'water', 'жажда')
+    } else {
+      console.log(`[processHourlyResourceConsumption] ✅ Воды достаточно: ${this.water}`)
+    }
+    
+    // Обновляем UI
+    this.updateResourcesText()
+    
+    // Логируем финальное состояние ресурсов
+    console.log(`[processHourlyResourceConsumption] Финальное состояние: еда=${this.food}, вода=${this.water}`)
+  }
+
+  /**
+   * Обрабатывает нехватку ресурса и наносит урон жителям
+   */
+  private handleResourceShortage(oldAmount: number, newAmount: number, resourceType: 'food' | 'water', damageReason: string): void {
+    console.log(`[handleResourceShortage] Вход в метод: oldAmount=${oldAmount}, newAmount=${newAmount}, resourceType=${resourceType}, damageReason=${damageReason}`)
+    
+    if (newAmount >= 0) {
+      console.log(`[handleResourceShortage] Ресурса достаточно (${newAmount}), выходим`)
+      return // Ресурса достаточно
+    }
+    
+    const shortage = Math.abs(newAmount) // Количество недостающих единиц
+    const residentCount = this.bunkerResidents.length
+    
+    console.log(`[handleResourceShortage] Нехватка: ${shortage} ед., жителей: ${residentCount}`)
+    
+    if (residentCount === 0) {
+      console.log(`[handleResourceShortage] Нет жителей, выходим`)
+      return
+    }
+    
+    console.log(`[handleResourceShortage] Нехватка ${resourceType}: ${shortage} ед., жителей: ${residentCount}`)
+    
+    // Рассчитываем урон в зависимости от сложности
+    let damagePercent: number
+    switch (this.difficulty) {
+      case 'easy':
+        damagePercent = 10
+        break
+      case 'normal':
+        damagePercent = 25
+        break
+      case 'hard':
+        damagePercent = 50
+        break
+      default:
+        damagePercent = 25
+    }
+    
+    // Наносим урон случайным жителям (по 1 жителю на каждую единицу разницы)
+    const residentsToDamage = Math.min(shortage, residentCount)
+    const shuffledResidents = [...this.bunkerResidents].sort(() => Math.random() - 0.5)
+    
+    console.log(`[handleResourceShortage] Будет нанесен урон ${residentsToDamage} жителям от ${damageReason} (${damagePercent}% урона)`)
+    console.log(`[handleResourceShortage] Доступные жители: ${this.bunkerResidents.map(r => `${r.name}(здоровье:${r.health ?? 100}%)`).join(', ')}`)
+    
+    for (let i = 0; i < residentsToDamage; i++) {
+      const resident = shuffledResidents[i]
+      if (!resident) {
+        console.log(`[handleResourceShortage] Пропускаем жителя ${i}: не найден`)
+        continue
+      }
+      
+      // Получаем текущее здоровье жителя (по умолчанию 100 если не установлено)
+      const currentHealth = resident.health ?? 100
+      
+      // Проверяем, что житель жив и не находится в критическом состоянии
+      if (currentHealth <= 0) {
+        console.log(`[handleResourceShortage] Пропускаем ${resident.name}: уже мертв (здоровье: ${currentHealth}%)`)
+        continue
+      }
+      
+      // Жители с критически низким здоровьем (≤1%) имеют высокий шанс смерти
+      if (currentHealth <= 1) {
+        const criticalDeathChance = 0.8 // 80% шанс смерти для жителей с 1% здоровья
+        const willDieFromCritical = Math.random() < criticalDeathChance
+        
+        if (willDieFromCritical) {
+          console.log(`[handleResourceShortage] 💀 ${resident.name} умирает от ${damageReason} из-за критически низкого здоровья (${currentHealth}%)!`)
+          this.showToast(`💀 ${resident.name} умирает от ${damageReason} из-за крайней слабости!`)
+          this.removeDeadResident(resident.id, damageReason)
+          continue // Переходим к следующему жителю
+        } else {
+          console.log(`[handleResourceShortage] 🍀 ${resident.name} с критически низким здоровьем (${currentHealth}%) чудом выживает от ${damageReason}!`)
+          this.showToast(`🍀 ${resident.name} чудом выживает от ${damageReason}!`)
+        }
+      }
+      
+      const damage = Math.floor(currentHealth * (damagePercent / 100))
+      const newHealth = Math.max(0, currentHealth - damage)
+      
+      console.log(`[handleResourceShortage] ${resident.name} (ID: ${resident.id}) получает урон от ${damageReason}: ${currentHealth}% → ${newHealth}% (-${damage}%)`)
+      
+      // Проверяем, может ли житель умереть от недостатка здоровья
+      if (damage > currentHealth) {
+        const deathChance = 0.5 // 50% шанс смерти
+        const willDie = Math.random() < deathChance
+        
+        if (willDie) {
+          console.log(`[handleResourceShortage] 💀 ${resident.name} умирает от ${damageReason} (недостаточно здоровья + случайность)!`)
+          this.showToast(`💀 ${resident.name} умирает от ${damageReason}!`)
+          this.removeDeadResident(resident.id, damageReason)
+          continue // Переходим к следующему жителю
+        } else {
+          console.log(`[handleResourceShortage] 🍀 ${resident.name} выживает от ${damageReason} благодаря удаче!`)
+          this.showToast(`🍀 ${resident.name} чудом выживает от ${damageReason}!`)
+          // Устанавливаем здоровье в 1% вместо 0
+          this.updateResidentHealth(resident.id, 1)
+          
+          // Отнимаем 10% счастья за выживание
+          this.applyHappinessPenalty(resident.id, damageReason)
+        }
+      } else {
+        // Используем правильный метод для обновления здоровья
+        this.updateResidentHealth(resident.id, newHealth)
+        
+        // Показываем уведомление
+        this.showToast(`💀 ${resident.name} страдает от ${damageReason}!`)
+        
+        // Отнимаем 10% счастья за получение урона
+        this.applyHappinessPenalty(resident.id, damageReason)
+        
+        // Проверяем смерть жителя
+        if (newHealth <= 0) {
+          console.log(`[handleResourceShortage] 💀 Житель ${resident.name} умирает от ${damageReason}!`)
+          this.removeDeadResident(resident.id, damageReason)
+        }
+      }
+      
+      // Дополнительная проверка: жители с очень низким здоровьем (≤10%) имеют шанс умереть от голода/жажды
+      if (currentHealth <= 10 && currentHealth > 0) {
+        const lowHealthDeathChance = 0.3 // 30% шанс смерти для жителей с низким здоровьем
+        const willDieFromLowHealth = Math.random() < lowHealthDeathChance
+        
+        if (willDieFromLowHealth) {
+          console.log(`[handleResourceShortage] 💀 ${resident.name} умирает от ${damageReason} из-за критически низкого здоровья (${currentHealth}%)!`)
+          this.showToast(`💀 ${resident.name} умирает от ${damageReason} из-за слабости!`)
+          this.removeDeadResident(resident.id, damageReason)
+          continue // Переходим к следующему жителю
+        }
+      }
+    }
   }
 
   /**
@@ -1215,6 +1447,10 @@ export class GameScene extends Phaser.Scene {
     console.log(`[processEnemyDefenseDamage] Час ${hour}: Вызываем processDoctorHealing`)
     this.processDoctorHealing(hour)
     
+    // Обрабатываем почасовое потребление ресурсов
+    console.log(`[processEnemyDefenseDamage] Час ${hour}: Вызываем processHourlyResourceConsumption`)
+    this.processHourlyResourceConsumption()
+    
     console.log(`[processEnemyDefenseDamage] Час ${hour}: Обработка завершена`)
   }
 
@@ -1434,6 +1670,9 @@ export class GameScene extends Phaser.Scene {
 
   init(data: { difficulty?: Difficulty }): void {
     if (data?.difficulty) this.difficulty = data.difficulty
+    
+    // Рассчитываем множители потребления ресурсов при инициализации
+    this.calculateResourceConsumptionMultipliers()
   }
 
   create(): void {
@@ -1632,6 +1871,9 @@ export class GameScene extends Phaser.Scene {
     this.water = Math.round(this.water * scale)
     this.ammo = Math.round(this.ammo * scale)
     this.money = Math.round(this.money * scale)
+
+    // Рассчитываем множители потребления ресурсов на основе сложности
+    this.calculateResourceConsumptionMultipliers()
   }
 
   // ======== Daily resources processing ========
@@ -2821,6 +3063,16 @@ export class GameScene extends Phaser.Scene {
     if (idx >= 0) {
       const [enemy] = this.bunkerEnemies.splice(idx, 1)
       console.log(`[GameScene] Удаляем мертвого врага ${enemy.name} (ID: ${enemy.id}) из bunkerEnemies: ${reason}`)
+      
+      // Синхронизируем с SimpleBunkerView - удаляем агента врага
+      if (this.simpleBunker) {
+        try {
+          this.simpleBunker.removeEnemyAgent(id)
+          console.log(`[removeEnemyFromBunker] Агент врага ${enemy.name} удален из SimpleBunkerView`)
+        } catch (error) {
+          console.error(`[removeEnemyFromBunker] Ошибка при удалении агента врага из SimpleBunkerView:`, error)
+        }
+      }
       
       // Обновляем визуальное отображение бункера
       this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
@@ -4703,8 +4955,42 @@ export class GameScene extends Phaser.Scene {
       const [r] = this.bunkerResidents.splice(idx, 1)
       console.log(`[GameScene] Удаляем мертвого жителя ${r.name} (ID: ${r.id}) из bunkerResidents по причине: ${reason}`)
 
-      // Обновляем UI (но НЕ вызываем syncResidents - bunkerView сам управляет агентами)
+      // Синхронизируем с SimpleBunkerView - вызываем анимацию смерти
+      if (this.simpleBunker) {
+        try {
+          console.log(`[removeDeadResident] Ищем агента жителя ${r.name} (ID: ${id}) в SimpleBunkerView`)
+          
+          // Находим агента жителя
+          const agent = this.simpleBunker.getResidentAgentById(id)
+          console.log(`[removeDeadResident] Результат поиска агента:`, agent ? `найден (ID: ${agent.id})` : 'НЕ найден')
+          
+          if (agent) {
+            console.log(`[removeDeadResident] Агент найден, проверяем его состояние:`, {
+              id: agent.id,
+              profession: agent.profession,
+              sprite: !!agent.sprite,
+              anims: !!(agent.sprite && agent.sprite.anims)
+            })
+            
+            // Вызываем анимацию смерти (она сама удалит агента через 1000ms)
+            console.log(`[removeDeadResident] Вызываем setDeadAnimation для агента ${agent.id}`)
+            this.simpleBunker.setDeadAnimation(agent)
+            console.log(`[removeDeadResident] Анимация смерти запущена для жителя ${r.name}`)
+          } else {
+            // Если агент не найден, сразу удаляем
+            console.log(`[removeDeadResident] Агент жителя ${r.name} не найден, удаляем напрямую`)
+            this.simpleBunker.removeResidentAgent(id)
+          }
+        } catch (error) {
+          console.error(`[removeDeadResident] Ошибка при работе с SimpleBunkerView:`, error)
+        }
+      } else {
+        console.warn(`[removeDeadResident] SimpleBunkerView не инициализирован`)
+      }
+
+      // Обновляем UI
       this.updateResourcesText()
+      this.onBunkerChanged()
 
       // Показываем уведомление о смерти в зависимости от причины
       let deathMessage = ''
@@ -4714,6 +5000,10 @@ export class GameScene extends Phaser.Scene {
         deathMessage = `${r.name} умер от неизлечимой болезни!`
       } else if (reason === 'заражение') {
         deathMessage = `${r.name} умер от заражения!`
+      } else if (reason === 'голод') {
+        deathMessage = `${r.name} умер от голода!`
+      } else if (reason === 'жажда') {
+        deathMessage = `${r.name} умер от жажды!`
       } else {
         deathMessage = `${r.name} погиб в бою с врагами!`
       }
@@ -4961,6 +5251,13 @@ export class GameScene extends Phaser.Scene {
 
     // Also update HTML overlay
     this.updateUIOverlay()
+    
+    // Логируем информацию о потреблении ресурсов для отладки
+    if (this.bunkerResidents.length > 0) {
+      const { foodConsumption, waterConsumption } = this.calculateHourlyResourceConsumption()
+      console.log(`[updateResourcesText] Потребление ресурсов: еда ${foodConsumption}/час, вода ${waterConsumption}/час (множители: еда=${this.foodConsumptionMultiplier}, вода=${this.waterConsumptionMultiplier})`)
+      console.log(`[updateResourcesText] Текущие ресурсы: еда=${this.food}, вода=${this.water}`)
+    }
   }
 
   // Балансные ставки расхода потребностей по сложности (единиц в час)
@@ -4973,6 +5270,265 @@ export class GameScene extends Phaser.Scene {
       default:
         return { hunger: 3, thirst: 5, energyWork: 12, energyIdle: 4 }
     }
+  }
+
+  /**
+   * Получает информацию о текущем потреблении ресурсов
+   */
+  public getResourceConsumptionInfo(): { 
+    foodConsumption: number; 
+    waterConsumption: number; 
+    foodMultiplier: number; 
+    waterMultiplier: number;
+    nextIncreaseDay: number;
+    difficulty: string;
+    dayNumber: number;
+  } {
+    const { foodConsumption, waterConsumption } = this.calculateHourlyResourceConsumption()
+    
+    // Рассчитываем день следующего увеличения потребления
+    let nextIncreaseDay: number
+    switch (this.difficulty) {
+      case 'easy':
+        nextIncreaseDay = Math.ceil(this.dayNumber / 10) * 10
+        break
+      case 'normal':
+        nextIncreaseDay = Math.ceil(this.dayNumber / 7) * 7
+        break
+      case 'hard':
+        nextIncreaseDay = Math.ceil(this.dayNumber / 7) * 7
+        break
+      default:
+        nextIncreaseDay = Math.ceil(this.dayNumber / 7) * 7
+    }
+    
+    return {
+      foodConsumption,
+      waterConsumption,
+      foodMultiplier: this.foodConsumptionMultiplier,
+      waterMultiplier: this.waterConsumptionMultiplier,
+      nextIncreaseDay,
+      difficulty: this.difficulty,
+      dayNumber: this.dayNumber
+    }
+  }
+
+  /**
+   * Тестовый метод для проверки системы урона от нехватки ресурсов
+   * Вызывается из консоли: gameScene.testResourceDamage('food', 5)
+   */
+  public testResourceDamage(resourceType: 'food' | 'water', shortage: number): void {
+    console.log(`🧪 Тестирование системы урона: ${resourceType}, нехватка: ${shortage} ед.`)
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log('❌ Нет жителей для тестирования')
+      return
+    }
+    
+    // Симулируем нехватку ресурса
+    const damageReason = resourceType === 'food' ? 'голод' : 'жажда'
+    this.handleResourceShortage(100, -shortage, resourceType, damageReason)
+    
+    console.log('✅ Тест завершен')
+  }
+
+  /**
+   * Тестовый метод для симуляции почасового потребления с нехваткой ресурсов
+   * Вызывается из консоли: gameScene.testHourlyConsumption()
+   */
+  public testHourlyConsumption(): void {
+    console.log('🧪 Тестирование почасового потребления с нехваткой ресурсов...')
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log('❌ Нет жителей для тестирования')
+      return
+    }
+    
+    // Устанавливаем ресурсы в 0 для тестирования нехватки
+    const oldFood = this.food
+    const oldWater = this.water
+    
+    this.food = 0
+    this.water = 0
+    
+    console.log(`[testHourlyConsumption] Установили ресурсы: еда=${this.food}, вода=${this.water}`)
+    
+    // Вызываем почасовое потребление
+    this.processHourlyResourceConsumption()
+    
+    // Восстанавливаем ресурсы
+    this.food = oldFood
+    this.water = oldWater
+    
+    console.log(`[testHourlyConsumption] Восстановили ресурсы: еда=${this.food}, вода=${this.water}`)
+    console.log('✅ Тест завершен')
+  }
+
+  /**
+   * Тестовый метод для проверки системы смерти от голода/жажды
+   * Вызывается из консоли: gameScene.testDeathSystem()
+   */
+  public testDeathSystem(): void {
+    console.log('🧪 Тестирование системы смерти от голода/жажды...')
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log('❌ Нет жителей для тестирования')
+      return
+    }
+    
+    // Находим жителя с высоким здоровьем для тестирования
+    const healthyResident = this.bunkerResidents.find(r => (r.health ?? 100) > 50)
+    if (!healthyResident) {
+      console.log('❌ Нет жителей с достаточным здоровьем для тестирования')
+      return
+    }
+    
+    console.log(`[testDeathSystem] Тестируем на жителе: ${healthyResident.name} (здоровье: ${healthyResident.health ?? 100}%)`)
+    
+    // Симулируем нехватку ресурса, которая заведомо превысит здоровье жителя
+    const damageReason = 'голод'
+    this.handleResourceShortage(100, -200, 'food', damageReason)
+    
+    console.log('✅ Тест системы смерти завершен')
+  }
+
+  /**
+   * Тестовый метод для проверки синхронизации удаления жителей
+   * Вызывается из консоли: gameScene.testResidentRemoval()
+   */
+  public testResidentRemoval(): void {
+    console.log('🧪 Тестирование синхронизации удаления жителей...')
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log('❌ Нет жителей для тестирования')
+      return
+    }
+    
+    // Находим первого жителя для тестирования
+    const testResident = this.bunkerResidents[0]
+    console.log(`[testResidentRemoval] Тестируем удаление жителя: ${testResident.name} (ID: ${testResident.id})`)
+    
+    // Проверяем, есть ли агент в SimpleBunkerView
+    if (this.simpleBunker) {
+      const agent = this.simpleBunker.getResidentAgentById(testResident.id)
+      if (agent) {
+        console.log(`[testResidentRemoval] Агент найден в SimpleBunkerView: ${agent.id}`)
+      } else {
+        console.log(`[testResidentRemoval] Агент НЕ найден в SimpleBunkerView`)
+      }
+    }
+    
+    // Удаляем жителя
+    this.removeDeadResident(testResident.id, 'тестирование')
+    
+    // Проверяем, что агент удален
+    if (this.simpleBunker) {
+      const agent = this.simpleBunker.getResidentAgentById(testResident.id)
+      if (agent) {
+        console.log(`❌ ОШИБКА: Агент все еще существует в SimpleBunkerView после удаления!`)
+      } else {
+        console.log(`✅ Агент успешно удален из SimpleBunkerView`)
+      }
+    }
+    
+    console.log('✅ Тест синхронизации удаления завершен')
+  }
+
+  /**
+   * Тестовый метод для проверки анимации смерти
+   * Вызывается из консоли: gameScene.testDeathAnimation()
+   */
+  public testDeathAnimation(): void {
+    console.log('🧪 Тестирование анимации смерти...')
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log('❌ Нет жителей для тестирования')
+      return
+    }
+    
+    // Находим первого жителя для тестирования
+    const testResident = this.bunkerResidents[0]
+    console.log(`[testDeathAnimation] Тестируем анимацию смерти для жителя: ${testResident.name} (ID: ${testResident.id})`)
+    
+    // Проверяем, есть ли агент в SimpleBunkerView
+    if (this.simpleBunker) {
+      const agent = this.simpleBunker.getResidentAgentById(testResident.id)
+      if (agent) {
+        console.log(`[testDeathAnimation] Агент найден в SimpleBunkerView: ${agent.id}`)
+        
+        // Проверяем доступные анимации
+        if (agent.sprite && agent.sprite.anims) {
+          const availableAnims = (this.scene as any).anims?.names || []
+          const deadAnims = availableAnims.filter((name: string) => name.includes('dead'))
+          console.log(`[testDeathAnimation] Доступные анимации смерти: ${deadAnims.join(', ')}`)
+        }
+      } else {
+        console.log(`[testDeathAnimation] Агент НЕ найден в SimpleBunkerView`)
+        return
+      }
+    }
+    
+    // Симулируем смерть от голода (это вызовет анимацию смерти)
+    this.removeDeadResident(testResident.id, 'голод')
+    
+    console.log('✅ Тест анимации смерти завершен')
+    console.log('💡 Проверьте, что житель проиграл анимацию смерти перед исчезновением')
+  }
+
+  /**
+   * Тестовый метод для проверки быстрой анимации смерти (с таймером 2 секунды)
+   * Вызывается из консоли: gameScene.testQuickDeathAnimation()
+   */
+  public testQuickDeathAnimation(): void {
+    console.log('🧪 Тестирование быстрой анимации смерти (2 секунды)...')
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log('❌ Нет жителей для тестирования')
+      return
+    }
+    
+    // Находим первого жителя для тестирования
+    const testResident = this.bunkerResidents[0]
+    console.log(`[testQuickDeathAnimation] Тестируем быструю анимацию смерти для жителя: ${testResident.name} (ID: ${testResident.id})`)
+    
+    // Проверяем, есть ли агент в SimpleBunkerView
+    if (this.simpleBunker) {
+      const agent = this.simpleBunker.getResidentAgentById(testResident.id)
+      if (agent) {
+        console.log(`[testQuickDeathAnimation] Агент найден в SimpleBunkerView: ${agent.id}`)
+        
+        // Симулируем смерть от голода
+        this.removeDeadResident(testResident.id, 'голод')
+        
+        console.log('✅ Тест быстрой анимации смерти завершен')
+        console.log('💡 Житель должен исчезнуть через 1 секунду')
+      } else {
+        console.log(`[testQuickDeathAnimation] Агент НЕ найден в SimpleBunkerView`)
+      }
+    }
+  }
+
+  /**
+   * Применяет штраф к счастью жителя за получение урона от нехватки ресурсов
+   */
+  private applyHappinessPenalty(residentId: number, damageReason: string): void {
+    const resident = this.bunkerResidents.find(r => r.id === residentId)
+    if (!resident) return
+    
+    // Отнимаем 10% от текущего счастья (если есть)
+    if (resident.hunger !== undefined) {
+      const oldHunger = resident.hunger
+      resident.hunger = Math.max(0, resident.hunger - 10)
+      console.log(`[applyHappinessPenalty] ${resident.name} теряет счастье от ${damageReason}: голод ${oldHunger}% → ${resident.hunger}% (-10%)`)
+    }
+    
+    // Также уменьшаем общее счастье бункера
+    const oldHappiness = this.happiness
+    this.happiness = Math.max(0, this.happiness - 2)
+    console.log(`[applyHappinessPenalty] Общее счастье бункера уменьшено от ${damageReason}: ${oldHappiness}% → ${this.happiness}% (-2%)`)
+    
+    // Показываем уведомление о снижении счастья
+    this.showToast(`😢 ${resident.name} расстроен от ${damageReason}!`)
   }
 
   // Синхронизация потребностей жителя из bunkerView
@@ -5488,6 +6044,10 @@ export class GameScene extends Phaser.Scene {
     this.dayNumber += 1
     this.phase = 'day'
     this.visitorsRemaining = 3
+    
+    // Рассчитываем множители потребления ресурсов на основе нового дня
+    this.calculateResourceConsumptionMultipliers()
+    
     this.buildSurfacePlaceholders()
     this.buildPersonPlaceholders()
     this.buildBunkerPlaceholders()
@@ -5632,6 +6192,9 @@ export class GameScene extends Phaser.Scene {
 
       // Проверка жителей на безумие каждый час
       this.checkResidentsForInsanity()
+      
+      // Рассчитываем множители потребления ресурсов на основе количества дней и сложности
+      this.calculateResourceConsumptionMultipliers()
     }
   }
 
