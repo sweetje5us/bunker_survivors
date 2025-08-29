@@ -5550,9 +5550,15 @@ export class SimpleBunkerView {
               }
               
               // Наносим урон жителю
-              if (target.health) {
-                target.health -= damage
-                console.log(`[bunkerView] Враг ${agent.enemyType} (ID: ${agent.id}) наносит ${damage} урона жителю ${target.profession} (ID: ${target.id}). Осталось здоровья: ${target.health}`)
+                             if (target.health) {
+                 target.health -= damage
+                 
+                 // Синхронизируем здоровье с GameScene
+                 if (!target.isEnemy && this.scene && (this.scene as any).updateResidentHealth) {
+                   (this.scene as any).updateResidentHealth(target.id, target.health);
+                 }
+                 
+                 console.log(`[bunkerView] Враг ${agent.enemyType} наносит ${damage} урона жителю ${target.profession}. Осталось здоровья: ${target.health}`)
                           
                           // Воспроизводим hurt анимацию при получении урона
                           this.setHurtAnimation(target)
@@ -6309,11 +6315,16 @@ export class SimpleBunkerView {
       return
     }
     
-    // Наносим урон
-    resident.health -= attacker.attackDamage
-    
-    const attackerType = attacker.isEnemy ? `враг ${attacker.enemyType}` : `житель ${attacker.profession}`
-    console.log(`[bunkerView] ${attackerType} (ID: ${attacker.id}) наносит ${attacker.attackDamage} урона жителю ${resident.profession} (ID: ${resident.id}). Осталось здоровья: ${resident.health}`)
+         // Наносим урон
+     resident.health -= attacker.attackDamage
+     
+     // Синхронизируем здоровье с GameScene
+     if (!resident.isEnemy && this.scene && (this.scene as any).updateResidentHealth) {
+       (this.scene as any).updateResidentHealth(resident.id, resident.health);
+     }
+     
+     const attackerType = attacker.isEnemy ? `враг ${attacker.enemyType}` : `житель ${attacker.profession}`
+         console.log(`[bunkerView] ${attackerType} наносит ${attacker.attackDamage} урона жителю ${resident.profession}. Осталось здоровья: ${resident.health}`)
     
     // Проверяем, умер ли житель
     if (resident.health <= 0) {
@@ -6340,10 +6351,15 @@ export class SimpleBunkerView {
       return
     }
 
-    // Наносим урон
-    resident.health -= insaneAttacker.attackDamage
-
-    console.log(`[bunkerView] Безумный житель ${insaneAttacker.profession} (ID: ${insaneAttacker.id}) наносит ${insaneAttacker.attackDamage} урона жителю ${resident.profession} (ID: ${resident.id}). Осталось здоровья: ${resident.health}`)
+         // Наносим урон
+     resident.health -= insaneAttacker.attackDamage
+     
+     // Синхронизируем здоровье с GameScene
+     if (!resident.isEnemy && this.scene && (this.scene as any).updateResidentHealth) {
+       (this.scene as any).updateResidentHealth(resident.id, resident.health);
+     }
+     
+     console.log(`[bunkerView] Безумный житель ${insaneAttacker.profession} наносит ${insaneAttacker.attackDamage} урона жителю ${resident.profession}. Осталось здоровья: ${resident.health}`)
 
     // Проверяем, умер ли житель
     if (resident.health <= 0) {
@@ -6516,11 +6532,16 @@ export class SimpleBunkerView {
       } else {
         healthGraphics.fillStyle(0xff0000, 1) // Красный
       }
-      // Ограничиваем размер полоски здоровья границами контейнера
-      const healthWidth = Math.max(0, Math.min(24, 24 * healthPercent))
-      healthGraphics.fillRect(-12, 0, healthWidth, 4)
-    }
-  }
+             // Ограничиваем размер полоски здоровья границами контейнера
+       const healthWidth = Math.max(0, Math.min(24, 24 * healthPercent))
+       healthGraphics.fillRect(-12, 0, healthWidth, 4)
+     }
+     
+     // Синхронизируем здоровье с GameScene
+     if (!agent.isEnemy && this.scene && (this.scene as any).updateResidentHealth) {
+       (this.scene as any).updateResidentHealth(agent.id, agent.health);
+     }
+   }
 
   // Функция для удаления мертвого жителя
   private removeDeadResident(agent: any): void {
@@ -6800,10 +6821,16 @@ export class SimpleBunkerView {
     if (!agent || agent.isEnemy) return
     
     // Базовые параметры для всех жителей
-    agent.health = 100
-    agent.attackDamage = 15
-    agent.attackRange = 50
-    agent.attackCooldown = 1000 // 1 секунда
+         agent.health = 100
+     agent.attackDamage = 15
+     
+     // Синхронизируем здоровье с GameScene
+     if (!agent.isEnemy && this.scene && (this.scene as any).updateResidentHealth) {
+       (this.scene as any).updateResidentHealth(agent.id, agent.health);
+     }
+     
+     agent.attackRange = 50
+     agent.attackCooldown = 1000 // 1 секунда
     agent.lastResidentAttackTime = 0
     
     // Определяем агрессивность по специальности
@@ -9468,11 +9495,16 @@ export class SimpleBunkerView {
   private handleEnemyAttackOnResident(enemy: any, resident: any): void {
     if (!enemy || !resident || resident.health <= 0) return
 
-    // Наносим урон жителю
-    const damage = enemy.attackDamage || 15
-    resident.health = Math.max(0, resident.health - damage)
-
-    console.log(`[bunkerView] Враг атакует жителя ${resident.profession} (${damage} урона, здоровье жителя: ${resident.health})`)
+         // Наносим урон жителю
+     const damage = enemy.attackDamage || 15
+     resident.health = Math.max(0, resident.health - damage)
+     
+     // Синхронизируем здоровье с GameScene
+     if (!resident.isEnemy && this.scene && (this.scene as any).updateResidentHealth) {
+       (this.scene as any).updateResidentHealth(resident.id, resident.health);
+     }
+     
+     console.log(`[bunkerView] Враг атакует жителя ${resident.profession} (${damage} урона, здоровье: ${resident.health})`)
 
     // Воспроизводим анимацию hurt для жителя
     this.playHurtAnimation(resident)

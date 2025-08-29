@@ -383,6 +383,7 @@ export class GameScene extends Phaser.Scene {
    */
   private checkResidentsForInsanity(): void {
     const moral = this.getCurrentMoral();
+    console.log(`[checkResidentsForInsanity] Проверяем жителей на безумие, мораль: ${moral}%`)
 
     // Инициализируем intent для существующих жителей
     this.bunkerResidents.forEach(resident => {
@@ -415,6 +416,8 @@ export class GameScene extends Phaser.Scene {
         console.log('[GameScene] Moral improved, stopping insane fights');
       }
     }
+    
+    console.log(`[checkResidentsForInsanity] Проверка завершена`)
   }
 
   /**
@@ -422,6 +425,7 @@ export class GameScene extends Phaser.Scene {
    */
   private restoreSanity(): void {
     const moral = this.getCurrentMoral();
+    console.log(`[restoreSanity] Проверяем восстановление рассудка, мораль: ${moral}%`)
 
     if (moral > 35) {
       // Находим всех безумных жителей
@@ -442,7 +446,9 @@ export class GameScene extends Phaser.Scene {
         this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length);
       }
     }
-  }
+    
+          console.log(`[restoreSanity] Проверка завершена`)
+    }
 
   /**
    * Calculate moral change based on resident decision
@@ -1109,92 +1115,107 @@ export class GameScene extends Phaser.Scene {
 
   // Вражеский урон по ресурсу "Защита" раз в час
   private processEnemyDefenseDamage(hour: number): void {
-    if (this.enemyQueueItems.length === 0) return
+    console.log(`[processEnemyDefenseDamage] Час ${hour}: Начинаем обработку, врагов в очереди: ${this.enemyQueueItems.length}`)
     
-    // Логируем текущий баланс бункера каждый час
-    const balanceInfo = this.getBunkerBalanceInfo()
-    console.log(`[processEnemyDefenseDamage] Час ${hour}: Жители: ${balanceInfo.residents}, Враги: ${balanceInfo.enemies}, Статус: ${balanceInfo.balanceStatus}`)
-    const damageByType = (type: string): number => {
-      switch (type) {
-        case 'МАРОДЕР': return 1
-        case 'ЗОМБИ': return 2
-        case 'МУТАНТ': return 5
-        case 'СОЛДАТ': return 10
-        default: return 1
+    // Обрабатываем атаки врагов только если они есть
+    if (this.enemyQueueItems.length > 0) {
+      // Логируем текущий баланс бункера каждый час
+      const balanceInfo = this.getBunkerBalanceInfo()
+      console.log(`[processEnemyDefenseDamage] Час ${hour}: Жители: ${balanceInfo.residents}, Враги: ${balanceInfo.enemies}, Статус: ${balanceInfo.balanceStatus}`)
+      const damageByType = (type: string): number => {
+        switch (type) {
+          case 'МАРОДЕР': return 1
+          case 'ЗОМБИ': return 2
+          case 'МУТАНТ': return 5
+          case 'СОЛДАТ': return 10
+          default: return 1
+        }
       }
-    }
-    // Первый враг бьёт каждый час
-    const first = this.enemyQueueItems[0]
-    if (first) {
-      const d = damageByType((first as any).type || first.type)
-      this.defense = Math.max(0, this.defense - d)
-      this.updateResourcesText()
-      // Обновляем фон двери при изменении защиты
-      this.updateEntranceBackground()
+      // Первый враг бьёт каждый час
+      const first = this.enemyQueueItems[0]
+      if (first) {
+        const d = damageByType((first as any).type || first.type)
+        this.defense = Math.max(0, this.defense - d)
+        this.updateResourcesText()
+        // Обновляем фон двери при изменении защиты
+        this.updateEntranceBackground()
 
-      // Проверяем: если защита упала до 0, враг заходит в бункер
-      // Но только если он не заблокирован
-      if (this.defense <= 0 && !(first as any).blockedFromEntry) {
-        // Дополнительная проверка: может ли враг войти в бункер
-        if (this.bunkerEnemies.length >= this.bunkerResidents.length) {
-          console.log(`[processEnemyDefenseDamage] Защита упала до 0, но враг ${first.type} не может войти: врагов (${this.bunkerEnemies.length}) >= жителей (${this.bunkerResidents.length})`)
-          
-          // Показываем уведомление
-          if (typeof window !== 'undefined' && (window as any).showToast) {
-            (window as any).showToast(`Враг ${first.type} не может войти: бункер переполнен врагами!`);
+        // Проверяем: если защита упала до 0, враг заходит в бункер
+        // Но только если он не заблокирован
+        if (this.defense <= 0 && !(first as any).blockedFromEntry) {
+          // Дополнительная проверка: может ли враг войти в бункер
+          if (this.bunkerEnemies.length >= this.bunkerResidents.length) {
+            console.log(`[processEnemyDefenseDamage] Защита упала до 0, но враг ${first.type} не может войти: врагов (${this.bunkerEnemies.length}) >= жителей (${this.bunkerResidents.length})`)
+            
+            // Показываем уведомление
+            if (typeof window !== 'undefined' && (window as any).showToast) {
+              (window as any).showToast(`Враг ${first.type} не может войти: бункер переполнен врагами!`);
+            }
+            
+            // Помечаем врага как заблокированного
+            (first as any).blockedFromEntry = true
+            
+            // Враг остается в очереди, но не может войти
+            // Восстанавливаем немного защиты, чтобы враг не мог войти
+            this.defense = Math.max(1, this.defense)
+            this.updateResourcesText()
+            this.updateEntranceBackground()
+          } else {
+            this.enemyEntersBunker(first)
           }
-          
-          // Помечаем врага как заблокированного
-          (first as any).blockedFromEntry = true
-          
-          // Враг остается в очереди, но не может войти
-          // Восстанавливаем немного защиты, чтобы враг не мог войти
-          this.defense = Math.max(1, this.defense)
-          this.updateResourcesText()
-          this.updateEntranceBackground()
-          
-          return // Прерываем дальнейшую логику
         }
         
-        this.enemyEntersBunker(first)
-        return // Прерываем дальнейшую логику, враг ушел в бункер
+        // Атака: проиграть attack в превью и на поверхности, если есть
+        try {
+          // Превью
+          if (this.personPreviewSprite && (this as any)._previewCurrentIsEnemy && (this as any)._previewCurrentId === first.id) {
+            // Играть правильную анимацию атаки в зависимости от типа врага
+            this.playEnemyAttackAnimation(first, this.personPreviewSprite, this.personPreviewShirt, this.personPreviewPants, this.personPreviewFootwear, this.personPreviewHair)
+          }
+          // Поверхность — первый враг
+          const any = first as any
+          this.playEnemyAttackAnimation(first, any.sprite, any.shirt, any.pants, any.footwear, any.hair)
+        } catch {}
       }
-      
-      // Атака: проиграть attack в превью и на поверхности, если есть
-      try {
-        // Превью
-        if (this.personPreviewSprite && (this as any)._previewCurrentIsEnemy && (this as any)._previewCurrentId === first.id) {
-          // Играть правильную анимацию атаки в зависимости от типа врага
-          this.playEnemyAttackAnimation(first, this.personPreviewSprite, this.personPreviewShirt, this.personPreviewPants, this.personPreviewFootwear, this.personPreviewHair)
+      // Остальные враги: урон раз в 12/6/2 часа по сложности
+      const cadence = this.difficulty === 'normal' ? 6 : this.difficulty === 'easy' ? 12 : 2
+      for (let i = 1; i < this.enemyQueueItems.length; i++) {
+        if (hour % cadence !== 0) break
+        const it = this.enemyQueueItems[i] as any
+        
+        // Пропускаем заблокированных врагов
+        if ((it as any).blockedFromEntry) {
+          console.log(`[processEnemyDefenseDamage] Враг ${it.type} заблокирован, пропускаем атаку`)
+          continue
         }
-        // Поверхность — первый враг
-        const any = first as any
-        this.playEnemyAttackAnimation(first, any.sprite, any.shirt, any.pants, any.footwear, any.hair)
-      } catch {}
-    }
-    // Остальные враги: урон раз в 12/6/2 часа по сложности
-    const cadence = this.difficulty === 'normal' ? 6 : this.difficulty === 'easy' ? 12 : 2
-    for (let i = 1; i < this.enemyQueueItems.length; i++) {
-      if (hour % cadence !== 0) break
-      const it = this.enemyQueueItems[i] as any
-      
-      // Пропускаем заблокированных врагов
-      if ((it as any).blockedFromEntry) {
-        console.log(`[processEnemyDefenseDamage] Враг ${it.type} заблокирован, пропускаем атаку`)
-        continue
-      }
-      
-      const d = damageByType(it.type)
-      this.defense = Math.max(0, this.defense - d)
-      // Обновляем фон двери при изменении защиты
-      this.updateEntranceBackground()
+        
+        const d = damageByType(it.type)
+        this.defense = Math.max(0, this.defense - d)
+        // Обновляем фон двери при изменении защиты
+        this.updateEntranceBackground()
 
-      // Также проигрываем анимацию атаки для врагов в очереди
-      try {
-        this.playEnemyAttackAnimation(it, it.sprite, it.shirt, it.pants, it.footwear, it.hair)
-      } catch {}
+        // Также проигрываем анимацию атаки для врагов в очереди
+        try {
+          this.playEnemyAttackAnimation(it, it.sprite, it.shirt, it.pants, it.footwear, it.hair)
+        } catch {}
+      }
+      this.updateResourcesText()
+    } else {
+      console.log(`[processEnemyDefenseDamage] Час ${hour}: Нет врагов для атаки, пропускаем обработку атак`)
     }
-    this.updateResourcesText()
+    
+    // Разблокируем врагов если есть место
+    this.unblockEnemiesIfPossible()
+    
+    // Обрабатываем здоровье жителей и врагов каждый час (ВСЕГДА, независимо от врагов)
+    console.log(`[processEnemyDefenseDamage] Час ${hour}: Вызываем processResidentHealthHourly`)
+    this.processResidentHealthHourly(hour)
+    
+    // Обрабатываем лечение от докторов каждый час
+    console.log(`[processEnemyDefenseDamage] Час ${hour}: Вызываем processDoctorHealing`)
+    this.processDoctorHealing(hour)
+    
+    console.log(`[processEnemyDefenseDamage] Час ${hour}: Обработка завершена`)
   }
 
   private enemyEntersBunker(enemy: any): void {
@@ -2816,6 +2837,234 @@ export class GameScene extends Phaser.Scene {
   }
 
   // scheduleVisitorArrival уже определён выше (динамический, с джиттером)
+  
+  // Обрабатываем здоровье жителей и врагов каждый час
+  private processResidentHealthHourly(hour: number): void {
+    console.log(`[processResidentHealthHourly] Час ${hour}: Начинаем обработку здоровья ${this.bunkerResidents.length} жителей`)
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log(`[processResidentHealthHourly] Час ${hour}: Нет жителей для обработки`)
+      return
+    }
+    
+    // Обрабатываем здоровье жителей
+    this.bunkerResidents.forEach(resident => {
+      // Логируем только если есть изменения здоровья
+      const hasIncurableDisease = this.hasSkill(resident.skills, 'неизлечимая болезнь')
+      const hasInfected = this.hasSkill(resident.skills, 'зараженный')
+      const hasStrongImmunity = this.hasSkill(resident.skills, 'крепкий иммунитет')
+      const isSleeping = this.simpleBunker ? 
+        (this.simpleBunker.getResidentAgentById(resident.id)?.sleeping || false) : false
+      
+      if (hasIncurableDisease || hasInfected || hasStrongImmunity || isSleeping) {
+        console.log(`[processResidentHealthHourly] Час ${hour}: ${resident.name} (${resident.profession}) - Здоровье: ${resident.health || 100}%, Навыки: ${resident.skills.map(s => s.text).join(', ')}, Спит: ${isSleeping}`)
+        console.log(`[processResidentHealthHourly] Навыки: ${resident.skills.map(s => `${s.text}(${s.positive ? '+' : '-'})`).join(', ')}`)
+      }
+      
+      // Проверяем навыки жителя (переменные уже объявлены выше)
+      
+      // Жители с неизлечимой болезнью теряют 1% здоровья каждый час
+      if (hasIncurableDisease) {
+        const oldHealth = resident.health || 100
+        resident.health = Math.max(0, oldHealth - 1)
+        
+                         if (oldHealth !== resident.health) {
+                   console.log(`[processResidentHealthHourly] 🦠 ${resident.name} теряет здоровье от неизлечимой болезни: ${oldHealth}% → ${resident.health}%`)
+                   
+                   // Синхронизируем здоровье с bunkerView агентом
+                   if (this.simpleBunker) {
+                     const residentAgent = this.simpleBunker.getResidentAgentById(resident.id)
+                     if (residentAgent) {
+                       residentAgent.health = resident.health
+                     }
+                   }
+                 }
+        
+        // Если здоровье упало до 0, житель умирает
+        if (resident.health <= 0) {
+          console.log(`[processResidentHealthHourly] 💀 Житель ${resident.name} умирает от неизлечимой болезни!`)
+          this.removeDeadResident(resident.id, 'неизлечимая болезнь')
+          return
+        }
+      }
+      
+      // Жители с заражением теряют 1% здоровья каждый час
+      if (hasInfected) {
+        const oldHealth = resident.health || 100
+        resident.health = Math.max(0, oldHealth - 1)
+        
+                         if (oldHealth !== resident.health) {
+                   console.log(`[processResidentHealthHourly] 🦠 ${resident.name} теряет здоровье от заражения: ${oldHealth}% → ${resident.health}%`)
+                   
+                   // Синхронизируем здоровье с bunkerView агентом
+                   if (this.simpleBunker) {
+                     const residentAgent = this.simpleBunker.getResidentAgentById(resident.id)
+                     if (residentAgent) {
+                       residentAgent.health = resident.health
+                     }
+                   }
+                 }
+        
+        // Если здоровье упало до 0, житель умирает
+        if (resident.health <= 0) {
+          console.log(`[processResidentHealthHourly] 💀 Житель ${resident.name} умирает от заражения!`)
+          this.removeDeadResident(resident.id, 'заражение')
+          return
+        }
+      }
+      
+      // Жители с крепким иммунитетом восстанавливают 1% здоровья каждый час (если здоровье неполное)
+      if (hasStrongImmunity && (resident.health || 100) < 100) {
+        const oldHealth = resident.health || 100
+        resident.health = Math.min(100, oldHealth + 1)
+        
+        if (oldHealth !== resident.health) {
+          console.log(`[processResidentHealthHourly] 🛡️ ${resident.name} восстанавливает здоровье от крепкого иммунитета: ${oldHealth}% → ${resident.health}%`)
+          
+          // Синхронизируем здоровье с bunkerView агентом
+          if (this.simpleBunker) {
+            const residentAgent = this.simpleBunker.getResidentAgentById(resident.id)
+            if (residentAgent) {
+              residentAgent.health = resident.health
+            }
+          }
+        }
+      }
+      
+      // Жители восстанавливают 1% здоровья каждый час во сне (если нет неизлечимой болезни и заражения)
+      if (!hasIncurableDisease && !hasInfected) {
+        // Проверяем, спит ли житель (через bunkerView)
+        if (this.simpleBunker) {
+          const residentAgent = this.simpleBunker.getResidentAgentById(resident.id)
+          if (residentAgent && residentAgent.sleeping) {
+            const oldHealth = resident.health || 100
+            resident.health = Math.min(100, oldHealth + 1)
+            
+                                 if (oldHealth !== resident.health) {
+                       console.log(`[processResidentHealthHourly] 😴 ${resident.name} восстанавливает здоровье во сне: ${oldHealth}% → ${resident.health}%`)
+                       
+                       // Синхронизируем здоровье с bunkerView агентом
+                       if (this.simpleBunker) {
+                         const residentAgent = this.simpleBunker.getResidentAgentById(resident.id)
+                         if (residentAgent) {
+                           residentAgent.health = resident.health
+                         }
+                       }
+                     }
+          }
+        }
+      }
+      
+      // Обновляем UI если открыто модальное окно с деталями жителя
+      this.updateResidentDetailsUI(resident.id)
+      
+      // Логируем финальное состояние здоровья для жителей с особыми навыками
+      if (hasIncurableDisease || hasInfected || hasStrongImmunity || isSleeping) {
+        console.log(`[processResidentHealthHourly] Финальное здоровье ${resident.name}: ${resident.health || 100}%`)
+      }
+    })
+    
+    // Обрабатываем здоровье врагов (если у них есть навыки в будущем)
+    this.bunkerEnemies.forEach(enemy => {
+      // Пока у врагов нет навыков, но можно добавить в будущем
+      // Например, зомби могут регенерировать здоровье, а мутанты - терять
+      
+      // Обновляем UI если открыто модальное окно с деталями врага
+      // (пока не реализовано, но можно добавить)
+    })
+    
+    console.log(`[processResidentHealthHourly] Час ${hour}: Обработка здоровья завершена`)
+    
+    // Проверяем, что жители действительно изменились
+    this.bunkerResidents.forEach(resident => {
+      if (resident.health !== undefined && resident.health !== 100) {
+        console.log(`[processResidentHealthHourly] Житель ${resident.name} имеет здоровье: ${resident.health}%`)
+      }
+    })
+  }
+
+  // Обрабатываем лечение от докторов каждый час
+  private processDoctorHealing(hour: number): void {
+    console.log(`[processDoctorHealing] Час ${hour}: Начинаем обработку лечения от докторов`)
+    
+    if (this.bunkerResidents.length === 0) {
+      console.log(`[processDoctorHealing] Час ${hour}: Нет жителей для лечения`)
+      return
+    }
+    
+    // Находим всех докторов в бункере
+    const doctors = this.bunkerResidents.filter(resident => 
+      resident.profession === 'доктор' || resident.profession === 'врач'
+    )
+    
+    if (doctors.length === 0) {
+      console.log(`[processDoctorHealing] Час ${hour}: Нет докторов в бункере`)
+      return
+    }
+    
+    console.log(`[processDoctorHealing] Час ${hour}: Найдено ${doctors.length} докторов`)
+    
+    // Находим жителей, которые могут быть вылечены (неполное здоровье, но не неизлечимо больные и не зараженные)
+    const healableResidents = this.bunkerResidents.filter(resident => {
+      const hasIncurableDisease = this.hasSkill(resident.skills, 'неизлечимая болезнь')
+      const hasInfected = this.hasSkill(resident.skills, 'зараженный')
+      const hasIncompleteHealth = (resident.health || 100) < 100
+      
+      return !hasIncurableDisease && !hasInfected && hasIncompleteHealth
+    })
+    
+    if (healableResidents.length === 0) {
+      console.log(`[processDoctorHealing] Час ${hour}: Нет жителей для лечения`)
+      return
+    }
+    
+    console.log(`[processDoctorHealing] Час ${hour}: Найдено ${healableResidents.length} жителей для лечения`)
+    
+    // Каждый доктор может вылечить одного жителя в час
+    doctors.forEach((doctor, doctorIndex) => {
+      // Проверяем, работает ли доктор в данный момент
+      const isDoctorWorking = this.simpleBunker ? 
+        (this.simpleBunker.getResidentAgentById(doctor.id)?.scheduleState === 'work') : false
+      
+      if (isDoctorWorking) {
+        console.log(`[processDoctorHealing] Час ${hour}: Доктор ${doctor.name} работает и может лечить`)
+        
+        // Ищем жителя для лечения (приоритет тем, у кого меньше здоровья)
+        healableResidents.sort((a, b) => (a.health || 100) - (b.health || 100))
+        
+        // Берем первого жителя с наименьшим здоровьем
+        const patientToHeal = healableResidents[0]
+        
+        if (patientToHeal) {
+          const oldHealth = patientToHeal.health || 100
+          patientToHeal.health = Math.min(100, oldHealth + 1)
+          
+          console.log(`[processDoctorHealing] Час ${hour}: Доктор ${doctor.name} лечит ${patientToHeal.name}: ${oldHealth}% → ${patientToHeal.health}%`)
+          
+          // Синхронизируем здоровье с bunkerView агентом
+          if (this.simpleBunker) {
+            const residentAgent = this.simpleBunker.getResidentAgentById(patientToHeal.id)
+            if (residentAgent) {
+              residentAgent.health = patientToHeal.health
+            }
+          }
+          
+          // Обновляем UI если открыто модальное окно
+          this.updateResidentDetailsUI(patientToHeal.id)
+          
+          // Убираем вылеченного жителя из списка для лечения
+          const patientIndex = healableResidents.indexOf(patientToHeal)
+          if (patientIndex > -1) {
+            healableResidents.splice(patientIndex, 1)
+          }
+        }
+      } else {
+        console.log(`[processDoctorHealing] Час ${hour}: Доктор ${doctor.name} не работает (scheduleState: ${this.simpleBunker ? this.simpleBunker.getResidentAgentById(doctor.id)?.scheduleState : 'неизвестно'})`)
+      }
+    })
+    
+    console.log(`[processDoctorHealing] Час ${hour}: Обработка лечения завершена`)
+  }
 
   private enqueueVisitor(createOnly = false): { id: number; rect: Phaser.GameObjects.Rectangle; sprite?: Phaser.GameObjects.Sprite; shirt?: Phaser.GameObjects.Sprite; pants?: Phaser.GameObjects.Sprite; footwear?: Phaser.GameObjects.Sprite; hair?: Phaser.GameObjects.Sprite } | null {
     if (!this.surfaceQueue) return null
@@ -3411,6 +3660,13 @@ export class GameScene extends Phaser.Scene {
       const canAccept = this.bunkerResidents.length < capacity
       if (canAccept) {
         const personData = this.getPersonData(first.id)
+        console.log(`[decideCurrent] Принимаем жителя ${personData.name} (${personData.profession}) с навыками: ${personData.allSkills.map(s => `${s.text}(${s.positive ? '+' : '-'})`).join(', ')}`)
+        
+        // Специальное логирование для докторов
+        if (personData.profession === 'доктор' || personData.profession === 'врач') {
+          console.log(`[decideCurrent] 🏥 Принимаем доктора ${personData.name}! Теперь жители будут получать лечение каждый час во время работы доктора`)
+        }
+        
         this.addResidentToBunker(first.id, personData)
 
         // Применяем изменение морали за принятие жителя
@@ -3466,6 +3722,13 @@ export class GameScene extends Phaser.Scene {
 
         // Применяем изменение морали за отказ (нет мест)
         const personData = this.getPersonData(first.id)
+        console.log(`[decideCurrent] Нет мест для жителя ${personData.name} (${personData.profession}) с навыками: ${personData.allSkills.map(s => `${s.text}(${s.positive ? '+' : '-'})`).join(', ')}`)
+        
+        // Специальное логирование для докторов без мест
+        if (personData.profession === 'доктор' || personData.profession === 'врач') {
+          console.log(`[decideCurrent] 🏥 Нет мест для доктора ${personData.name}! Жители не будут получать лечение`)
+        }
+        
         const moralChange = this.calculateMoralChange(personData, false);
         this.applyMoralChange(moralChange, `нет мест для ${personData.name} (${personData.profession})`);
 
@@ -3484,10 +3747,17 @@ export class GameScene extends Phaser.Scene {
     } else {
       // Отказ: анимация выхода влево для превью + очереди
 
-      // Применяем изменение морали за отказ
-      const personData = this.getPersonData(first.id)
-      const moralChange = this.calculateMoralChange(personData, false);
-      this.applyMoralChange(moralChange, `отказан ${personData.name} (${personData.profession})`);
+              // Применяем изменение морали за отказ
+        const personData = this.getPersonData(first.id)
+        console.log(`[decideCurrent] Отказываем жителю ${personData.name} (${personData.profession}) с навыками: ${personData.allSkills.map(s => `${s.text}(${s.positive ? '+' : '-'})`).join(', ')}`)
+        
+        // Специальное логирование для отказа докторам
+        if (personData.profession === 'доктор' || personData.profession === 'врач') {
+          console.log(`[decideCurrent] 🏥 Отказываем доктору ${personData.name}! Жители не будут получать лечение`)
+        }
+        
+        const moralChange = this.calculateMoralChange(personData, false);
+        this.applyMoralChange(moralChange, `отказан ${personData.name} (${personData.profession})`);
 
       // Показываем уведомление об отказе в жителе
       this.showToast(`Отказано в жителе: ${personData.name} (${personData.profession})`)
@@ -4360,6 +4630,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addResidentToBunker(id: number, personData: { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> }): void {
+    console.log(`[addResidentToBunker] Добавляем жителя ${personData.name} (${personData.profession}) с навыками: ${personData.allSkills.map(s => `${s.text}(${s.positive ? '+' : '-'})`).join(', ')}`)
+    
     this.bunkerResidents.push({
       id,
       name: personData.name,
@@ -4380,6 +4652,13 @@ export class GameScene extends Phaser.Scene {
       insaneSince: undefined,
       intent: 'peaceful' // Мирное поведение по умолчанию
     })
+    
+    console.log(`[addResidentToBunker] Житель ${personData.name} добавлен с ID ${id}, здоровье: 100%`)
+    
+    // Специальное логирование для докторов
+    if (personData.profession === 'доктор' || personData.profession === 'врач') {
+      console.log(`[addResidentToBunker] 🏥 Доктор ${personData.name} добавлен в бункер! Теперь может лечить жителей каждый час во время работы`)
+    }
     
     // Обновляем ресурсы
     this.updateResourcesText()
@@ -4422,15 +4701,22 @@ export class GameScene extends Phaser.Scene {
     const idx = this.bunkerResidents.findIndex(r => r.id === id)
     if (idx >= 0) {
       const [r] = this.bunkerResidents.splice(idx, 1)
-      console.log(`[GameScene] Удаляем мертвого жителя ${r.name} (ID: ${r.id}) из bunkerResidents`)
+      console.log(`[GameScene] Удаляем мертвого жителя ${r.name} (ID: ${r.id}) из bunkerResidents по причине: ${reason}`)
 
       // Обновляем UI (но НЕ вызываем syncResidents - bunkerView сам управляет агентами)
       this.updateResourcesText()
 
-      // Показываем уведомление о смерти
-      const deathMessage = reason === 'убит в драке между жителями'
-        ? `${r.name} убит в драке между жителями!`
-        : `${r.name} погиб в бою с врагами!`
+      // Показываем уведомление о смерти в зависимости от причины
+      let deathMessage = ''
+      if (reason === 'убит в драке между жителями') {
+        deathMessage = `${r.name} убит в драке между жителями!`
+      } else if (reason === 'неизлечимая болезнь') {
+        deathMessage = `${r.name} умер от неизлечимой болезни!`
+      } else if (reason === 'заражение') {
+        deathMessage = `${r.name} умер от заражения!`
+      } else {
+        deathMessage = `${r.name} погиб в бою с врагами!`
+      }
       this.showToast(`💀 ${deathMessage}`)
       
       // Проверяем возможность разблокировки врагов в очереди
@@ -4696,8 +4982,59 @@ export class GameScene extends Phaser.Scene {
     if (typeof needs.hunger === 'number') r.hunger = Math.max(0, Math.min(100, Math.floor(needs.hunger)))
     if (typeof needs.thirst === 'number') r.thirst = Math.max(0, Math.min(100, Math.floor(needs.thirst)))
     if (typeof needs.energy === 'number') r.energy = Math.max(0, Math.min(100, Math.floor(needs.energy)))
-    if (typeof needs.health === 'number') r.health = Math.max(0, Math.min(100, Math.floor(needs.health)))
-    if (typeof needs.patient === 'boolean') r.patient = needs.patient
+         if (typeof needs.health === 'number') r.health = Math.max(0, Math.min(100, Math.floor(needs.health)))
+     if (typeof needs.patient === 'boolean') r.patient = needs.patient
+     
+     // Обновляем UI если открыто модальное окно с деталями жителя
+     this.updateResidentDetailsUI(id)
+   }
+   
+     // Обновление UI деталей жителя при изменении здоровья
+  private updateResidentDetailsUI(residentId: number): void {
+    // Проверяем, открыто ли модальное окно с деталями жителя
+    if (typeof window !== 'undefined' && (window as any).updateResidentHealthInModal) {
+      (window as any).updateResidentHealthInModal(residentId)
+    }
+  }
+  
+  // Метод для обновления здоровья жителя в bunkerResidents
+  public updateResidentHealth(residentId: number, newHealth: number): void {
+    const resident = this.bunkerResidents.find(r => r.id === residentId);
+    if (resident) {
+      const oldHealth = resident.health;
+      resident.health = Math.max(0, Math.min(100, newHealth));
+      
+      if (oldHealth !== resident.health) {
+        console.log(`[updateResidentHealth] ${resident.name} (ID: ${residentId}): ${oldHealth || 100}% → ${resident.health}%`)
+      }
+      
+      // Синхронизируем здоровье с bunkerView агентами
+      if (this.simpleBunker) {
+        const residentAgent = this.simpleBunker.getResidentAgentById(residentId);
+        if (residentAgent) {
+          residentAgent.health = resident.health;
+        }
+      }
+      
+      // Обновляем UI если открыто модальное окно
+      this.updateResidentDetailsUI(residentId);
+    }
+  }
+  
+  // Метод для синхронизации здоровья из bunkerView в GameScene
+  public syncResidentHealthFromBunkerView(residentId: number, bunkerViewHealth: number): void {
+    const resident = this.bunkerResidents.find(r => r.id === residentId);
+    if (resident) {
+      const oldHealth = resident.health;
+      resident.health = Math.max(0, Math.min(100, bunkerViewHealth));
+      
+      if (oldHealth !== resident.health) {
+        console.log(`[syncResidentHealthFromBunkerView] ${resident.name} (ID: ${residentId}): ${oldHealth || 100}% → ${resident.health}%`)
+      }
+      
+      // Обновляем UI если открыто модальное окно
+      this.updateResidentDetailsUI(residentId);
+    }
   }
 
   // Методы для вызова из bunkerView (работники)
@@ -5285,8 +5622,12 @@ export class GameScene extends Phaser.Scene {
     const hh = parseInt(clock.slice(0, 2), 10)
     const isDayHour = hh >= 6 && hh < 22
     if (this.lastHourTick !== hh) {
+      console.log(`[tickClockAndPhase] Смена часа: ${this.lastHourTick} → ${hh}`)
       ;(this.simpleBunker as any)?.onHourTick?.(hh, isDayHour)
       this.lastHourTick = hh
+      
+      // Обрабатываем здоровье жителей и врагов каждый час
+      console.log(`[tickClockAndPhase] Час ${hh}: Вызываем processEnemyDefenseDamage`)
       this.processEnemyDefenseDamage(hh)
 
       // Проверка жителей на безумие каждый час

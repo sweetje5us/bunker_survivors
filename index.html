@@ -1471,12 +1471,17 @@
               resident.energy = updatedResident.energy || 100;
               resident.health = updatedResident.health || 100;
               resident.status = updatedResident.status || 'Отдыхает';
+              
+              // Обновляем здоровье в модальном окне если оно открыто
+              if (typeof window.updateResidentHealthInModal === 'function') {
+                window.updateResidentHealthInModal(resident.id);
+              }
             }
           }
         }
       }
 
-      console.log('Showing details for resident:', resident.name, 'health:', resident.health);
+      // Показываем детали жителя
 
       // Populate resident detail content
       if (typeof window.populateResidentDetailModal === 'function') {
@@ -1485,6 +1490,41 @@
 
       // Switch to resident detail view in the same modal
       window.showResidentDetail();
+    };
+
+    // Функция для обновления здоровья жителя в модальном окне
+    window.updateResidentHealthInModal = function(residentId) {
+      // Находим жителя в текущих данных
+      if (window.currentResidentsData) {
+        const resident = window.currentResidentsData.find(r => r.id === residentId);
+        if (resident) {
+          // Обновляем данные жителя из GameScene
+          if (window.game && window.game.scene) {
+            const gameScene = window.game.scene.getScene('Game');
+            if (gameScene && gameScene.bunkerResidents) {
+              const updatedResident = gameScene.bunkerResidents.find(r => r.id === residentId);
+              if (updatedResident && typeof updatedResident.health === 'number') {
+                resident.health = updatedResident.health;
+                
+                // Если модальное окно открыто и показывает этого жителя, обновляем UI
+                const modal = document.getElementById('population-modal');
+                if (modal && modal.style.display !== 'none') {
+                  // Обновляем шкалу здоровья
+                  const healthMeter = document.querySelector('.meter-fill.health');
+                  const healthValue = document.querySelector('.meter-value');
+                  
+                  if (healthMeter) {
+                    healthMeter.style.width = `${resident.health}%`;
+                  }
+                  if (healthValue) {
+                    healthValue.textContent = `${Math.round(resident.health)}%`;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     };
 
     // Resident detail modal functions
