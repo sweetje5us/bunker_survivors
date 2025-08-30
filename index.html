@@ -85,8 +85,20 @@
     <!-- Game UI Overlay Container -->
     <div id="game-ui-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: auto; z-index: 10000; pointer-events: none;"></div>
 
-    <script type="module" src="/src/main.ts"></script>
     <script type="module" src="/src/ui/ui-manager.js"></script>
+    <script type="module" src="/src/main.ts"></script>
+    
+    <!-- Условная инициализация GameUIManager только в игре -->
+    <script type="module">
+      // Ждем загрузки ui-manager.js
+      import('./src/ui/ui-manager.js').then(() => {
+        // НЕ инициализируем UI overlay здесь
+        // UI будет инициализирован только когда GameScene это потребует
+        console.log('[index.html] ui-manager.js загружен, но UI НЕ инициализирован');
+      }).catch(error => {
+        console.error('[index.html] Ошибка загрузки ui-manager.js:', error);
+      });
+    </script>
   </body>
   <script>
     // Mobile viewport height fix (fallback for browsers without 100dvh)
@@ -1259,6 +1271,7 @@
       if (window.game && window.game.scene) {
         const gameScene = window.game.scene.getScene('Game');
         if (gameScene) {
+          // Получаем базовые данные о ресурсах
           gameData = {
             happiness: gameScene.happiness || 50,
             defense: gameScene.defense || 50,
@@ -1269,6 +1282,20 @@
             money: gameScene.money || 200,
             population: gameScene.bunkerResidents ? gameScene.bunkerResidents.length : 0
           };
+
+          // Если это еда или вода, получаем расширенную информацию
+          if (resource === 'food' || resource === 'water') {
+            try {
+              const detailedInfo = gameScene.getDetailedResourceInfo(resource);
+              gameData = {
+                ...gameData,
+                ...detailedInfo
+              };
+              console.log(`[openResource] Получена детальная информация для ${resource}:`, detailedInfo);
+            } catch (error) {
+              console.warn(`[openResource] Ошибка получения детальной информации для ${resource}:`, error);
+            }
+          }
         }
       }
 
@@ -1622,6 +1649,8 @@
       if (!title || !content) return;
 
       title.textContent = resourceType.toUpperCase();
+      
+      console.log(`[populateResourceModal] Заполняем модальное окно для ${resourceType} с данными:`, data);
 
       let details = '';
 
@@ -1701,18 +1730,34 @@
               </div>
               <div class="resource-stat neutral">
                 <span>Общий расход в день</span>
-                <span>Заглушка</span>
+                <span>${data.dailyConsumption || 'Загрузка...'} единиц</span>
               </div>
               <div class="resource-stat neutral">
                 <span>Расход на жителя в день</span>
-                <span>Заглушка</span>
+                <span>${data.consumptionPerResident || 'Загрузка...'} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих жителей</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
               </div>
               <div class="resource-stat neutral">
-                <span>Получение от работы в день</span>
-                <span>Заглушка</span>
+                <span>Работающих специалистов</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Получение от комнат в день</span>
+                <span>${data.dailyGain || 'Загрузка...'} единиц (${data.roomCount || 0} ${data.roomType || 'комнат'})</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Множитель сложности</span>
+                <span>${data.multiplier || 'Загрузка...'}x</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Следующее увеличение</span>
+                <span>День ${data.nextIncreaseDay || 'Загрузка...'}</span>
               </div>
               <div class="resource-description">
-                <p>Еда является основным ресурсом для поддержания жизни жителей. Недостаток еды приводит к голоду и снижению здоровья.</p>
+                <p>Еда является основным ресурсом для поддержания жизни жителей. Недостаток еды приводит к голоду и снижению здоровья. Расход зависит от количества жителей и сложности игры.</p>
               </div>
             </div>
           `;
@@ -1727,18 +1772,34 @@
               </div>
               <div class="resource-stat neutral">
                 <span>Общий расход в день</span>
-                <span>Заглушка</span>
+                <span>${data.dailyConsumption || 'Загрузка...'} единиц</span>
               </div>
               <div class="resource-stat neutral">
                 <span>Расход на жителя в день</span>
-                <span>Заглушка</span>
+                <span>${data.consumptionPerResident || 'Загрузка...'} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих жителей</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
               </div>
               <div class="resource-stat neutral">
-                <span>Получение от работы в день</span>
-                <span>Заглушка</span>
+                <span>Работающих специалистов</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Получение от комнат в день</span>
+                <span>${data.dailyGain || 'Загрузка...'} единиц (${data.roomCount || 0} ${data.roomType || 'комнат'})</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Множитель сложности</span>
+                <span>${data.multiplier || 'Загрузка...'}x</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Следующее увеличение</span>
+                <span>День ${data.nextIncreaseDay || 'Загрузка...'}</span>
               </div>
               <div class="resource-description">
-                <p>Вода критически важна для выживания. Её недостаток быстро приводит к обезвоживанию и смерти жителей.</p>
+                <p>Вода критически важна для выживания. Её недостаток быстро приводит к обезвоживанию и смерти жителей. Расход зависит от количества жителей и сложности игры.</p>
               </div>
             </div>
           `;
@@ -2244,7 +2305,7 @@
     };
 
     // Abilities system
-    let currentAbilityPoints = 100;
+    let currentAbilityPoints = 0;
     let currentCategory = 'resources';
     let abilitiesData = {};
     let learnedAbilities = new Set();
@@ -3453,6 +3514,13 @@
       // Обновляем UI
       updateAbilityPoints();
       renderAbilityTree();
+    };
+
+    // Функция для обновления очков способностей из GameScene
+    window.updateAbilityPointsFromGame = function(points) {
+      currentAbilityPoints = points;
+      updateAbilityPoints();
+      console.log(`[index.html] Очки способностей обновлены: ${points}`);
     };
 
     // Universal resource click handler

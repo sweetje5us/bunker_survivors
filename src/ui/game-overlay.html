@@ -184,6 +184,50 @@
             flex-shrink: 0;
         }
 
+        /* Индикаторы изменений ресурсов */
+        .resource-change-indicator {
+            position: absolute;
+            font-size: 10px;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 1000;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            animation: resourceChangeFloat 2s ease-out forwards;
+            white-space: nowrap;
+        }
+
+        .resource-change-indicator.positive {
+            color: #4CAF50;
+        }
+
+        .resource-change-indicator.negative {
+            color: #f44336;
+        }
+
+        .resource-change-indicator.percentage {
+            color: #FFD700;
+        }
+
+        @keyframes resourceChangeFloat {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translateY(-20px) scale(1.1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-40px) scale(0.8);
+            }
+        }
+
+        /* Позиционирование для разных типов ресурсов */
+        .resource-item {
+            position: relative;
+        }
+
         .resource-item:hover {
             background: #2a2a2a !important;
             border-color: #ff0000 !important;
@@ -2621,7 +2665,7 @@
               <div class="abilities-container">
           <div class="ability-points">
             <h3>Очки способностей</h3>
-            <div class="points-display" id="ability-points">100</div>
+            <div class="points-display" id="ability-points">0</div>
           </div>
           
           <div class="category-tabs">
@@ -2667,23 +2711,25 @@
                     time: '06:00',
                     population: 0,
                     capacity: 0,
-                    happiness: 50,
-                    defense: 50,
-                    ammo: 100,
-                    comfort: 100,
-                    food: 100,
-                    water: 100,
-                    money: 200,
-                    wood: 50,
-                    metal: 25,
-                    coal: 10,
-                    nails: 20,
-                    paper: 15,
-                    glass: 5,
+                    happiness: 0,        // Будет установлено из конфигурации
+                    defense: 0,          // Будет установлено из конфигурации
+                    ammo: 0,             // Будет установлено из конфигурации
+                    comfort: 0,          // Будет установлено из конфигурации
+                    moral: 0,            // Будет установлено из конфигурации
+                    food: 0,             // Будет установлено из конфигурации
+                    water: 0,            // Будет установлено из конфигурации
+                    money: 0,            // Будет установлено из конфигурации
+                    wood: 0,             // Будет установлено из конфигурации
+                    metal: 0,            // Будет установлено из конфигурации
+                    coal: 0,             // Будет установлено из конфигурации
+                    nails: 0,            // Будет установлено из конфигурации
+                    paper: 0,            // Будет установлено из конфигурации
+                    glass: 0,            // Будет установлено из конфигурации
                     enemies: 0,
                     bunkerLevel: 1,
                     bunkerExperience: 0,
-                    maxExperience: 100
+                    maxExperience: 100,
+                    abilityPoints: 0
                 };
 
                 this.updateInterval = null;
@@ -2704,20 +2750,34 @@
 
                 // Update resources
                 document.getElementById('population').textContent = `👥 ${this.gameData.population}/${this.gameData.capacity}`;
-                document.getElementById('happiness').textContent = `😊 ${this.gameData.happiness}%`;
-                document.getElementById('defense').textContent = `🛡️ ${this.gameData.defense}%`;
+                document.getElementById('happiness').textContent = `😊 ${Math.floor(this.gameData.happiness)}%`;
+                document.getElementById('defense').textContent = `🛡️ ${Math.floor(this.gameData.defense)}%`;
                 // Обновляем патроны с иконкой
                 const ammoElement = document.getElementById('ammo');
                 if (ammoElement) {
                     const iconElement = ammoElement.querySelector('.resource-icon');
                     if (iconElement) {
-                        ammoElement.innerHTML = `${iconElement.outerHTML} ${this.gameData.ammo}`;
+                        ammoElement.innerHTML = `${iconElement.outerHTML} ${Math.floor(this.gameData.ammo)}`;
                     } else {
                         // Если иконка не найдена, создаем её заново
-                        ammoElement.innerHTML = `<img src="src/sprites/items/ammo.png" alt="Патроны" class="resource-icon"> ${this.gameData.ammo}`;
+                        ammoElement.innerHTML = `<img src="src/sprites/items/ammo.png" alt="Патроны" class="resource-icon"> ${Math.floor(this.gameData.ammo)}`;
                     }
                 }
-                document.getElementById('comfort').textContent = `🛋️ ${this.gameData.comfort}%`;
+                document.getElementById('comfort').textContent = `🛋️ ${Math.floor(this.gameData.comfort)}%`;
+                
+                // Обновляем мораль
+                const moralElement = document.getElementById('moral');
+                if (moralElement) {
+                    const iconElement = moralElement.querySelector('.resource-icon');
+                    if (iconElement) {
+                        moralElement.innerHTML = `${iconElement.outerHTML} ${Math.floor(this.gameData.moral)}%`;
+                    } else {
+                        moralElement.innerHTML = `<img src="src/sprites/resources/moral.png" alt="Мораль" class="resource-icon"> ${Math.floor(this.gameData.moral)}%`;
+                    }
+                    console.log(`[GameUIBridge] UI морали обновлен: ${Math.floor(this.gameData.moral)}%`);
+                } else {
+                    console.warn(`[GameUIBridge] Элемент морали не найден в DOM`);
+                }
                 
                 // Обновляем ресурсы с иконками
                 const updateResourceWithIcon = (id, value) => {
@@ -2732,15 +2792,15 @@
                     }
                 };
 
-                updateResourceWithIcon('food', this.gameData.food);
-                updateResourceWithIcon('water', this.gameData.water);
-                updateResourceWithIcon('money', this.gameData.money);
-                updateResourceWithIcon('wood', this.gameData.wood);
-                updateResourceWithIcon('metal', this.gameData.metal);
-                updateResourceWithIcon('coal', this.gameData.coal);
-                updateResourceWithIcon('nails', this.gameData.nails);
-                updateResourceWithIcon('paper', this.gameData.paper);
-                updateResourceWithIcon('glass', this.gameData.glass);
+                updateResourceWithIcon('food', Math.floor(this.gameData.food));
+                updateResourceWithIcon('water', Math.floor(this.gameData.water));
+                updateResourceWithIcon('money', Math.floor(this.gameData.money));
+                updateResourceWithIcon('wood', Math.floor(this.gameData.wood));
+                updateResourceWithIcon('metal', Math.floor(this.gameData.metal));
+                updateResourceWithIcon('coal', Math.floor(this.gameData.coal));
+                updateResourceWithIcon('nails', Math.floor(this.gameData.nails));
+                updateResourceWithIcon('paper', Math.floor(this.gameData.paper));
+                updateResourceWithIcon('glass', Math.floor(this.gameData.glass));
                 document.getElementById('enemies').textContent = `👹 ${this.gameData.enemies}`;
 
                 // Update experience
@@ -2750,11 +2810,16 @@
                 const progress = this.gameData.maxExperience > 0 ?
                     (this.gameData.bunkerExperience / this.gameData.maxExperience) * 100 : 0;
                 document.getElementById('xp-fill').style.width = `${Math.max(0, Math.min(100, progress))}%`;
+
+                // Update ability points
+                document.getElementById('ability-points').textContent = this.gameData.abilityPoints;
             }
 
             // Update game data from Phaser
             updateGameData(data) {
+                console.log(`[GameUIBridge] Получены данные от Phaser:`, data);
                 this.gameData = { ...this.gameData, ...data };
+                console.log(`[GameUIBridge] Обновленные данные: мораль=${this.gameData.moral}%, счастье=${this.gameData.happiness}%, защита=${this.gameData.defense}%`);
                 this.updateUI();
             }
 
@@ -2807,6 +2872,171 @@
         // Weapon system functions
         let currentWeapon = 'pistol';
         let weaponDropdownVisible = false;
+
+        // Функции для отображения индикаторов изменений ресурсов
+        window.showResourceChangeIndicator = function(resourceId, change, isPercentage = false, reason = '') {
+            console.log(`[showResourceChangeIndicator] 🔍 Ищем элемент ресурса: ${resourceId}`);
+            
+            const resourceElement = document.getElementById(resourceId);
+            if (!resourceElement) {
+                console.warn(`[showResourceChangeIndicator] ❌ Элемент ресурса ${resourceId} не найден`);
+                console.log(`[showResourceChangeIndicator] 🔍 Доступные элементы с ID:`);
+                const allElements = document.querySelectorAll('[id]');
+                allElements.forEach(el => {
+                    if (el.id.includes(resourceId) || resourceId.includes(el.id)) {
+                        console.log(`  - ${el.id}: ${el.tagName}`, el);
+                    }
+                });
+                return;
+            }
+            
+            console.log(`[showResourceChangeIndicator] ✅ Элемент найден:`, resourceElement);
+
+            // Определяем тип изменения
+            const isPositive = change > 0;
+            const isNegative = change < 0;
+            const absChange = Math.abs(change);
+
+            // Формируем текст индикатора
+            let indicatorText = '';
+            if (isPercentage) {
+                indicatorText = `${isPositive ? '+' : ''}${change}%`;
+            } else {
+                indicatorText = `${isPositive ? '+' : ''}${absChange} ед`;
+            }
+
+            // Добавляем причину изменения если указана
+            if (reason) {
+                indicatorText += `\n${reason}`;
+            }
+
+            // Создаем элемент индикатора
+            const indicator = document.createElement('div');
+            indicator.className = `resource-change-indicator ${isPositive ? 'positive' : 'negative'} ${isPercentage ? 'percentage' : ''}`;
+            indicator.textContent = indicatorText;
+            
+            // Стили в чёрно-белой стилистике с красными акцентами
+            indicator.style.position = 'fixed';
+            indicator.style.fontSize = '16px'; // Оптимальный размер шрифта
+            indicator.style.fontWeight = 'bold';
+            indicator.style.pointerEvents = 'none';
+            indicator.style.zIndex = '99999'; // Высокий z-index для видимости
+            indicator.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 0.8)'; // Чёрная тень
+            indicator.style.whiteSpace = 'nowrap';
+            indicator.style.backgroundColor = 'rgba(0, 0, 0, 0.95)'; // Чёрный фон
+            indicator.style.padding = '6px 10px'; // Компактные отступы
+            indicator.style.borderRadius = '6px';
+            indicator.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.6)'; // Чёрная тень
+            indicator.style.border = '2px solid #333'; // Тёмно-серый бордер
+            
+                        // Цвета в чёрно-белой стилистике с красными акцентами
+            if (isPositive) {
+                indicator.style.color = '#00FF00'; // Ярко-зелёный для положительных
+                indicator.style.border = '2px solid #00FF00';
+            } else {
+                indicator.style.color = '#FF0000'; // Ярко-красный для отрицательных
+                indicator.style.border = '2px solid #FF0000';
+            }
+
+            if (isPercentage) {
+                indicator.style.color = '#FFD700'; // Золотой для процентов
+                indicator.style.border = '2px solid #FFD700';
+            }
+
+            // Позиционируем индикатор
+            const rect = resourceElement.getBoundingClientRect();
+            console.log(`[showResourceChangeIndicator] 📍 Позиция элемента ${resourceId}:`, rect);
+            
+            // Позиционируем как toast уведомления - фиксированно относительно viewport
+            indicator.style.left = `${rect.left + rect.width / 2}px`;
+            indicator.style.top = `${Math.max(20, rect.top - 10)}px`; // Минимум 20px от верха экрана
+            console.log(`[showResourceChangeIndicator] 📍 Позиция индикатора: left=${indicator.style.left}, top=${indicator.style.top}`);
+
+            // Добавляем в body для глобального позиционирования
+            document.body.appendChild(indicator);
+            
+            // Проверяем, что индикатор действительно добавлен и видим
+            console.log(`[showResourceChangeIndicator] 🔍 Индикатор в DOM:`, indicator);
+            console.log(`[showResourceChangeIndicator] 🔍 Родительский элемент:`, indicator.parentNode);
+            console.log(`[showResourceChangeIndicator] 🔍 Computed styles:`, window.getComputedStyle(indicator));
+            console.log(`[showResourceChangeIndicator] ✅ Индикатор добавлен в DOM:`, indicator);
+
+            // Анимация через JavaScript
+            let opacity = 1;
+            let translateY = 0;
+            let scale = 1;
+            
+            const animate = () => {
+                opacity -= 0.02;
+                translateY -= 1;
+                scale -= 0.005;
+                
+                indicator.style.opacity = opacity;
+                indicator.style.transform = `translateY(${translateY}px) scale(${scale})`;
+                
+                if (opacity > 0 && scale > 0.5) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Удаляем индикатор после анимации
+                    if (indicator.parentNode) {
+                        indicator.parentNode.removeChild(indicator);
+                    }
+                }
+            };
+            
+            // Запускаем анимацию
+            requestAnimationFrame(animate);
+            
+            // Проверка видимости в чёрно-белой стилистике
+            setTimeout(() => {
+                const computedStyle = window.getComputedStyle(indicator);
+                console.log(`[showResourceChangeIndicator] 🎨 Проверка видимости в ЧБ стилистике:`);
+                console.log(`  - display: ${computedStyle.display}`);
+                console.log(`  - visibility: ${computedStyle.visibility}`);
+                console.log(`  - opacity: ${computedStyle.opacity}`);
+                console.log(`  - z-index: ${computedStyle.zIndex}`);
+                console.log(`  - position: ${computedStyle.position}`);
+                console.log(`  - left: ${computedStyle.left}`);
+                console.log(`  - top: ${computedStyle.top}`);
+                console.log(`  - background-color: ${computedStyle.backgroundColor}`);
+                console.log(`  - color: ${computedStyle.color}`);
+                console.log(`  - border-color: ${computedStyle.borderColor}`);
+                console.log(`  - Индикатор в DOM:`, document.body.contains(indicator));
+                console.log(`  - Индикатор размеры:`, indicator.offsetWidth, 'x', indicator.offsetHeight);
+                console.log(`  - Индикатор видимый:`, indicator.offsetWidth > 0 && indicator.offsetHeight > 0);
+            }, 100);
+
+            console.log(`[showResourceChangeIndicator] Показан индикатор для ${resourceId}: ${indicatorText}`);
+        };
+
+        // Функция для принудительного показа индикатора изменения ресурса
+        window.forceCheckResourceChange = function(resourceType, change, isNegative = false, isPercentage = false) {
+            let resourceId = resourceType;
+            
+            // Маппинг типов ресурсов на ID элементов
+            const resourceMapping = {
+                'food': 'food',
+                'water': 'water',
+                'money': 'money',
+                'wood': 'wood',
+                'metal': 'metal',
+                'coal': 'coal',
+                'nails': 'nails',
+                'paper': 'paper',
+                'glass': 'glass',
+                'happiness': 'happiness',
+                'defense': 'defense',
+                'ammo': 'ammo',
+                'comfort': 'comfort',
+                'moral': 'moral'
+            };
+
+            if (resourceMapping[resourceType]) {
+                resourceId = resourceMapping[resourceType];
+                // Показываем индикатор
+                window.showResourceChangeIndicator(resourceId, change, isPercentage);
+            }
+        };
 
         // Make functions globally available immediately
         window.toggleWeaponDropdown = function() {
@@ -3187,3 +3417,4 @@
 
 </body>
 </html>
+

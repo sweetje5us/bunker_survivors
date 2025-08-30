@@ -7,6 +7,7 @@ import type { Difficulty } from './DifficultyScene'
 import { SimpleBunkerView, RoomState } from '../core/bunkerView'
 import { createCharacterSprite, pickSkinForGender, ensureCharacterAnimations, pickClothingSetForGender, pickHairForGender, ensureSpecialistAnimations, getSpecialistSpriteKey, isSpecialistSprite } from '../core/characters'
 import { ITEMS_DATABASE, Item } from '../core/items'
+import { ConfigManager } from '../config/config-manager'
 
 type Phase = 'day' | 'night'
 
@@ -22,6 +23,7 @@ export class GameScene extends Phaser.Scene {
   private phase: Phase = 'day'
   private readonly DAY_DURATION_MS = 3 * 60 * 1000
   private readonly NIGHT_DURATION_MS = 2 * 60 * 1000
+  private configManager: ConfigManager = ConfigManager.getInstance()
   private dayCycleStartAt = 0
   private phaseEndsAt = 0
   private clockEvent?: Phaser.Time.TimerEvent
@@ -51,6 +53,7 @@ export class GameScene extends Phaser.Scene {
   private bunkerLevel = 1
   private bunkerExperience = 0
   private maxExperienceForLevel = 100
+  private abilityPoints = 0
   private inventoryRows = 1
 
   // HTML UI Overlay
@@ -199,7 +202,7 @@ export class GameScene extends Phaser.Scene {
   private defense = 50
   private ammo = 100
   private comfort = 100
-  private moral = 50
+  private moral = 0 // Будет установлено из конфигурации
   private food = 100
   private water = 100
   private money = 200
@@ -224,13 +227,9 @@ export class GameScene extends Phaser.Scene {
    * Get current moral value
    */
   private getCurrentMoral(): number {
-    let moralValue: number
-    if (typeof (window as any).getMoral === 'function') {
-      moralValue = (window as any).getMoral();
-    } else {
-      moralValue = this.moral; // fallback to local value
-    }
-    console.log(`[GameScene] getCurrentMoral() возвращает: ${moralValue}`)
+    // Всегда возвращаем локальное значение морали из GameScene
+    const moralValue = this.moral;
+    console.log(`[GameScene] getCurrentMoral() возвращает: ${moralValue}%`)
     return moralValue
   }
 
@@ -238,30 +237,41 @@ export class GameScene extends Phaser.Scene {
    * Рассчитывает множители потребления ресурсов на основе количества дней и сложности
    */
   private calculateResourceConsumptionMultipliers(): void {
-    const daysPassed = Math.max(0, this.dayNumber - 1)
-    
-    switch (this.difficulty) {
-      case 'easy':
-        // Каждые 10 дней +1 ед. к потреблению на жителя
-        this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 10)
-        this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 10)
-        break
-      case 'normal':
-        // Каждые 7 дней +1 ед. к потреблению на жителя
-        this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 7)
-        this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 7)
-        break
-      case 'hard':
-        // Каждые 7 дней +2 ед. к потреблению на жителя
-        this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 7) * 2
-        this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 7) * 2
-        break
-      default:
-        this.foodConsumptionMultiplier = 1
-        this.waterConsumptionMultiplier = 1
+    try {
+      // Получаем настройки потребления из конфигурации
+      const foodConfig = this.configManager.getResourceConsumption('food')
+      const waterConfig = this.configManager.getResourceConsumption('water')
+      
+      // Применяем множители из конфигурации
+      this.foodConsumptionMultiplier = foodConfig.multiplier
+      this.waterConsumptionMultiplier = waterConfig.multiplier
+      
+      console.log(`[calculateResourceConsumptionMultipliers] Сложность: ${this.difficulty}, Множители из конфигурации: еда=${this.foodConsumptionMultiplier}, вода=${this.waterConsumptionMultiplier}`)
+    } catch (error) {
+      console.error('[GameScene] Ошибка получения множителей потребления из конфигурации:', error)
+      // Fallback к старым значениям
+      const daysPassed = Math.max(0, this.dayNumber - 1)
+      
+      switch (this.difficulty) {
+        case 'easy':
+          this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 10)
+          this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 10)
+          break
+        case 'normal':
+          this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 7)
+          this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 7)
+          break
+        case 'hard':
+          this.foodConsumptionMultiplier = 1 + Math.floor(daysPassed / 7) * 2
+          this.waterConsumptionMultiplier = 1 + Math.floor(daysPassed / 7) * 2
+          break
+        default:
+          this.foodConsumptionMultiplier = 1
+          this.waterConsumptionMultiplier = 1
+      }
+      
+      console.log(`[calculateResourceConsumptionMultipliers] Fallback: День ${this.dayNumber}, Сложность: ${this.difficulty}, Множители: еда=${this.foodConsumptionMultiplier}, вода=${this.waterConsumptionMultiplier}`)
     }
-    
-    console.log(`[calculateResourceConsumptionMultipliers] День ${this.dayNumber}, Сложность: ${this.difficulty}, Множители: еда=${this.foodConsumptionMultiplier}, вода=${this.waterConsumptionMultiplier}`)
   }
 
   /**
@@ -269,16 +279,100 @@ export class GameScene extends Phaser.Scene {
    */
   private calculateHourlyResourceConsumption(): { foodConsumption: number; waterConsumption: number } {
     const residentCount = this.bunkerResidents.length
-    const foodConsumption = residentCount * 1 * this.foodConsumptionMultiplier
-    const waterConsumption = residentCount * 1 * this.waterConsumptionMultiplier
+    const foodConsumption = Math.round(residentCount * 1 * this.foodConsumptionMultiplier)
+    const waterConsumption = Math.round(residentCount * 1 * this.waterConsumptionMultiplier)
     
     return { foodConsumption, waterConsumption }
+  }
+
+  /**
+   * Обрабатывает почасовое производство ресурсов от работающих жителей
+   */
+  private processHourlyResourceProduction(): void {
+    if (this.bunkerResidents.length === 0) {
+      console.log(`[processHourlyResourceProduction] ⚠️ Нет жителей, пропускаем производство ресурсов`)
+      return
+    }
+
+    // Отладочная информация о статусах жителей
+    console.log(`[processHourlyResourceProduction] 📊 Статусы жителей:`)
+    this.bunkerResidents.forEach(resident => {
+      console.log(`  - ${resident.name} (${resident.profession}): статус="${resident.status}"`)
+    })
+
+    let foodProduction = 0
+    let waterProduction = 0
+
+    // Проходим по всем жителям и проверяем их работу
+    this.bunkerResidents.forEach(resident => {
+      // Проверяем, работает ли житель (статус может быть "работает" или "работает в [комнате]")
+      if (resident.status && resident.status.startsWith('работает')) {
+        // Повар производит еду
+        if (resident.profession === 'повар') {
+          const production = 5 // 5 ед. еды в игровой час
+          foodProduction += production
+          console.log(`[processHourlyResourceProduction] 🍳 Повар ${resident.name} производит ${production} ед. еды`)
+        }
+        
+        // Сантехник производит воду
+        if (resident.profession === 'сантехник') {
+          const production = 4 // 4 ед. воды в игровой час
+          waterProduction += production
+          console.log(`[processHourlyResourceProduction] 🔧 Сантехник ${resident.name} производит ${production} ед. воды`)
+        }
+      }
+    })
+
+    // Добавляем производство от комнат (ежедневное, но распределяем по часам)
+    const diningCount = this.getRoomCount('Столовая')
+    const toiletCount = this.getRoomCount('Туалет')
+    
+    // Столовая производит 10 ед. еды в день, распределяем по часам
+    const hourlyFoodFromRooms = Math.round((diningCount * 10) / 24)
+    // Туалет производит 10 ед. воды в день, распределяем по часам
+    const hourlyWaterFromRooms = Math.round((toiletCount * 10) / 24)
+    
+    foodProduction += hourlyFoodFromRooms
+    waterProduction += hourlyWaterFromRooms
+
+    if (foodProduction > 0 || waterProduction > 0) {
+      console.log(`[processHourlyResourceProduction] 📊 Почасовое производство: еда +${foodProduction} (${hourlyFoodFromRooms} от комнат), вода +${waterProduction} (${hourlyWaterFromRooms} от комнат)`)
+      
+      // Добавляем ресурсы
+      this.food = Math.max(0, Math.round(this.food + foodProduction))
+      this.water = Math.max(0, Math.round(this.water + waterProduction))
+      
+      // Показываем индикаторы изменений от производства ПОСЛЕ обновления ресурсов
+      console.log(`[processHourlyResourceProduction] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+      
+      if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+        if (foodProduction > 0) {
+          // Показываем положительные изменения (производство)
+          console.log(`[processHourlyResourceProduction] 🎯 Показываем индикатор для еды: +${foodProduction}`);
+          (window as any).forceCheckResourceChange('food', foodProduction, false);
+        }
+        if (waterProduction > 0) {
+          // Показываем положительные изменения (производство)
+          console.log(`[processHourlyResourceProduction] 🎯 Показываем индикатор для воды: +${waterProduction}`);
+          (window as any).forceCheckResourceChange('water', waterProduction, false);
+        }
+      } else {
+        console.warn(`[processHourlyResourceProduction] ❌ forceCheckResourceChange недоступен`);
+      }
+      
+      console.log(`[processHourlyResourceProduction] ✅ Ресурсы обновлены: еда=${this.food}, вода=${this.water}`)
+    } else {
+      console.log(`[processHourlyResourceProduction] ℹ️ Нет производства ресурсов в этот час`)
+    }
   }
 
   /**
    * Обрабатывает почасовое потребление ресурсов и наносит урон при нехватке
    */
   private processHourlyResourceConsumption(): void {
+    // Сначала обрабатываем производство ресурсов
+    this.processHourlyResourceProduction()
+    
     const { foodConsumption, waterConsumption } = this.calculateHourlyResourceConsumption()
     
     console.log(`[processHourlyResourceConsumption] Начинаем обработку: потребление еды=${foodConsumption}, воды=${waterConsumption}, жителей=${this.bunkerResidents.length}`)
@@ -297,9 +391,22 @@ export class GameScene extends Phaser.Scene {
     const actualFoodConsumption = Math.min(foodConsumption, this.food)
     const actualWaterConsumption = Math.min(waterConsumption, this.water)
     
-    // Обновляем ресурсы (не уходим в отрицательные значения)
-    this.food = Math.max(0, this.food - foodConsumption)
-    this.water = Math.max(0, this.water - waterConsumption)
+    // Обновляем ресурсы (не уходим в отрицательные значения) и округляем до целых чисел
+    this.food = Math.max(0, Math.round(this.food - foodConsumption))
+    this.water = Math.max(0, Math.round(this.water - waterConsumption))
+    
+    // Показываем индикаторы изменений от потребления ПОСЛЕ обновления ресурсов
+    console.log(`[processHourlyResourceConsumption] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      // Показываем отрицательные изменения (потребление)
+      console.log(`[processHourlyResourceConsumption] 🎯 Показываем индикатор для еды: -${foodConsumption}`);
+      (window as any).forceCheckResourceChange('food', -foodConsumption, true);
+      console.log(`[processHourlyResourceConsumption] 🎯 Показываем индикатор для воды: -${waterConsumption}`);
+      (window as any).forceCheckResourceChange('water', -waterConsumption, true);
+    } else {
+      console.warn(`[processHourlyResourceConsumption] ❌ forceCheckResourceChange недоступен`);
+    }
     
     console.log(`[processHourlyResourceConsumption] Расход ресурсов: еда ${oldFood} → ${this.food} (-${actualFoodConsumption}), вода ${oldWater} → ${this.water} (-${actualWaterConsumption})`)
     
@@ -322,7 +429,7 @@ export class GameScene extends Phaser.Scene {
     }
     
     // Обновляем UI
-    this.updateResourcesText()
+    this.updateAllResources()
     
     // Логируем финальное состояние ресурсов
     console.log(`[processHourlyResourceConsumption] Финальное состояние: еда=${this.food}, вода=${this.water}`)
@@ -615,7 +722,7 @@ export class GameScene extends Phaser.Scene {
    */
   private checkResidentsForInsanity(): void {
     const moral = this.getCurrentMoral();
-    console.log(`[checkResidentsForInsanity] Проверяем жителей на безумие, мораль: ${moral}%`)
+    console.log(`[checkResidentsForInsanity] Проверяем жителей на безумие, мораль: ${moral}% (локальная мораль: ${this.moral}%)`)
 
     // Инициализируем intent для существующих жителей
     this.bunkerResidents.forEach(resident => {
@@ -657,7 +764,7 @@ export class GameScene extends Phaser.Scene {
    */
   private restoreSanity(): void {
     const moral = this.getCurrentMoral();
-    console.log(`[restoreSanity] Проверяем восстановление рассудка, мораль: ${moral}%`)
+    console.log(`[restoreSanity] Проверяем восстановление рассудка, мораль: ${moral}% (локальная мораль: ${this.moral}%)`)
 
     if (moral > 35) {
       // Находим всех безумных жителей
@@ -735,11 +842,28 @@ export class GameScene extends Phaser.Scene {
    * Apply moral change
    */
   private applyMoralChange(delta: number, reason: string): void {
-    if (typeof (window as any).changeMoral === 'function') {
-      const newMoral = (window as any).changeMoral(delta);
-      console.log(`[GameScene] Moral change: ${delta > 0 ? '+' : ''}${delta}% (${reason}) → ${newMoral}%`);
-    } else {
-      console.warn('[GameScene] changeMoral function not available');
+    const oldMoral = this.moral;
+    const maxMorale = this.configManager.getMaxMorale();
+    
+    // Применяем изменение морали с учетом ограничений
+    this.moral = Math.max(0, Math.min(maxMorale, Math.round(this.moral + delta)));
+    
+    console.log(`[GameScene] Moral change: ${delta > 0 ? '+' : ''}${delta}% (${reason}) → ${oldMoral}% → ${this.moral}%`);
+    
+    // Обновляем UI если мораль изменилась
+    if (this.moral !== oldMoral) {
+      // Показываем индикатор изменения морали
+      console.log(`[applyMoralChange] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+      
+      if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+        const moraleChange = this.moral - oldMoral;
+        console.log(`[applyMoralChange] 🎯 Показываем индикатор для морали: ${moraleChange > 0 ? '+' : ''}${moraleChange}%`);
+        (window as any).forceCheckResourceChange('moral', moraleChange, false, true);
+      } else {
+        console.warn(`[applyMoralChange] ❌ forceCheckResourceChange недоступен`);
+      }
+      
+      this.updateAllResources();
     }
   }
 
@@ -1191,8 +1315,22 @@ export class GameScene extends Phaser.Scene {
     // Тратим патрон (кроме melee)
     if (this.currentWeapon !== 'melee') {
       if (this.ammo <= 0) { this.showToast('Нет патронов'); return }
-      this.ammo = Math.max(0, this.ammo - 1)
-      this.updateResourcesText()
+      
+      const oldAmmo = this.ammo;
+      this.ammo = Math.max(0, Math.round(this.ammo - 1));
+      
+      // Показываем индикатор изменения патронов
+      console.log(`[fireWeaponOnce] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+      
+      if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+        const ammoChange = this.ammo - oldAmmo;
+        console.log(`[fireWeaponOnce] 🎯 Показываем индикатор для патронов: ${ammoChange > 0 ? '+' : ''}${ammoChange} ед`);
+        (window as any).forceCheckResourceChange('ammo', ammoChange, false);
+      } else {
+        console.warn(`[fireWeaponOnce] ❌ forceCheckResourceChange недоступен`);
+      }
+      
+      this.updateAllResources();
     }
     // Анимация выстрела в зависимости от текущего оружия
     switch (this.currentWeapon) {
@@ -1220,6 +1358,10 @@ export class GameScene extends Phaser.Scene {
       enemy.hp = Math.max(0, (enemy.hp ?? enemy.maxHp) - dmg)
       // Обновим HP-бар (layoutPersonArea вызывает это при следующем layout)
       if (enemy.hp <= 0) {
+        // Начисляем опыт за убийство врага
+        const experienceReward = this.getEnemyExperienceReward(enemy.type)
+        this.awardExperience(`убийство ${enemy.type}`, experienceReward)
+        
         // Смерть: сыграть анимацию death/dead, затем увести и только потом показать следующего
         const it = this.enemyQueueItems.shift()!
         it.exiting = true
@@ -1345,12 +1487,184 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // Восстановление защиты при отсутствии врагов
+  private processDefenseRegeneration(hour: number): void {
+    // Проверяем, включена ли регенерация и есть ли враги
+    if (!this.configManager.isDefenseRegenerationEnabled() || this.enemyQueueItems.length > 0) {
+      return
+    }
+
+    // Получаем параметры регенерации из конфигурации
+    const regenerationPerHour = this.configManager.getDefenseRegenerationPerHour()
+    const maxDefense = this.configManager.getMaxDefense()
+
+    // Восстанавливаем защиту
+    if (this.defense < maxDefense) {
+      const oldDefense = this.defense
+      this.defense = Math.min(maxDefense, Math.round(this.defense + regenerationPerHour))
+      const restored = this.defense - oldDefense
+      
+      if (restored > 0) {
+        // Показываем индикатор изменения защиты
+        console.log(`[processDefenseRegeneration] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+        
+        if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+          console.log(`[processDefenseRegeneration] 🎯 Показываем индикатор для защиты: +${restored}%`);
+          (window as any).forceCheckResourceChange('defense', restored, false, true);
+        } else {
+          console.warn(`[processDefenseRegeneration] ❌ forceCheckResourceChange недоступен`);
+        }
+        
+        console.log(`[processDefenseRegeneration] Час ${hour}: Восстановлена защита: ${oldDefense}% → ${this.defense}% (+${restored}%)`)
+        
+        // Обновляем UI
+        this.updateAllResources()
+        this.updateEntranceBackground()
+      }
+    }
+  }
+
+  // Обновление комфорта в зависимости от уровня защиты
+  private updateComfortBasedOnDefense(): void {
+    // Проверяем, включена ли зависимость комфорта от защиты
+    if (!this.configManager.isComfortDefenseDependencyEnabled()) {
+      return
+    }
+
+    const oldComfort = this.comfort
+    const baseComfort = this.configManager.getBaseComfort()
+    const thresholds = this.configManager.getComfortDefenseThresholds()
+
+    // Определяем уровень защиты и применяем соответствующий бонус/штраф
+    let comfortModifier = 0
+    if (this.defense >= thresholds.high.min) {
+      comfortModifier = thresholds.high.bonus
+      console.log(`[updateComfortBasedOnDefense] Высокая защита (${this.defense}%): бонус к комфорту +${comfortModifier}%`)
+    } else if (this.defense >= thresholds.medium.min) {
+      comfortModifier = thresholds.medium.bonus
+      console.log(`[updateComfortBasedOnDefense] Средняя защита (${this.defense}%): комфорт без изменений`)
+    } else if (this.defense >= thresholds.low.min) {
+      comfortModifier = thresholds.low.penalty
+      console.log(`[updateComfortBasedOnDefense] Низкая защита (${this.defense}%): штраф к комфорту ${comfortModifier}%`)
+    } else {
+      comfortModifier = thresholds.critical.penalty
+      console.log(`[updateComfortBasedOnDefense] Критическая защита (${this.defense}%): критический штраф к комфорту ${comfortModifier}%`)
+    }
+
+    // Применяем модификатор к базовому комфорту и округляем
+    this.comfort = Math.max(0, Math.min(100, Math.round(baseComfort + comfortModifier)))
+    
+    if (this.comfort !== oldComfort) {
+      // Показываем индикатор изменения комфорта
+      console.log(`[updateComfortBasedOnDefense] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+      
+      if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+        const comfortChange = this.comfort - oldComfort;
+        console.log(`[updateComfortBasedOnDefense] 🎯 Показываем индикатор для комфорта: ${comfortChange > 0 ? '+' : ''}${comfortChange}%`);
+        (window as any).forceCheckResourceChange('comfort', comfortChange, false, true);
+      } else {
+        console.warn(`[updateComfortBasedOnDefense] ❌ forceCheckResourceChange недоступен`);
+      }
+      
+      console.log(`[updateComfortBasedOnDefense] Комфорт обновлен: ${oldComfort}% → ${this.comfort}% (модификатор: ${comfortModifier}%)`)
+      this.updateAllResources()
+    }
+  }
+
+  // Обновление счастья в зависимости от уровня комфорта
+  private updateHappinessBasedOnComfort(): void {
+    // Проверяем, включена ли зависимость счастья от комфорта
+    if (!this.configManager.isHappinessComfortDependencyEnabled()) {
+      return
+    }
+
+    const oldHappiness = this.happiness
+    const thresholds = this.configManager.getHappinessComfortThresholds()
+
+    // Определяем уровень комфорта и применяем соответствующий бонус/штраф
+    let happinessModifier = 0
+    if (this.comfort >= thresholds.high.min) {
+      happinessModifier = thresholds.high.bonus
+      console.log(`[updateHappinessBasedOnComfort] Высокий комфорт (${this.comfort}%): бонус к счастью +${happinessModifier}%`)
+    } else if (this.comfort >= thresholds.medium.min) {
+      happinessModifier = thresholds.medium.bonus
+      console.log(`[updateHappinessBasedOnComfort] Средний комфорт (${this.comfort}%): счастье без изменений`)
+    } else if (this.comfort >= thresholds.low.min) {
+      happinessModifier = thresholds.low.penalty
+      console.log(`[updateHappinessBasedOnComfort] Низкий комфорт (${this.comfort}%): штраф к счастью ${happinessModifier}%`)
+    } else {
+      happinessModifier = thresholds.critical.penalty
+      console.log(`[updateHappinessBasedOnComfort] Критический комфорт (${this.comfort}%): критический штраф к счастью ${happinessModifier}%`)
+    }
+
+    // Применяем модификатор к текущему счастью и округляем
+    this.happiness = Math.max(0, Math.min(100, Math.round(this.happiness + happinessModifier)))
+    
+    if (this.happiness !== oldHappiness) {
+      // Показываем индикатор изменения счастья
+      console.log(`[updateHappinessBasedOnComfort] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+      
+      if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+        const happinessChange = this.happiness - oldHappiness;
+        console.log(`[updateHappinessBasedOnComfort] 🎯 Показываем индикатор для счастья: ${happinessChange > 0 ? '+' : ''}${happinessChange}%`);
+        (window as any).forceCheckResourceChange('happiness', happinessChange, false, true);
+      } else {
+        console.warn(`[updateHappinessBasedOnComfort] ❌ forceCheckResourceChange недоступен`);
+      }
+      
+      console.log(`[updateHappinessBasedOnComfort] Счастье обновлено: ${oldHappiness}% → ${this.happiness}% (модификатор: ${happinessModifier}%)`)
+      this.updateAllResources()
+    }
+  }
+
+  // Обновление морали от комфорта
+  private updateMoraleFromComfort(): void {
+    const oldMorale = this.moral
+    const recovery = this.configManager.getMoraleComfortRecovery(this.comfort)
+    
+    if (recovery > 0) {
+      const maxMorale = this.configManager.getMaxMorale()
+      this.moral = Math.min(maxMorale, Math.round(this.moral + recovery))
+      
+      if (this.moral !== oldMorale) {
+            // Показываем индикатор изменения морали
+    console.log(`[updateMoraleFromComfort] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      const moraleChange = this.moral - oldMorale;
+      console.log(`[updateMoraleFromComfort] 🎯 Показываем индикатор для морали: ${moraleChange > 0 ? '+' : ''}${moraleChange}%`);
+      (window as any).forceCheckResourceChange('moral', moraleChange, false, true);
+    } else {
+      console.warn(`[updateMoraleFromComfort] ❌ forceCheckResourceChange недоступен`);
+    }
+        
+        console.log(`[updateMoraleFromComfort] Мораль восстановлена от комфорта: ${oldMorale}% → ${this.moral}% (+${recovery}%)`)
+        this.updateAllResources()
+      }
+    }
+    
+    // Логируем текущее состояние морали
+    console.log(`[updateMoraleFromComfort] Текущая мораль: ${this.moral}%, комфорт: ${this.comfort}%, восстановление: +${recovery}/час`)
+  }
+
   // Вражеский урон по ресурсу "Защита" раз в час
   private processEnemyDefenseDamage(hour: number): void {
     console.log(`[processEnemyDefenseDamage] Час ${hour}: Начинаем обработку, врагов в очереди: ${this.enemyQueueItems.length}`)
     
-    // Обрабатываем атаки врагов только если они есть
-    if (this.enemyQueueItems.length > 0) {
+    // Обрабатываем восстановление защиты если нет врагов
+    this.processDefenseRegeneration(hour)
+    
+    // Обновляем комфорт в зависимости от защиты
+    this.updateComfortBasedOnDefense()
+    
+      // Обновляем счастье в зависимости от комфорта
+  this.updateHappinessBasedOnComfort()
+  
+  // Восстанавливаем мораль от комфорта
+  this.updateMoraleFromComfort()
+  
+  // Обрабатываем атаки врагов только если они есть
+  if (this.enemyQueueItems.length > 0) {
       // Логируем текущий баланс бункера каждый час
       const balanceInfo = this.getBunkerBalanceInfo()
       console.log(`[processEnemyDefenseDamage] Час ${hour}: Жители: ${balanceInfo.residents}, Враги: ${balanceInfo.enemies}, Статус: ${balanceInfo.balanceStatus}`)
@@ -1367,7 +1681,7 @@ export class GameScene extends Phaser.Scene {
       const first = this.enemyQueueItems[0]
       if (first) {
         const d = damageByType((first as any).type || first.type)
-        this.defense = Math.max(0, this.defense - d)
+        this.defense = Math.max(0, Math.round(this.defense - d))
         this.updateResourcesText()
         // Обновляем фон двери при изменении защиты
         this.updateEntranceBackground()
@@ -1422,7 +1736,7 @@ export class GameScene extends Phaser.Scene {
         }
         
         const d = damageByType(it.type)
-        this.defense = Math.max(0, this.defense - d)
+        this.defense = Math.max(0, Math.round(this.defense - d))
         // Обновляем фон двери при изменении защиты
         this.updateEntranceBackground()
 
@@ -1655,7 +1969,7 @@ export class GameScene extends Phaser.Scene {
     this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
 
     // Обновляем счетчик населения
-    this.updateResourcesText()
+    this.updateAllResources()
 
     console.log(`[GameScene] Враг ${enemy.type} (ID: ${enemy.id}) полностью обработан, время=${Date.now()}`)
     
@@ -1668,8 +1982,17 @@ export class GameScene extends Phaser.Scene {
     super('Game')
   }
 
-  init(data: { difficulty?: Difficulty }): void {
+  async init(data: { difficulty?: Difficulty }): Promise<void> {
     if (data?.difficulty) this.difficulty = data.difficulty
+    
+    // Загружаем конфигурацию
+    await this.configManager.loadConfig()
+    this.configManager.setDifficulty(this.difficulty)
+    
+    console.log(`[GameScene] Инициализация с сложностью: ${this.difficulty}`)
+    
+    // Инициализируем ресурсы ИЗ КОНФИГУРАЦИИ сразу после загрузки
+    this.initResourcesBasedOnDifficulty()
     
     // Рассчитываем множители потребления ресурсов при инициализации
     this.calculateResourceConsumptionMultipliers()
@@ -1678,8 +2001,7 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor('#1a1b1e')
 
-    // Инициализация ресурсов в зависимости от сложности
-    this.initResourcesBasedOnDifficulty()
+    // Ресурсы уже инициализированы в init() из конфигурации
     // Случайный сессионный сид для разнообразия генерации персонажей
     this.sessionSeed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     console.log('[GameScene] sessionSeed:', this.sessionSeed, 'difficulty:', this.difficulty)
@@ -1732,7 +2054,7 @@ export class GameScene extends Phaser.Scene {
       color: THEME.colors.textMuted
     })
     // Инициализируем строку ресурсов после создания контейнеров, чтобы избежать нулевых ссылок
-    this.time.delayedCall(0, () => this.updateResourcesText())
+    this.time.delayedCall(0, () => this.updateAllResources())
 
     // Инициализируем HTML UI overlay
     this.initUIOverlay()
@@ -1856,24 +2178,53 @@ export class GameScene extends Phaser.Scene {
   }
 
   private initResourcesBasedOnDifficulty(): void {
-    // База для NORMAL
-    this.happiness = 50
-    this.defense = 50
-    this.ammo = 100
-    this.comfort = 100
-    this.food = 100
-    this.water = 100
-    this.money = 200
-
-    // Модификатор сложности только для food/water/ammo/money
-    const scale = this.difficulty === 'easy' ? 1.25 : this.difficulty === 'hard' ? 0.75 : 1
-    this.food = Math.round(this.food * scale)
-    this.water = Math.round(this.water * scale)
-    this.ammo = Math.round(this.ammo * scale)
-    this.money = Math.round(this.money * scale)
-
-    // Рассчитываем множители потребления ресурсов на основе сложности
-    this.calculateResourceConsumptionMultipliers()
+    try {
+      const initialResources = this.configManager.getInitialResources()
+      
+      console.log(`[GameScene] 📊 Получены ресурсы из конфигурации для сложности ${this.difficulty}:`, initialResources)
+      
+      this.happiness = Math.round(initialResources.happiness)
+      this.defense = Math.round(initialResources.defense)
+      this.ammo = Math.round(initialResources.ammo)
+      this.comfort = Math.round(initialResources.comfort)
+      this.moral = Math.round(initialResources.moral)
+      this.food = Math.round(initialResources.food)
+      this.water = Math.round(initialResources.water)
+      this.money = Math.round(initialResources.money)
+      this.wood = Math.round(initialResources.wood)
+      this.metal = Math.round(initialResources.metal)
+      this.coal = Math.round(initialResources.coal)
+      this.nails = Math.round(initialResources.nails)
+      this.paper = Math.round(initialResources.paper)
+      this.glass = Math.round(initialResources.glass)
+      
+      console.log(`[GameScene] ✅ Ресурсы инициализированы из конфигурации для сложности ${this.difficulty}`)
+      console.log(`[GameScene] 📊 Текущие значения: счастье=${this.happiness}%, защита=${this.defense}%, патроны=${this.ammo}, комфорт=${this.comfort}%, мораль=${this.moral}%, еда=${this.food}, вода=${this.water}, деньги=${this.money}`)
+      console.log(`[GameScene] 🎯 Мораль инициализирована: ${this.moral}% (максимум: ${this.configManager.getMaxMorale()}%)`)
+    } catch (error) {
+      console.error('[GameScene] ❌ Ошибка инициализации ресурсов из конфигурации:', error)
+      console.log('[GameScene] 🔄 Используем fallback значения...')
+      
+      // Fallback к старым значениям (используем значения для easy сложности)
+      this.happiness = 100
+      this.defense = 100
+      this.ammo = 200
+      this.comfort = 100
+      this.moral = 100
+      this.food = 150
+      this.water = 150
+      this.money = 500
+      this.wood = 100
+      this.metal = 100
+      this.coal = 100
+      this.nails = 100
+      this.paper = 100
+      this.glass = 100
+      
+      console.log(`[GameScene] ⚠️ Fallback значения установлены для сложности ${this.difficulty}`)
+    }
+    
+    // Множители потребления ресурсов рассчитываются отдельно в init()
   }
 
   // ======== Daily resources processing ========
@@ -1896,17 +2247,17 @@ export class GameScene extends Phaser.Scene {
     const foodUse = residents * 1
     const waterUse = residents * 1
 
-    this.food = Math.max(0, this.food + foodGain - foodUse)
-    this.water = Math.max(0, this.water + waterGain - waterUse)
+    this.food = Math.max(0, Math.round(this.food + foodGain - foodUse))
+    this.water = Math.max(0, Math.round(this.water + waterGain - waterUse))
 
     // Happiness dynamics
     const deltaH = this.computeDailyHappinessDelta(residents)
-    this.happiness = Math.max(0, Math.min(100, this.happiness + deltaH))
+    this.happiness = Math.max(0, Math.min(100, Math.round(this.happiness + deltaH)))
 
     // Восстановление разума при улучшении морали
     this.restoreSanity()
 
-    this.updateResourcesText()
+    this.updateAllResources()
   }
 
   private computeDailyHappinessDelta(residents: number): number {
@@ -3078,7 +3429,11 @@ export class GameScene extends Phaser.Scene {
       this.simpleBunker?.syncResidents(this.bunkerResidents.length + this.bunkerEnemies.length)
       
       // Обновляем счетчик населения
-      this.updateResourcesText()
+      this.updateAllResources()
+      
+      // Начисляем опыт за убийство врага внутри бункера
+      const experienceReward = this.getEnemyExperienceReward(enemy.enemyType)
+      this.awardExperience(`убийство ${enemy.enemyType} в бункере`, experienceReward)
       
       // Показываем уведомление о смерти врага
       this.showToast(`💀 Враг ${enemy.enemyType} уничтожен: ${reason}`)
@@ -4913,7 +5268,7 @@ export class GameScene extends Phaser.Scene {
     }
     
     // Обновляем ресурсы
-    this.updateResourcesText()
+    this.updateAllResources()
     
     // Синхронизируем с bunkerView для создания визуального жителя
     // Важно: передаем общее количество жителей + врагов для правильной синхронизации
@@ -4936,7 +5291,7 @@ export class GameScene extends Phaser.Scene {
     if (idx >= 0) {
       const [r] = this.bunkerResidents.splice(idx, 1)
       // Можно в будущем логировать причину/статистику
-      this.updateResourcesText()
+      this.updateAllResources()
       // После изменения состава жителей: обновляем видимость/лейаут приёмной панели
       this.updateUIVisibility()
       if (this.lastPersonRect) this.layoutPersonArea(this.lastPersonRect)
@@ -4989,7 +5344,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Обновляем UI
-      this.updateResourcesText()
+      this.updateAllResources()
       this.onBunkerChanged()
 
       // Показываем уведомление о смерти в зависимости от причины
@@ -5207,30 +5562,92 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private updateResourcesText(): void {
+  /**
+   * УНИВЕРСАЛЬНЫЙ метод для обновления всех ресурсов
+   * Обеспечивает полную синхронизацию между Phaser UI и HTML overlay
+   * ВСЕ обновления ресурсов должны проходить через эту функцию!
+   */
+  private updateAllResources(): void {
+    // Получаем округленные данные ресурсов
+    const roundedResources = this.getResourcesData();
+    
+    // Обновляем Phaser UI с округленными значениями
+    this.updateResourcesTextWithData(roundedResources);
+    
+    // Обновляем HTML overlay с теми же округленными значениями
+    this.updateUIOverlayWithData(roundedResources);
+    
+    // Логируем для отладки
+    console.log(`[updateAllResources] Ресурсы обновлены: еда=${roundedResources.food}, вода=${roundedResources.water}, мораль=${roundedResources.moral}%`);
+  }
+
+  /**
+   * Обновляет HTML overlay с переданными данными ресурсов
+   * Используется для синхронизации с Phaser UI
+   */
+  private updateUIOverlayWithData(resources: { [key: string]: number }): void {
+    if (!this.uiOverlay || typeof window.updateGameUI !== 'function') return;
+
+    try {
+      const gameData = {
+        day: this.dayNumber,
+        phase: this.phase,
+        time: this.getClockText(),
+        population: this.bunkerResidents.length,
+        capacity: this.getBunkerCapacity(),
+        happiness: resources.happiness || Math.floor(this.happiness),
+        defense: resources.defense || Math.floor(this.defense),
+        comfort: resources.comfort || Math.floor(this.comfort),
+        moral: resources.moral || Math.floor(this.moral),
+        enemies: this.bunkerEnemies.length,
+        bunkerLevel: this.bunkerLevel,
+        bunkerExperience: Math.floor(this.bunkerExperience),
+        maxExperience: Math.floor(this.maxExperienceForLevel),
+        abilityPoints: this.abilityPoints,
+        ...resources // Включаем все ресурсы
+      };
+
+      console.log(`[updateUIOverlayWithData] Отправляем данные в UI: мораль=${gameData.moral}%, счастье=${gameData.happiness}%, защита=${gameData.defense}%`);
+      window.updateGameUI(gameData);
+
+      // Также обновляем ресурсы в инвентаре
+      if (typeof window.updateAllResourceDisplays === 'function') {
+        window.updateAllResourceDisplays();
+      }
+    } catch (error) {
+      console.error('[GameScene] Error updating UI overlay with data:', error);
+    }
+  }
+
+  /**
+   * Обновляет Phaser UI с переданными данными ресурсов
+   * Используется для синхронизации с HTML overlay
+   */
+  private updateResourcesTextWithData(resources: { [key: string]: number }): void {
     const population = this.bunkerResidents.length
     const enemyCount = this.bunkerEnemies.length
     const compact = isPortrait(this) || this.scale.width < 700
     const capacity = this.getBunkerCapacity()
 
+    // Обновляем UI с округленными значениями из resources
     if (compact) {
       this.populationBtn?.setText(`👥 ${population}/${capacity}`)
-      this.happinessBtn?.setText(`😊 ${this.happiness}%`)
-      this.ammoBtn?.setText(`🔫 ${this.ammo}`)
-      this.comfortBtn?.setText(`🛋️ ${this.comfort}%`)
-      this.foodBtn?.setText(`🍖 ${this.food}`)
-      this.waterBtn?.setText(`💧 ${this.water}`)
-      this.moneyBtn?.setText(`💰 ${this.money}`)
+      this.happinessBtn?.setText(`😊 ${resources.happiness || Math.floor(this.happiness)}%`)
+      this.ammoBtn?.setText(`🔫 ${resources.ammo || Math.floor(this.ammo)}`)
+      this.comfortBtn?.setText(`🛋️ ${resources.comfort || Math.floor(this.comfort)}%`)
+      this.foodBtn?.setText(`🍖 ${resources.food || Math.floor(this.food)}`)
+      this.waterBtn?.setText(`💧 ${resources.water || Math.floor(this.water)}`)
+      this.moneyBtn?.setText(`💰 ${resources.money || Math.floor(this.money)}`)
       this.enemyCountText?.setText(`👹 ${enemyCount}`)
       this.resourcesText?.setText('')
     } else {
       this.populationBtn?.setText(`${t('population').toUpperCase()}: ${population}/${capacity}`)
-      this.happinessBtn?.setText(`Happiness: ${this.happiness}%`)
-      this.ammoBtn?.setText(`Ammo: ${this.ammo}`)
-      this.comfortBtn?.setText(`Comfort: ${this.comfort}%`)
-      this.foodBtn?.setText(`${t('food')}: ${this.food}`)
-      this.waterBtn?.setText(`${t('water')}: ${this.water}`)
-      this.moneyBtn?.setText(`${t('money')}: ${this.money}`)
+      this.happinessBtn?.setText(`Happiness: ${resources.happiness || Math.floor(this.happiness)}%`)
+      this.ammoBtn?.setText(`Ammo: ${resources.ammo || Math.floor(this.ammo)}`)
+      this.comfortBtn?.setText(`Comfort: ${resources.comfort || Math.floor(this.comfort)}%`)
+      this.foodBtn?.setText(`${t('food')}: ${resources.food || Math.floor(this.food)}`)
+      this.waterBtn?.setText(`${t('water')}: ${resources.water || Math.floor(this.water)}`)
+      this.moneyBtn?.setText(`${t('money')}: ${resources.money || Math.floor(this.money)}`)
       this.enemyCountText?.setText(`Enemies: ${enemyCount}`)
       this.resourcesText?.setText('')
     }
@@ -5240,7 +5657,7 @@ export class GameScene extends Phaser.Scene {
       this.levelText.setText(`Bunker Level: ${this.bunkerLevel}`)
     }
     if (this.xpText) {
-      this.xpText.setText(`XP: ${this.bunkerExperience}/${this.maxExperienceForLevel}`)
+      this.xpText.setText(`XP: ${Math.floor(this.bunkerExperience)}/${Math.floor(this.maxExperienceForLevel)}`)
     }
     if (this.experienceFg && this.experienceBg) {
       const progress = this.maxExperienceForLevel > 0 ? (this.bunkerExperience / this.maxExperienceForLevel) : 0
@@ -5248,17 +5665,18 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.arrangeTopBarRow()
-
-    // Also update HTML overlay
-    this.updateUIOverlay()
-    
-    // Логируем информацию о потреблении ресурсов для отладки
-    if (this.bunkerResidents.length > 0) {
-      const { foodConsumption, waterConsumption } = this.calculateHourlyResourceConsumption()
-      console.log(`[updateResourcesText] Потребление ресурсов: еда ${foodConsumption}/час, вода ${waterConsumption}/час (множители: еда=${this.foodConsumptionMultiplier}, вода=${this.waterConsumptionMultiplier})`)
-      console.log(`[updateResourcesText] Текущие ресурсы: еда=${this.food}, вода=${this.water}`)
-    }
   }
+
+  /**
+   * Устаревший метод для обратной совместимости
+   * Теперь вызывает updateAllResources для полной синхронизации
+   */
+  private updateResourcesText(): void {
+    // Вызываем универсальный метод для полной синхронизации
+    this.updateAllResources();
+  }
+
+
 
   // Балансные ставки расхода потребностей по сложности (единиц в час)
   public getNeedsRates(): { hunger: number; thirst: number; energyWork: number; energyIdle: number } {
@@ -5310,6 +5728,156 @@ export class GameScene extends Phaser.Scene {
       nextIncreaseDay,
       difficulty: this.difficulty,
       dayNumber: this.dayNumber
+    }
+  }
+
+  /**
+   * Получает расширенную информацию о ресурсах для модальных окон
+   */
+  public getDetailedResourceInfo(resourceType: 'food' | 'water'): {
+    currentAmount: number;
+    dailyConsumption: number;
+    dailyGain: number;
+    consumptionPerResident: number;
+    multiplier: number;
+    difficulty: string;
+    dayNumber: number;
+    nextIncreaseDay: number;
+    roomCount: number;
+    roomType: string;
+    intervalHours: number;
+    hourlyProduction: number;
+    dailyProduction: number;
+    workingResidents: number;
+  } {
+    const consumptionInfo = this.getResourceConsumptionInfo();
+    const residentCount = this.bunkerResidents.length;
+    
+    // Определяем тип комнаты и количество
+    let roomType: string;
+    let roomCount: number;
+    
+    if (resourceType === 'food') {
+      roomType = 'Столовая';
+      roomCount = this.getRoomCount('Столовая');
+    } else {
+      roomType = 'Туалет';
+      roomCount = this.getRoomCount('Туалет');
+    }
+    
+    // Рассчитываем ежедневные значения
+    // Получаем интервал потребления из конфигурации
+    const configManager = this.configManager;
+    const intervalHours = configManager.getResourceConsumptionInterval(resourceType);
+    
+    // Количество потреблений в день
+    const consumptionsPerDay = 24 / intervalHours;
+    
+    // Ежедневное потребление = почасовое потребление × количество потреблений в день
+    const dailyConsumption = Math.round(consumptionInfo[`${resourceType}Consumption`] * consumptionsPerDay);
+    
+    const dailyGain = roomCount * 2; // Каждая комната дает 2 единицы в день
+    
+    // Расход на жителя в день = базовое потребление × множитель × количество потреблений в день
+    const baseConsumption = 1; // Из конфигурации
+    const consumptionPerResident = Math.round(baseConsumption * consumptionInfo[`${resourceType}Multiplier`] * consumptionsPerDay);
+    
+    // Рассчитываем производство ресурсов
+    let hourlyProduction = 0;
+    let workingResidents = 0;
+    
+    // Отладочная информация о статусах жителей
+    console.log(`[getDetailedResourceInfo] 📊 Статусы жителей для ${resourceType}:`)
+    this.bunkerResidents.forEach(resident => {
+      console.log(`  - ${resident.name} (${resident.profession}): статус="${resident.status}"`)
+    })
+    
+    // Подсчитываем работающих жителей по профессиям
+    this.bunkerResidents.forEach(resident => {
+      // Проверяем, работает ли житель (статус может быть "работает" или "работает в [комнате]")
+      if (resident.status && resident.status.startsWith('работает')) {
+        if (resourceType === 'food' && resident.profession === 'повар') {
+          hourlyProduction += 5; // Повар производит 5 ед. еды в час
+          workingResidents++;
+          console.log(`[getDetailedResourceInfo] ✅ ${resident.name} (повар) работает и производит еду`)
+        } else if (resourceType === 'water' && resident.profession === 'сантехник') {
+          hourlyProduction += 4; // Сантехник производит 4 ед. воды в час
+          workingResidents++;
+          console.log(`[getDetailedResourceInfo] ✅ ${resident.name} (сантехник) работает и производит воду`)
+        }
+      } else {
+        if (resourceType === 'food' && resident.profession === 'повар') {
+          console.log(`[getDetailedResourceInfo] ⚠️ ${resident.name} (повар) не работает, статус: "${resident.status}"`)
+        } else if (resourceType === 'water' && resident.profession === 'сантехник') {
+          console.log(`[getDetailedResourceInfo] ⚠️ ${resident.name} (сантехник) не работает, статус: "${resident.status}"`)
+        }
+      }
+    });
+    
+    // Добавляем производство от комнат
+    if (resourceType === 'food') {
+      hourlyProduction += Math.round((roomCount * 10) / 24); // Столовая: 10 ед. в день
+    } else {
+      hourlyProduction += Math.round((roomCount * 10) / 24); // Туалет: 10 ед. в день
+    }
+    
+    const dailyProduction = hourlyProduction * 24;
+    
+    // Отладочная информация
+    console.log(`[getDetailedResourceInfo] ${resourceType}:`, {
+      intervalHours,
+      consumptionsPerDay,
+      hourlyConsumption: consumptionInfo[`${resourceType}Consumption`],
+      dailyConsumption,
+      baseConsumption,
+      multiplier: consumptionInfo[`${resourceType}Multiplier`],
+      consumptionPerResident,
+      hourlyProduction,
+      dailyProduction,
+      workingResidents
+    });
+    
+    return {
+      currentAmount: resourceType === 'food' ? this.food : this.water,
+      dailyConsumption,
+      dailyGain,
+      consumptionPerResident,
+      multiplier: consumptionInfo[`${resourceType}Multiplier`],
+      difficulty: consumptionInfo.difficulty,
+      dayNumber: consumptionInfo.dayNumber,
+      nextIncreaseDay: consumptionInfo.nextIncreaseDay,
+      roomCount,
+      roomType,
+      intervalHours,
+      hourlyProduction,
+      dailyProduction,
+      workingResidents
+    };
+  }
+
+  /**
+   * Получает информацию о качестве торговли на основе морали
+   */
+  public getTradingQualityInfo(): { 
+    morale: number;
+    tradingType: 'discount' | 'markup';
+    value: number;
+    description: string;
+  } {
+    const tradingInfo = this.configManager.getMoraleTradingQuality(this.moral)
+    
+    let description = ''
+    if (tradingInfo.type === 'discount') {
+      description = `Скидка ${tradingInfo.value}% на покупки`
+    } else {
+      description = `Наценка ${tradingInfo.value}% на покупки`
+    }
+    
+    return {
+      morale: this.moral,
+      tradingType: tradingInfo.type,
+      value: tradingInfo.value,
+      description: description
     }
   }
 
@@ -5524,7 +6092,7 @@ export class GameScene extends Phaser.Scene {
     
     // Также уменьшаем общее счастье бункера
     const oldHappiness = this.happiness
-    this.happiness = Math.max(0, this.happiness - 2)
+    this.happiness = Math.max(0, Math.round(this.happiness - 2))
     console.log(`[applyHappinessPenalty] Общее счастье бункера уменьшено от ${damageReason}: ${oldHappiness}% → ${this.happiness}% (-2%)`)
     
     // Показываем уведомление о снижении счастья
@@ -5594,33 +6162,318 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Методы для вызова из bunkerView (работники)
-  public addFood(amount: number): void { this.food = Math.max(0, this.food + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
-  public addWater(amount: number): void { this.water = Math.max(0, this.water + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
-  public addWood(amount: number): void { this.wood = Math.max(0, this.wood + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
-  public addMetal(amount: number): void { this.metal = Math.max(0, this.metal + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
-  public addCoal(amount: number): void { this.coal = Math.max(0, this.coal + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
-  public addNails(amount: number): void { this.nails = Math.max(0, this.nails + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
-  public addPaper(amount: number): void { this.paper = Math.max(0, this.paper + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
-  public addGlass(amount: number): void { this.glass = Math.max(0, this.glass + Math.max(0, Math.floor(amount))); this.updateResourcesText() }
+  public addFood(amount: number): void { 
+    this.food = Math.max(0, this.food + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addFood] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addFood] 🎯 Показываем индикатор для еды: +${amount} ед`);
+      (window as any).forceCheckResourceChange('food', amount, false);
+    } else {
+      console.warn(`[addFood] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+  
+  public addWater(amount: number): void { 
+    this.water = Math.max(0, this.water + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addWater] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addWater] 🎯 Показываем индикатор для воды: +${amount} ед`);
+      (window as any).forceCheckResourceChange('water', amount, false);
+    } else {
+      console.warn(`[addWater] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+  
+  public addWood(amount: number): void { 
+    this.wood = Math.max(0, this.wood + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addWood] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addWood] 🎯 Показываем индикатор для дерева: +${amount} ед`);
+      (window as any).forceCheckResourceChange('wood', amount, false);
+    } else {
+      console.warn(`[addWood] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+  
+  public addMetal(amount: number): void { 
+    this.metal = Math.max(0, this.metal + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addMetal] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addMetal] 🎯 Показываем индикатор для металла: +${amount} ед`);
+      (window as any).forceCheckResourceChange('metal', amount, false);
+    } else {
+      console.warn(`[addMetal] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+  
+  public addCoal(amount: number): void { 
+    this.coal = Math.max(0, this.coal + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addCoal] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addCoal] 🎯 Показываем индикатор для угля: +${amount} ед`);
+      (window as any).forceCheckResourceChange('coal', amount, false);
+    } else {
+      console.warn(`[addCoal] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+  
+  public addNails(amount: number): void { 
+    this.nails = Math.max(0, this.nails + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addNails] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addNails] 🎯 Показываем индикатор для гвоздей: +${amount} ед`);
+      (window as any).forceCheckResourceChange('nails', amount, false);
+    } else {
+      console.warn(`[addNails] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+  
+  public addPaper(amount: number): void { 
+    this.paper = Math.max(0, this.paper + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addPaper] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addPaper] 🎯 Показываем индикатор для бумаги: +${amount} ед`);
+      (window as any).forceCheckResourceChange('paper', amount, false);
+    } else {
+      console.warn(`[addPaper] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+  
+  public addGlass(amount: number): void { 
+    this.glass = Math.max(0, this.glass + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addGlass] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addGlass] 🎯 Показываем индикатор для стекла: +${amount} ед`);
+      (window as any).forceCheckResourceChange('glass', amount, false);
+    } else {
+      console.warn(`[addGlass] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+
+  // Метод для добавления денег с индикатором
+  public addMoney(amount: number): void { 
+    this.money = Math.max(0, this.money + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addMoney] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addMoney] 🎯 Показываем индикатор для денег: +${amount} ед`);
+      (window as any).forceCheckResourceChange('money', amount, false);
+    } else {
+      console.warn(`[addMoney] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
+
+  // Метод для добавления патронов с индикатором
+  public addAmmo(amount: number): void { 
+    this.ammo = Math.max(0, this.ammo + Math.max(0, Math.floor(amount))); 
+    
+    // Показываем индикатор изменения
+    console.log(`[addAmmo] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+    
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      console.log(`[addAmmo] 🎯 Показываем индикатор для патронов: +${amount} ед`);
+      (window as any).forceCheckResourceChange('ammo', amount, false);
+    } else {
+      console.warn(`[addAmmo] ❌ forceCheckResourceChange недоступен`);
+    }
+    
+    this.updateAllResources() 
+  }
 
   // Методы управления опытом бункера
   public addBunkerExperience(amount: number): void {
     this.bunkerExperience += Math.max(0, Math.floor(amount))
     this.checkLevelUp()
-    this.updateResourcesText()
+    this.updateAllResources()
+    
+    // Обновляем UI overlay при изменении опыта
+    this.updateUIOverlay()
+  }
+
+  // Универсальная функция начисления опыта
+  public awardExperience(source: string, amount: number): void {
+    console.log(`[GameScene] Награждаем ${amount} опыта за: ${source}`)
+    this.addBunkerExperience(amount)
+  }
+
+  // Получаем количество опыта за убийство врага определенного типа
+  private getEnemyExperienceReward(enemyType: string): number {
+    try {
+      return this.configManager.getEnemyKillReward(enemyType as any)
+    } catch (error) {
+      console.error('[GameScene] Ошибка получения опыта за врага из конфигурации:', error)
+      // Fallback к старым значениям
+      switch (enemyType) {
+        case 'МАРОДЕР':
+          return 1 // Самый слабый враг
+        case 'ЗОМБИ':
+          return 3 // Средний враг
+        case 'МУТАНТ':
+          return 6 // Сильный враг
+        case 'СОЛДАТ':
+          return 10 // Самый сильный враг
+        default:
+          return 2 // По умолчанию
+      }
+    }
+  }
+
+  // Добавляем очки способностей
+  private addAbilityPoints(amount: number): void {
+    this.abilityPoints += amount
+    console.log(`[GameScene] Добавлено ${amount} очков способностей. Всего: ${this.abilityPoints}`)
+    
+    // Обновляем UI overlay если он доступен
+    if (window.updateGameUI) {
+      // Получаем текущие данные и обновляем очки способностей
+      const currentData = {
+        bunkerLevel: this.bunkerLevel,
+        bunkerExperience: this.bunkerExperience,
+        maxExperience: this.maxExperienceForLevel,
+        abilityPoints: this.abilityPoints
+      }
+      window.updateGameUI(currentData)
+    }
+    
+    // Также обновляем очки способностей в index.html
+    if ((window as any).updateAbilityPointsFromGame) {
+      (window as any).updateAbilityPointsFromGame(this.abilityPoints)
+    }
+  }
+
+  // Показываем визуальный эффект повышения уровня
+  private showLevelUpEffect(): void {
+    // Создаем вспышку на экране
+    const flash = this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0xff0000, 0.3)
+    flash.setOrigin(0, 0)
+    flash.setDepth(1000)
+    
+    // Анимация вспышки
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        flash.destroy()
+      }
+    })
+    
+    // Добавляем текст "Повышение!" с нужным шрифтом и цветом
+    const levelUpText = this.add.text(this.scale.width / 2, this.scale.height / 2 - 50, 'Повышение!', {
+      fontSize: '48px',
+      fontFamily: 'Press Start 2P, monospace',
+      color: '#ff0000',
+      stroke: '#000000',
+      strokeThickness: 4
+    })
+    levelUpText.setOrigin(0.5)
+    levelUpText.setDepth(1001)
+    
+    // Анимация текста
+    this.tweens.add({
+      targets: levelUpText,
+      scale: 1.5,
+      duration: 500,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Power2',
+      onComplete: () => {
+        levelUpText.destroy()
+      }
+    })
   }
 
   private checkLevelUp(): void {
     while (this.bunkerExperience >= this.maxExperienceForLevel) {
       this.bunkerExperience -= this.maxExperienceForLevel
       this.bunkerLevel++
-      this.maxExperienceForLevel = Math.floor(this.maxExperienceForLevel * 1.2) // Увеличиваем требуемый опыт
-      this.showToast(`Бункер повышен до уровня ${this.bunkerLevel}!`)
+      
+      try {
+        // Получаем базовый опыт для уровня из конфигурации
+        this.maxExperienceForLevel = this.configManager.getBaseLevelExperience()
+        
+        // Получаем базовое количество очков способностей за уровень из конфигурации
+        const baseAbilityPoints = this.configManager.getAbilityPointsPerLevel()
+        
+        // Получаем бонус к очкам способностей от морали
+        const moraleBonus = this.configManager.getMoraleLevelUpBonus(this.moral)
+        const totalAbilityPoints = baseAbilityPoints + moraleBonus
+        
+        // Добавляем очки способностей с учетом бонуса морали
+        this.addAbilityPoints(totalAbilityPoints)
+        
+        // Показываем уведомление с информацией о бонусе
+        if (moraleBonus > 0) {
+          this.showToast(`🎉 Бункер повышен до уровня ${this.bunkerLevel}! +${totalAbilityPoints} очка способностей (базовые ${baseAbilityPoints} + бонус морали ${moraleBonus})`)
+        } else {
+          this.showToast(`🎉 Бункер повышен до уровня ${this.bunkerLevel}! +${totalAbilityPoints} очка способностей`)
+        }
+        
+        console.log(`[checkLevelUp] Уровень повышен! Новый уровень: ${this.bunkerLevel}, Очки способностей: базовые ${baseAbilityPoints} + бонус морали ${moraleBonus} = ${totalAbilityPoints}`)
+      } catch (error) {
+        console.error('[GameScene] Ошибка получения настроек уровня из конфигурации:', error)
+        // Fallback к старым значениям
+        this.maxExperienceForLevel = 100
+        this.addAbilityPoints(3)
+        this.showToast(`🎉 Бункер повышен до уровня ${this.bunkerLevel}! +3 очка способностей`)
+      }
+      
+      // Показываем визуальный эффект повышения уровня
+      this.showLevelUpEffect()
     }
   }
   public killOneEnemyFromQueue(): void {
     if (this.enemyQueueItems.length === 0) return
     const it = this.enemyQueueItems.shift()!
+    
+    // Начисляем опыт за убийство врага в очереди
+    const experienceReward = this.getEnemyExperienceReward(it.type)
+    this.awardExperience(`убийство ${it.type} в очереди`, experienceReward)
     
     // Показываем уведомление о том, что враг убит
     this.showToast(`Враг ${it.type} убит!`)
@@ -5683,8 +6536,22 @@ export class GameScene extends Phaser.Scene {
       if (this.currentWeapon !== 'melee') {
         const ammoCost = freeShot ? 0 : 1 + extraAmmo
         if (this.ammo < ammoCost) return false
-        this.ammo = Math.max(0, this.ammo - ammoCost)
-        this.updateResourcesText()
+        
+        const oldAmmo = this.ammo;
+        this.ammo = Math.max(0, Math.round(this.ammo - ammoCost));
+        
+        // Показываем индикатор изменения патронов
+        console.log(`[shootRifle] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+        
+        if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+          const ammoChange = this.ammo - oldAmmo;
+          console.log(`[shootRifle] 🎯 Показываем индикатор для патронов: ${ammoChange > 0 ? '+' : ''}${ammoChange} ед`);
+          (window as any).forceCheckResourceChange('ammo', ammoChange, false);
+        } else {
+          console.warn(`[shootRifle] ❌ forceCheckResourceChange недоступен`);
+        }
+        
+        this.updateAllResources()
       }
       // Выстрел
       this.fireWeaponOnce()
@@ -5874,7 +6741,7 @@ export class GameScene extends Phaser.Scene {
   // Вызывается при изменении структуры бункера (например, построена новая комната)
   public onBunkerChanged(): void {
     // Обновим ресурсы/вместимость
-    this.updateResourcesText()
+    this.updateAllResources()
     // Пересчёт видимости кнопок Accept/Deny и плашки «нет мест»
     this.updateUIVisibility()
     // Перелэйаутим правую панель с учётом нового capacity
@@ -6043,7 +6910,20 @@ export class GameScene extends Phaser.Scene {
   private startNewDay(): void {
     this.dayNumber += 1
     this.phase = 'day'
-    this.visitorsRemaining = 3
+    
+    try {
+      // Получаем начальное количество посетителей из конфигурации
+      this.visitorsRemaining = this.configManager.getInitialVisitors()
+      
+      // Получаем опыт за прожитый день из конфигурации
+      const dailyReward = this.configManager.getDailyReward()
+      this.awardExperience('прожитый день', dailyReward)
+    } catch (error) {
+      console.error('[GameScene] Ошибка получения настроек дня из конфигурации:', error)
+      // Fallback к старым значениям
+      this.visitorsRemaining = 3
+      this.awardExperience('прожитый день', 25)
+    }
     
     // Рассчитываем множители потребления ресурсов на основе нового дня
     this.calculateResourceConsumptionMultipliers()
@@ -6282,11 +7162,12 @@ export class GameScene extends Phaser.Scene {
     try {
       // Initialize UI overlay - script should already be loaded from HTML
       if (typeof window.initGameUI === 'function') {
+        console.log('[GameScene] UI manager доступен, инициализируем overlay...');
         this.initializeOverlay();
       } else {
-        console.warn('[GameScene] UI manager not available, retrying in 1s...');
-        // Retry after 1 second in case script is still loading
-        setTimeout(() => this.initUIOverlay(), 1000);
+        console.warn('[GameScene] UI manager not available, retrying в 100ms...');
+        // Retry after 100ms in case script is still loading
+        setTimeout(() => this.initUIOverlay(), 100);
       }
     } catch (error) {
       console.error('[GameScene] Failed to initialize UI overlay:', error);
@@ -6300,6 +7181,9 @@ export class GameScene extends Phaser.Scene {
       if (overlayContainer && typeof window.initGameUI === 'function') {
         this.uiOverlay = window.initGameUI();
         console.log('[GameScene] HTML UI overlay initialized');
+
+        // Проверяем готовность функций индикаторов
+        this.checkIndicatorsReady();
 
         // Hide old Phaser UI elements
         this.hidePhaserUI();
@@ -6321,6 +7205,37 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // Проверяем готовность функций индикаторов
+  private checkIndicatorsReady(): void {
+    const maxAttempts = 50; // 5 секунд максимум
+    let attempts = 0;
+    
+    console.log('[GameScene] 🔍 Начинаем проверку готовности функций индикаторов...');
+    
+    const checkInterval = setInterval(() => {
+      attempts++;
+      
+      const hasForceCheck = typeof (window as any).forceCheckResourceChange === 'function';
+      const hasShowIndicator = typeof (window as any).showResourceChangeIndicator === 'function';
+      
+      if (hasForceCheck && hasShowIndicator) {
+        console.log('[GameScene] ✅ Функции индикаторов готовы!');
+        console.log('[GameScene] 📊 forceCheckResourceChange:', typeof (window as any).forceCheckResourceChange);
+        console.log('[GameScene] 📊 showResourceChangeIndicator:', typeof (window as any).showResourceChangeIndicator);
+        clearInterval(checkInterval);
+      } else if (attempts >= maxAttempts) {
+        console.error('[GameScene] ❌ Функции индикаторов не стали доступны за 5 секунд');
+        console.error('[GameScene] 📊 forceCheckResourceChange:', typeof (window as any).forceCheckResourceChange);
+        console.error('[GameScene] 📊 showResourceChangeIndicator:', typeof (window as any).showResourceChangeIndicator);
+        clearInterval(checkInterval);
+      } else {
+        console.log(`[GameScene] 🔍 Ожидаем функции индикаторов... попытка ${attempts}/${maxAttempts}`);
+        console.log(`[GameScene] 📊 forceCheckResourceChange: ${hasForceCheck ? '✅' : '❌'}`);
+        console.log(`[GameScene] 📊 showResourceChangeIndicator: ${hasShowIndicator ? '✅' : '❌'}`);
+      }
+    }, 100);
+  }
+
   private updateUIOverlay(): void {
     if (!this.uiOverlay || typeof window.updateGameUI !== 'function') return;
 
@@ -6332,16 +7247,19 @@ export class GameScene extends Phaser.Scene {
         time: this.getClockText(),
         population: this.bunkerResidents.length,
         capacity: this.getBunkerCapacity(),
-        happiness: this.happiness,
-        defense: this.defense,
-        comfort: this.comfort,
+        happiness: Math.floor(this.happiness),
+        defense: Math.floor(this.defense),
+        comfort: Math.floor(this.comfort),
+        moral: Math.floor(this.moral),        // Добавляем мораль напрямую
         enemies: this.bunkerEnemies.length,
         bunkerLevel: this.bunkerLevel,
-        bunkerExperience: this.bunkerExperience,
-        maxExperience: this.maxExperienceForLevel,
+        bunkerExperience: Math.floor(this.bunkerExperience),
+        maxExperience: Math.floor(this.maxExperienceForLevel),
+        abilityPoints: this.abilityPoints,
         ...resources // Включаем все ресурсы
       };
 
+      console.log(`[GameScene] Отправляем данные в UI: мораль=${gameData.moral}%, счастье=${gameData.happiness}%, защита=${gameData.defense}%`);
       window.updateGameUI(gameData);
 
       // Также обновляем ресурсы в инвентаре
@@ -6413,18 +7331,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getResourcesData(): { [key: string]: number } {
-    // Возвращаем данные ресурсов для UI
+    // Возвращаем данные ресурсов для UI как целые числа
     return {
-      food: this.food,
-      water: this.water,
-      money: this.money,
-      ammo: this.ammo,
-      wood: this.wood,
-      metal: this.metal,
-      coal: this.coal,
-      nails: this.nails,
-      paper: this.paper,
-      glass: this.glass
+      food: Math.floor(this.food),
+      water: Math.floor(this.water),
+      money: Math.floor(this.money),
+      ammo: Math.floor(this.ammo),
+      comfort: Math.floor(this.comfort),
+      moral: Math.floor(this.moral),        // Добавляем мораль
+      wood: Math.floor(this.wood),
+      metal: Math.floor(this.metal),
+      coal: Math.floor(this.coal),
+      nails: Math.floor(this.nails),
+      paper: Math.floor(this.paper),
+      glass: Math.floor(this.glass)
     };
   }
 

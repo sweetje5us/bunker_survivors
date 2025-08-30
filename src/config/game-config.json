@@ -1,0 +1,330 @@
+{
+  "difficulty": {
+    "easy": {
+      "name": "Легкий",
+      "description": "Для новичков - больше ресурсов, меньше врагов"
+    },
+    "normal": {
+      "name": "Обычный", 
+      "description": "Стандартная сложность для опытных игроков"
+    },
+    "hard": {
+      "name": "Сложный",
+      "description": "Для ветеранов - мало ресурсов, много врагов"
+    },
+    "nightmare": {
+      "name": "Кошмар",
+      "description": "Экстремальная сложность - выживание на грани"
+    }
+  },
+  
+  "experience": {
+    "baseLevelExperience": 100,
+    "enemyKillRewards": {
+      "МАРОДЕР": 10,
+      "ЗОМБИ": 15,
+      "МУТАНТ": 30,
+      "СОЛДАТ": 50
+    },
+    "dailyReward": 50,
+    "abilityPointsPerLevel": 5
+  },
+  
+  "resourceConsumption": {
+    "food": {
+      "easy": {
+        "intervalHours": 12,
+        "baseConsumption": 1,
+        "multiplier": 0.8
+      },
+      "normal": {
+        "intervalHours": 6,
+        "baseConsumption": 1,
+        "multiplier": 1.0
+      },
+      "hard": {
+        "intervalHours": 3,
+        "baseConsumption": 1,
+        "multiplier": 1.2
+      },
+      "nightmare": {
+        "intervalHours": 1,
+        "baseConsumption": 1,
+        "multiplier": 1.5
+      }
+    },
+    "water": {
+      "easy": {
+        "intervalHours": 12,
+        "baseConsumption": 1,
+        "multiplier": 0.8
+      },
+      "normal": {
+        "intervalHours": 6,
+        "baseConsumption": 1,
+        "multiplier": 1.0
+      },
+      "hard": {
+        "intervalHours": 3,
+        "baseConsumption": 1,
+        "multiplier": 1.2
+      },
+      "nightmare": {
+        "intervalHours": 1,
+        "baseConsumption": 1,
+        "multiplier": 1.5
+      }
+    }
+  },
+  
+  "initialResources": {
+    "easy": {
+      "happiness": 100,
+      "defense": 100,
+      "ammo": 200,
+      "comfort": 100,
+      "moral": 100,
+      "food": 150,
+      "water": 150,
+      "money": 500,
+      "wood": 100,
+      "metal": 100,
+      "coal": 100,
+      "nails": 100,
+      "paper": 100,
+      "glass": 100
+    },
+    "normal": {
+      "happiness": 100,
+      "defense": 100,
+      "ammo": 150,
+      "comfort": 100,
+      "moral": 100,
+      "food": 100,
+      "water": 100,
+      "money": 500,
+      "wood": 75,
+      "metal": 75,
+      "coal": 75,
+      "nails": 75,
+      "paper": 75,
+      "glass": 75
+    },
+    "hard": {
+      "happiness": 100,
+      "defense": 75,
+      "ammo": 100,
+      "comfort": 75,
+      "moral": 50,
+      "food": 100,
+      "water": 100,
+      "money": 250,
+      "wood": 50,
+      "metal": 50,
+      "coal": 50,
+      "nails": 50,
+      "paper": 50,
+      "glass": 50
+    },
+    "nightmare": {
+      "happiness": 50,
+      "defense": 50,
+      "ammo": 100,
+      "comfort": 50,
+      "moral": 50,
+      "food": 75,
+      "water": 75,
+      "money": 250,
+      "wood": 50,
+      "metal": 50,
+      "coal": 50,
+      "nails": 50,
+      "paper": 50,
+      "glass": 50
+    }
+  },
+  
+  "enemyDamage": {
+    "baseDamage": {
+      "МАРОДЕР": 1,
+      "ЗОМБИ": 3,
+      "МУТАНТ": 5,
+      "СОЛДАТ": 10
+    },
+    "defenseDamage": {
+      "easy": {
+        "multiplier": 0.5,
+        "intervalHours": 6
+      },
+      "normal": {
+        "multiplier": 1.0,
+        "intervalHours": 4
+      },
+      "hard": {
+        "multiplier": 1.5,
+        "intervalHours": 2
+      },
+      "nightmare": {
+        "multiplier": 2.0,
+        "intervalHours": 1
+      }
+    },
+    "firstEnemyDelay": {
+      "easy": 8,
+      "normal": 6,
+      "hard": 4,
+      "nightmare": 2
+    },
+    "subsequentEnemyInterval": {
+      "easy": 4,
+      "normal": 3,
+      "hard": 2,
+      "nightmare": 1
+    }
+  },
+  
+  "enemyHealth": {
+    "МАРОДЕР": 2,
+    "ЗОМБИ": 3,
+    "МУТАНТ": 6,
+    "СОЛДАТ": 10
+  },
+  
+  "defenseRegeneration": {
+    "baseRegenerationPerHour": 1,
+    "enabledWhenNoEnemies": true,
+    "maxDefense": 100
+  },
+  
+  "weaponDamage": {
+    "melee": 1,
+    "pistol": 1,
+    "shotgun": 2,
+    "ar": 1,
+    "sniper": 3
+  },
+  
+  "dayNightCycle": {
+    "dayDurationHours": 16,
+    "nightDurationHours": 8,
+    "dayStartHour": 6,
+    "nightStartHour": 22
+  },
+  
+  "visitorSystem": {
+    "maxQueueSize": 10,
+    "initialVisitors": 3,
+    "arrivalInterval": {
+      "easy": "4-10",
+      "normal": "6-20", 
+      "hard": "8-30",
+      "nightmare": "10-60"
+    }
+  },
+  
+  "bunkerCapacity": {
+    "baseCapacity": 10,
+    "capacityPerRoom": {
+      "Спальня": 2,
+      "Столовая": 1,
+      "Туалет": 1,
+      "Госпиталь": 1
+    }
+  },
+  
+  "skillEffects": {
+    "cooking": {
+      "foodBonus": 1,
+      "maxLevel": 2
+    },
+    "plumbing": {
+      "waterBonus": 1,
+      "maxLevel": 2
+    },
+    "hunting": {
+      "foodBonusPercent": 5,
+      "maxLevel": 10
+    },
+    "scouting": {
+      "lootBonusPercent": 5,
+      "maxLevel": 10
+    }
+  },
+  
+  "combatSystem": {
+    "soldierShotsPerHour": {
+      "base": 1,
+      "skillBonus": 1,
+      "maxShots": 8
+    },
+    "attackCooldown": {
+      "base": 1000,
+      "skillReduction": 200
+    }
+  },
+  
+  "moraleSystem": {
+    "baseDecay": 1,
+    "maxMorale": 100,
+    "positiveEvents": {
+      "visitorAccepted": 5,
+      "enemyKilled": 2,
+      "roomBuilt": 3
+    },
+    "negativeEvents": {
+      "visitorRejected": -3,
+      "residentDied": -10,
+      "resourceShortage": -5
+    },
+    "levelUpBonus": {
+      "high": { "min": 80, "bonus": 2 },
+      "medium": { "min": 60, "bonus": 1 },
+      "low": { "min": 0, "bonus": 0 }
+    },
+    "tradingQuality": {
+      "high": { "min": 80, "discount": 50 },
+      "medium": { "min": 60, "discount": 25 },
+      "normal": { "min": 40, "discount": 0 },
+      "low": { "min": 20, "markup": 25 },
+      "critical": { "min": 0, "markup": 50 }
+    },
+    "comfortRecovery": {
+      "enabled": true,
+      "high": { "min": 80, "recoveryPerHour": 5 },
+      "medium": { "min": 60, "recoveryPerHour": 2 },
+      "low": { "min": 0, "recoveryPerHour": -5 }
+    }
+  },
+  
+  "insanitySystem": {
+    "baseChance": 0.01,
+    "triggers": {
+      "lowMorale": 0.05,
+      "resourceShortage": 0.03,
+      "enemyAttack": 0.02
+    },
+    "recoveryChance": 0.005
+  },
+  
+  "comfortSystem": {
+    "defenseDependency": {
+      "enabled": true,
+      "baseComfort": 100,
+      "defenseThresholds": {
+        "high": { "min": 80, "bonus": 10 },
+        "medium": { "min": 50, "bonus": 0 },
+        "low": { "min": 20, "penalty": -20 },
+        "critical": { "min": 0, "penalty": -40 }
+      }
+    },
+    "happinessDependency": {
+      "enabled": true,
+      "comfortThresholds": {
+        "high": { "min": 80, "bonus": 5 },
+        "medium": { "min": 50, "bonus": 0 },
+        "low": { "min": 20, "penalty": -10 },
+        "critical": { "min": 0, "penalty": -20 }
+      }
+    }
+  }
+}

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест расчета потребления ресурсов</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .calculation-display {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #555;
+        }
+        .calculation-step {
+            margin: 10px 0;
+            padding: 8px;
+            background-color: #444;
+            border-radius: 3px;
+            border-left: 3px solid #4CAF50;
+        }
+        .calculation-result {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .calculation-formula {
+            font-family: monospace;
+            color: #FFD700;
+            background-color: #222;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .log {
+            background-color: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .status.warning {
+            background-color: #ff9800;
+            color: white;
+        }
+        .status.error {
+            background-color: #f44336;
+            color: white;
+        }
+        .resource-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .resource-card {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+        .resource-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        .resource-value {
+            font-size: 14px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧮 Тест расчета потребления ресурсов</h1>
+    
+    <div class="test-section">
+        <h2>📊 Текущие параметры</h2>
+        <div class="resource-info" id="resourceInfo">
+            <!-- Информация о ресурсах будет отображаться здесь -->
+        </div>
+        
+        <div class="status success" id="status">
+            ✅ Готов к тестированию
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тесты расчета</h2>
+        <button onclick="testFoodCalculation()">Тест расчета еды</button>
+        <button onclick="testWaterCalculation()">Тест расчета воды</button>
+        <button onclick="testAllCalculations()">Тест всех расчетов</button>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог расчетов</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // Имитация данных игры
+        let gameData = {
+            difficulty: 'hard',
+            dayNumber: 1,
+            residents: 1,
+            food: 100,
+            water: 100,
+            foodMultiplier: 1.2,
+            waterMultiplier: 1.2
+        };
+
+        // Функция логирования
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollTop + 1000;
+        }
+
+        // Функция обновления статуса
+        function updateStatus(message, type = 'success') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+
+        // Функция обновления отображения ресурсов
+        function updateResourceDisplay() {
+            const display = document.getElementById('resourceInfo');
+            display.innerHTML = `
+                <div class="resource-card">
+                    <div class="resource-title">🍖 Еда</div>
+                    <div class="resource-value">Количество: ${gameData.food}</div>
+                    <div class="resource-value">Множитель: ${gameData.foodMultiplier}x</div>
+                    <div class="resource-value">Жители: ${gameData.residents}</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-title">💧 Вода</div>
+                    <div class="resource-value">Количество: ${gameData.water}</div>
+                    <div class="resource-value">Множитель: ${gameData.waterMultiplier}x</div>
+                    <div class="resource-value">Жители: ${gameData.residents}</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-title">⚙️ Параметры</div>
+                    <div class="resource-value">Сложность: ${gameData.difficulty}</div>
+                    <div class="resource-value">День: ${gameData.dayNumber}</div>
+                    <div class="resource-value">Жители: ${gameData.residents}</div>
+                </div>
+            `;
+        }
+
+        // Тест расчета еды
+        function testFoodCalculation() {
+            log('🧪 Тест расчета потребления еды...');
+            
+            const difficulty = gameData.difficulty;
+            const residents = gameData.residents;
+            const multiplier = gameData.foodMultiplier;
+            
+            // Параметры из конфигурации для сложности hard
+            const intervalHours = 3; // Каждые 3 часа
+            const baseConsumption = 1; // 1 единица за интервал
+            
+            log(`📊 Параметры: сложность=${difficulty}, жители=${residents}, множитель=${multiplier}`);
+            log(`📊 Конфигурация: интервал=${intervalHours}ч, базовое потребление=${baseConsumption}`);
+            
+            // Расчет почасового потребления
+            const hourlyConsumption = Math.round(residents * baseConsumption * multiplier);
+            log(`📊 Почасовое потребление: ${residents} × ${baseConsumption} × ${multiplier} = ${hourlyConsumption} ед.`);
+            
+            // Расчет количества потреблений в день
+            const consumptionsPerDay = 24 / intervalHours;
+            log(`📊 Потреблений в день: 24ч ÷ ${intervalHours}ч = ${consumptionsPerDay} раз`);
+            
+            // Расчет ежедневного потребления
+            const dailyConsumption = Math.round(hourlyConsumption * consumptionsPerDay);
+            log(`📊 Ежедневное потребление: ${hourlyConsumption} × ${consumptionsPerDay} = ${dailyConsumption} ед.`);
+            
+            // Расчет потребления на жителя в день
+            const consumptionPerResident = Math.round(baseConsumption * multiplier * consumptionsPerDay);
+            log(`📊 Потребление на жителя в день: ${baseConsumption} × ${multiplier} × ${consumptionsPerDay} = ${consumptionPerResident} ед.`);
+            
+            // Проверка правильности
+            if (dailyConsumption === consumptionPerResident * residents) {
+                log('✅ Расчет корректен: ежедневное потребление = потребление на жителя × количество жителей');
+                updateStatus('✅ Тест расчета еды пройден', 'success');
+            } else {
+                log('❌ ОШИБКА: Несоответствие в расчетах!');
+                updateStatus('❌ Ошибка в расчетах', 'error');
+            }
+            
+            log('---');
+        }
+
+        // Тест расчета воды
+        function testWaterCalculation() {
+            log('🧪 Тест расчета потребления воды...');
+            
+            const difficulty = gameData.difficulty;
+            const residents = gameData.residents;
+            const multiplier = gameData.waterMultiplier;
+            
+            // Параметры из конфигурации для сложности hard
+            const intervalHours = 3; // Каждые 3 часа
+            const baseConsumption = 1; // 1 единица за интервал
+            
+            log(`📊 Параметры: сложность=${difficulty}, жители=${residents}, множитель=${multiplier}`);
+            log(`📊 Конфигурация: интервал=${intervalHours}ч, базовое потребление=${baseConsumption}`);
+            
+            // Расчет почасового потребления
+            const hourlyConsumption = Math.round(residents * baseConsumption * multiplier);
+            log(`📊 Почаровое потребление: ${residents} × ${baseConsumption} × ${multiplier} = ${hourlyConsumption} ед.`);
+            
+            // Расчет количества потреблений в день
+            const consumptionsPerDay = 24 / intervalHours;
+            log(`📊 Потреблений в день: 24ч ÷ ${intervalHours}ч = ${consumptionsPerDay} раз`);
+            
+            // Расчет ежедневного потребления
+            const dailyConsumption = Math.round(hourlyConsumption * consumptionsPerDay);
+            log(`📊 Ежедневное потребление: ${hourlyConsumption} × ${consumptionsPerDay} = ${dailyConsumption} ед.`);
+            
+            // Расчет потребления на жителя в день
+            const consumptionPerResident = Math.round(baseConsumption * multiplier * consumptionsPerDay);
+            log(`📊 Потребление на жителя в день: ${baseConsumption} × ${multiplier} × ${consumptionsPerDay} = ${consumptionPerResident} ед.`);
+            
+            // Проверка правильности
+            if (dailyConsumption === consumptionPerResident * residents) {
+                log('✅ Расчет корректен: ежедневное потребление = потребление на жителя × количество жителей');
+                updateStatus('✅ Тест расчета воды пройден', 'success');
+            } else {
+                log('❌ ОШИБКА: Несоответствие в расчетах!');
+                updateStatus('❌ Ошибка в расчетах', 'error');
+            }
+            
+            log('---');
+        }
+
+        // Тест всех расчетов
+        function testAllCalculations() {
+            log('🧪 Тест всех расчетов...');
+            
+            const difficulties = ['easy', 'normal', 'hard', 'nightmare'];
+            const intervals = [12, 6, 3, 1]; // Соответствующие интервалы в часах
+            
+            difficulties.forEach((difficulty, index) => {
+                const intervalHours = intervals[index];
+                const multiplier = difficulty === 'easy' ? 0.8 : 
+                                 difficulty === 'normal' ? 1.0 : 
+                                 difficulty === 'hard' ? 1.2 : 1.5;
+                
+                log(`📊 Сложность: ${difficulty}`);
+                log(`   Интервал: ${intervalHours} часов`);
+                log(`   Множитель: ${multiplier}x`);
+                
+                const consumptionsPerDay = 24 / intervalHours;
+                const consumptionPerResident = Math.round(1 * multiplier * consumptionsPerDay);
+                
+                log(`   Потреблений в день: 24 ÷ ${intervalHours} = ${consumptionsPerDay}`);
+                log(`   Потребление на жителя: 1 × ${multiplier} × ${consumptionsPerDay} = ${consumptionPerResident} ед./день`);
+                log('   ---');
+            });
+            
+            updateStatus('✅ Тест всех расчетов завершен', 'success');
+        }
+
+        // Функция очистки лога
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+            log('🧹 Лог очищен');
+        }
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            log('🚀 Тест расчета потребления ресурсов запущен');
+            log('📊 Параметры игры:');
+            log(`   Сложность: ${gameData.difficulty}`);
+            log(`   День: ${gameData.dayNumber}`);
+            log(`   Жители: ${gameData.residents}`);
+            log(`   Множитель еды: ${gameData.foodMultiplier}x`);
+            log(`   Множитель воды: ${gameData.waterMultiplier}x`);
+            log('');
+            
+            updateResourceDisplay();
+        };
+    </script>
+</body>
+</html>

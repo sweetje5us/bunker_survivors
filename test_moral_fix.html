@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест исправления морали</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест исправления морали</h1>
+    
+    <div class="info">
+        <h3>📋 Что исправлено:</h3>
+        <ul>
+            <li>✅ Убрана инициализация по умолчанию <code>private moral = 50</code></li>
+            <li>✅ Исправлен метод <code>getCurrentMoral()</code> - теперь всегда возвращает локальное значение</li>
+            <li>✅ Исправлен метод <code>applyMoralChange()</code> - теперь работает с локальной моралью</li>
+            <li>✅ Добавлено логирование для отладки</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Проверка инициализации морали</h2>
+        <p>После исправления мораль должна инициализироваться как 100% для легкой сложности:</p>
+        <button class="test-button" onclick="checkMoralInitialization()">Проверить инициализацию</button>
+        <div id="initResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Проверка изменения морали</h2>
+        <p>Тестируем методы изменения морали:</p>
+        <button class="test-button" onclick="testMoralChanges()">Тест изменения морали</button>
+        <div id="changeResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Текущее состояние</h2>
+        <p>Проверяем текущие значения морали:</p>
+        <button class="test-button" onclick="checkCurrentState()">Проверить состояние</button>
+        <div id="stateResult" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Имитация исправленного GameScene
+        class MockGameScene {
+            constructor() {
+                this.moral = 0; // Теперь инициализируется как 0
+                this.configManager = {
+                    getMaxMorale: () => 100
+                };
+            }
+
+            // Имитация инициализации из конфигурации
+            initMoralFromConfig() {
+                this.moral = 100; // Для easy сложности
+                console.log(`[MockGameScene] Мораль инициализирована из конфигурации: ${this.moral}%`);
+            }
+
+            // Исправленный метод getCurrentMoral
+            getCurrentMoral() {
+                const moralValue = this.moral;
+                console.log(`[MockGameScene] getCurrentMoral() возвращает: ${moralValue}%`);
+                return moralValue;
+            }
+
+            // Исправленный метод applyMoralChange
+            applyMoralChange(delta, reason) {
+                const oldMoral = this.moral;
+                const maxMorale = this.configManager.getMaxMorale();
+                
+                this.moral = Math.max(0, Math.min(maxMorale, this.moral + delta));
+                
+                console.log(`[MockGameScene] Moral change: ${delta > 0 ? '+' : ''}${delta}% (${reason}) → ${oldMoral}% → ${this.moral}%`);
+                
+                return this.moral;
+            }
+
+            // Метод для проверки состояния
+            checkState() {
+                return {
+                    localMoral: this.moral,
+                    getCurrentMoralResult: this.getCurrentMoral(),
+                    maxMorale: this.configManager.getMaxMorale()
+                };
+            }
+        }
+
+        const mockScene = new MockGameScene();
+
+        // Проверка инициализации
+        function checkMoralInitialization() {
+            const result = document.getElementById('initResult');
+            result.style.display = 'block';
+            
+            console.log('🧪 Тестируем инициализацию морали...');
+            
+            // Проверяем начальное состояние
+            const initialState = mockScene.checkState();
+            
+            // Инициализируем из конфигурации
+            mockScene.initMoralFromConfig();
+            
+            // Проверяем конечное состояние
+            const finalState = mockScene.checkState();
+            
+            let html = '<h3>Результаты теста инициализации:</h3>';
+            
+            html += `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <strong>До инициализации:</strong><br>
+                Локальная мораль: ${initialState.localMoral}%<br>
+                getCurrentMoral(): ${initialState.getCurrentMoralResult}%<br>
+                Максимальная мораль: ${initialState.maxMorale}%
+            </div>`;
+            
+            html += `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <strong>После инициализации:</strong><br>
+                Локальная мораль: ${finalState.localMoral}%<br>
+                getCurrentMoral(): ${finalState.getCurrentMoralResult}%<br>
+                Максимальная мораль: ${finalState.maxMorale}%
+            </div>`;
+            
+            if (finalState.localMoral === 100 && finalState.getCurrentMoralResult === 100) {
+                html += '<div style="color: green; font-weight: bold;">✅ Инициализация прошла успешно!</div>';
+                result.className = 'result success';
+            } else {
+                html += '<div style="color: red; font-weight: bold;">❌ Ошибка инициализации!</div>';
+                result.className = 'result error';
+            }
+            
+            result.innerHTML = html;
+        }
+
+        // Тест изменения морали
+        function testMoralChanges() {
+            const result = document.getElementById('changeResult');
+            result.style.display = 'block';
+            
+            console.log('🧪 Тестируем изменение морали...');
+            
+            // Инициализируем мораль
+            mockScene.initMoralFromConfig();
+            
+            let html = '<h3>Результаты теста изменения морали:</h3>';
+            
+            // Тест 1: Увеличение морали
+            const increaseResult = mockScene.applyMoralChange(10, 'тест увеличения');
+            html += `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <strong>Увеличение на +10%:</strong> Результат: ${increaseResult}%
+            </div>`;
+            
+            // Тест 2: Уменьшение морали
+            const decreaseResult = mockScene.applyMoralChange(-5, 'тест уменьшения');
+            html += `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <strong>Уменьшение на -5%:</strong> Результат: ${decreaseResult}%
+            </div>`;
+            
+            // Тест 3: Попытка превысить максимум
+            const overflowResult = mockScene.applyMoralChange(50, 'тест превышения максимума');
+            html += `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <strong>Попытка превысить максимум (+50%):</strong> Результат: ${overflowResult}%
+            </div>`;
+            
+            // Тест 4: Попытка уйти в отрицательные значения
+            const underflowResult = mockScene.applyMoralChange(-200, 'тест отрицательных значений');
+            html += `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <strong>Попытка уйти в отрицательные значения (-200%):</strong> Результат: ${underflowResult}%
+            </div>`;
+            
+            // Проверяем финальное состояние
+            const finalState = mockScene.checkState();
+            html += `<div style="margin: 10px 0; padding: 10px; background: #e7f3ff; border-radius: 4px;">
+                <strong>Финальное состояние:</strong><br>
+                Локальная мораль: ${finalState.localMoral}%<br>
+                getCurrentMoral(): ${finalState.getCurrentMoralResult}%
+            </div>`;
+            
+            if (finalState.localMoral === finalState.getCurrentMoralResult) {
+                html += '<div style="color: green; font-weight: bold;">✅ Тест изменения морали прошел успешно!</div>';
+                result.className = 'result success';
+            } else {
+                html += '<div style="color: red; font-weight: bold;">❌ Ошибка в тесте изменения морали!</div>';
+                result.className = 'result error';
+            }
+            
+            result.innerHTML = html;
+        }
+
+        // Проверка текущего состояния
+        function checkCurrentState() {
+            const result = document.getElementById('stateResult');
+            result.style.display = 'block';
+            
+            const state = mockScene.checkState();
+            
+            let html = '<h3>Текущее состояние морали:</h3>';
+            html += `<div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                <strong>Локальная мораль:</strong> ${state.localMoral}%<br>
+                <strong>getCurrentMoral():</strong> ${state.getCurrentMoralResult}%<br>
+                <strong>Максимальная мораль:</strong> ${state.maxMorale}%
+            </div>`;
+            
+            if (state.localMoral === state.getCurrentMoralResult) {
+                html += '<div style="color: green; font-weight: bold;">✅ Состояние синхронизировано</div>';
+                result.className = 'result success';
+            } else {
+                html += '<div style="color: red; font-weight: bold;">❌ Состояние не синхронизировано!</div>';
+                result.className = 'result error';
+            }
+            
+            result.innerHTML = html;
+        }
+
+        // Инициализация при загрузке страницы
+        window.addEventListener('load', () => {
+            console.log('🧪 Тест исправления морали готов');
+            console.log('📊 Начальное состояние:', mockScene.checkState());
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест системы морали</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .config-info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест системы морали</h1>
+    
+    <div class="test-section">
+        <h2>📊 Информация о конфигурации</h2>
+        <div id="configInfo" class="config-info">
+            Загрузка информации о конфигурации...
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тестирование бонусов за уровень</h2>
+        <p>Тестируем, как мораль влияет на количество очков способностей при повышении уровня:</p>
+        <button class="test-button" onclick="testLevelUpBonus()">Тест бонуса за уровень</button>
+        <div id="levelUpResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>💰 Тестирование качества торговли</h2>
+        <p>Тестируем, как мораль влияет на скидки/наценки в торговле:</p>
+        <button class="test-button" onclick="testTradingQuality()">Тест качества торговли</button>
+        <div id="tradingResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Тестирование восстановления морали</h2>
+        <p>Тестируем, как комфорт влияет на восстановление морали:</p>
+        <button class="test-button" onclick="testMoraleRecovery()">Тест восстановления морали</button>
+        <div id="recoveryResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎮 Интеграция с игрой</h2>
+        <p>Проверяем доступность методов в глобальном объекте игры:</p>
+        <button class="test-button" onclick="testGameIntegration()">Тест интеграции</button>
+        <div id="integrationResult" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Имитация ConfigManager для тестирования
+        class MockConfigManager {
+            constructor() {
+                this.moraleSystem = {
+                    maxMorale: 100,
+                    levelUpBonus: {
+                        high: { min: 80, bonus: 2 },
+                        medium: { min: 60, bonus: 1 },
+                        low: { min: 0, bonus: 0 }
+                    },
+                    tradingQuality: {
+                        high: { min: 80, discount: 50 },
+                        medium: { min: 60, discount: 25 },
+                        normal: { min: 40, discount: 0 },
+                        low: { min: 20, markup: 25 },
+                        critical: { min: 0, markup: 50 }
+                    },
+                    comfortRecovery: {
+                        enabled: true,
+                        high: { min: 80, recoveryPerHour: 0.5 },
+                        medium: { min: 60, recoveryPerHour: 0.2 },
+                        low: { min: 0, recoveryPerHour: 0 }
+                    }
+                };
+            }
+
+            getMaxMorale() { return this.moraleSystem.maxMorale; }
+            
+            getMoraleLevelUpBonus(morale) {
+                const thresholds = this.moraleSystem.levelUpBonus;
+                if (morale >= thresholds.high.min) return thresholds.high.bonus;
+                if (morale >= thresholds.medium.min) return thresholds.medium.bonus;
+                return thresholds.low.bonus;
+            }
+            
+            getMoraleTradingQuality(morale) {
+                const thresholds = this.moraleSystem.tradingQuality;
+                if (morale >= thresholds.high.min) return { type: 'discount', value: thresholds.high.discount };
+                if (morale >= thresholds.medium.min) return { type: 'discount', value: thresholds.medium.discount };
+                if (morale >= thresholds.normal.min) return { type: 'discount', value: thresholds.normal.discount };
+                if (morale >= thresholds.low.min) return { type: 'markup', value: thresholds.low.markup };
+                return { type: 'markup', value: thresholds.critical.markup };
+            }
+            
+            getMoraleComfortRecovery(comfort) {
+                if (!this.moraleSystem.comfortRecovery.enabled) return 0;
+                const thresholds = this.moraleSystem.comfortRecovery;
+                if (comfort >= thresholds.high.min) return thresholds.high.recoveryPerHour;
+                if (comfort >= thresholds.medium.min) return thresholds.medium.recoveryPerHour;
+                return thresholds.low.recoveryPerHour;
+            }
+        }
+
+        const mockConfig = new MockConfigManager();
+
+        // Отображение информации о конфигурации
+        function showConfigInfo() {
+            const configInfo = document.getElementById('configInfo');
+            configInfo.innerHTML = `
+                <h3>Настройки системы морали:</h3>
+                <ul>
+                    <li><strong>Максимальная мораль:</strong> ${mockConfig.getMaxMorale()}%</li>
+                    <li><strong>Бонус за уровень при высокой морали (80%+):</strong> +${mockConfig.getMoraleLevelUpBonus(85)} очка</li>
+                    <li><strong>Бонус за уровень при средней морали (60-79%):</strong> +${mockConfig.getMoraleLevelUpBonus(70)} очка</li>
+                    <li><strong>Бонус за уровень при низкой морали (0-59%):</strong> +${mockConfig.getMoraleLevelUpBonus(30)} очка</li>
+                    <li><strong>Восстановление морали от комфорта:</strong> Включено</li>
+                </ul>
+            `;
+        }
+
+        // Тест бонуса за уровень
+        function testLevelUpBonus() {
+            const result = document.getElementById('levelUpResult');
+            result.style.display = 'block';
+            
+            let html = '<h3>Результаты теста бонуса за уровень:</h3>';
+            
+            const testCases = [95, 85, 75, 65, 55, 45, 35, 25, 15, 5];
+            
+            testCases.forEach(morale => {
+                const bonus = mockConfig.getMoraleLevelUpBonus(morale);
+                const basePoints = 3; // Базовые очки за уровень
+                const total = basePoints + bonus;
+                
+                html += `
+                    <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                        <strong>Мораль ${morale}%:</strong> 
+                        Базовые ${basePoints} + бонус ${bonus} = <strong>${total} очков</strong>
+                        ${bonus > 0 ? '🎉' : '😐'}
+                    </div>
+                `;
+            });
+            
+            result.innerHTML = html;
+            result.className = 'result success';
+        }
+
+        // Тест качества торговли
+        function testTradingQuality() {
+            const result = document.getElementById('tradingResult');
+            result.style.display = 'block';
+            
+            let html = '<h3>Результаты теста качества торговли:</h3>';
+            
+            const testCases = [95, 85, 75, 65, 55, 45, 35, 25, 15, 5];
+            
+            testCases.forEach(morale => {
+                const trading = mockConfig.getMoraleTradingQuality(morale);
+                const icon = trading.type === 'discount' ? '💰' : '💸';
+                
+                html += `
+                    <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                        <strong>Мораль ${morale}%:</strong> 
+                        ${icon} ${trading.type === 'discount' ? 'Скидка' : 'Наценка'} ${trading.value}%
+                        ${trading.type === 'discount' ? '🎯' : '⚠️'}
+                    </div>
+                `;
+            });
+            
+            result.innerHTML = html;
+            result.className = 'result success';
+        }
+
+        // Тест восстановления морали
+        function testMoraleRecovery() {
+            const result = document.getElementById('recoveryResult');
+            result.style.display = 'block';
+            
+            let html = '<h3>Результаты теста восстановления морали:</h3>';
+            
+            const testCases = [95, 85, 75, 65, 55, 45, 35, 25, 15, 5];
+            
+            testCases.forEach(comfort => {
+                const recovery = mockConfig.getMoraleComfortRecovery(comfort);
+                
+                html += `
+                    <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                        <strong>Комфорт ${comfort}%:</strong> 
+                        Восстановление морали: <strong>+${recovery}/час</strong>
+                        ${recovery > 0 ? '🔄' : '⏸️'}
+                    </div>
+                `;
+            });
+            
+            result.innerHTML = html;
+            result.className = 'result success';
+        }
+
+        // Тест интеграции с игрой
+        function testGameIntegration() {
+            const result = document.getElementById('integrationResult');
+            result.style.display = 'block';
+            
+            let html = '<h3>Результаты теста интеграции:</h3>';
+            
+            // Проверяем доступность методов в глобальном объекте игры
+            if (typeof window !== 'undefined' && window.game) {
+                const game = window.game;
+                
+                html += '<div style="color: green;">✅ Глобальный объект игры доступен</div>';
+                
+                // Проверяем методы морали
+                if (typeof game.getTradingQualityInfo === 'function') {
+                    html += '<div style="color: green;">✅ Метод getTradingQualityInfo доступен</div>';
+                } else {
+                    html += '<div style="color: red;">❌ Метод getTradingQualityInfo недоступен</div>';
+                }
+                
+                if (typeof game.getCurrentMoral === 'function') {
+                    html += '<div style="color: green;">✅ Метод getCurrentMoral доступен</div>';
+                } else {
+                    html += '<div style="color: red;">❌ Метод getCurrentMoral недоступен</div>';
+                }
+                
+            } else {
+                html += '<div style="color: orange;">⚠️ Глобальный объект игры недоступен (игра не запущена)</div>';
+                html += '<div>Запустите игру, чтобы протестировать интеграцию</div>';
+            }
+            
+            result.innerHTML = html;
+            result.className = 'result';
+        }
+
+        // Инициализация при загрузке страницы
+        window.addEventListener('load', () => {
+            showConfigInfo();
+        });
+    </script>
+</body>
+</html>

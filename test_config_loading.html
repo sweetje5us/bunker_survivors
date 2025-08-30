@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест загрузки конфигурации</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .warning {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        .config-info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .json-viewer {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест загрузки конфигурации</h1>
+    
+    <div class="test-section">
+        <h2>📊 Проверка загрузки JSON конфигурации</h2>
+        <p>Тестируем, правильно ли загружается game-config.json и какие значения используются:</p>
+        <button class="test-button" onclick="testConfigLoading()">Тест загрузки конфигурации</button>
+        <div id="configResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Проверка значений морали</h2>
+        <p>Проверяем значения морали для разных уровней сложности:</p>
+        <button class="test-button" onclick="testMoraleValues()">Тест значений морали</button>
+        <div id="moraleResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Сравнение JSON vs Fallback</h2>
+        <p>Сравниваем значения из JSON файла с fallback конфигурацией:</p>
+        <button class="test-button" onclick="compareConfigs()">Сравнить конфигурации</button>
+        <div id="compareResult" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📁 Содержимое game-config.json</h2>
+        <p>Показываем актуальное содержимое JSON файла:</p>
+        <button class="test-button" onclick="showJsonContent()">Показать JSON</button>
+        <div id="jsonContent" class="json-viewer" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Fallback конфигурация (как в ConfigManager)
+        const fallbackConfig = {
+            initialResources: {
+                easy: {
+                    happiness: 100, defense: 100, ammo: 200, comfort: 100, moral: 100,
+                    food: 150, water: 150, money: 500, wood: 100, metal: 100,
+                    coal: 100, nails: 100, paper: 100, glass: 100
+                },
+                normal: {
+                    happiness: 100, defense: 100, ammo: 150, comfort: 100, moral: 100,
+                    food: 100, water: 100, money: 500, wood: 75, metal: 75,
+                    coal: 75, nails: 75, paper: 75, glass: 75
+                },
+                hard: {
+                    happiness: 100, defense: 75, ammo: 100, comfort: 75, moral: 50,
+                    food: 100, water: 100, money: 250, wood: 50, metal: 50,
+                    coal: 50, nails: 50, paper: 50, glass: 50
+                },
+                nightmare: {
+                    happiness: 50, defense: 50, ammo: 100, comfort: 50, moral: 50,
+                    food: 75, water: 75, money: 250, wood: 50, metal: 50,
+                    coal: 50, nails: 50, paper: 50, glass: 50
+                }
+            }
+        };
+
+        // Тест загрузки конфигурации
+        async function testConfigLoading() {
+            const result = document.getElementById('configResult');
+            result.style.display = 'block';
+            
+            try {
+                console.log('🧪 Тестируем загрузку конфигурации...');
+                
+                const response = await fetch('/src/config/game-config.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const jsonConfig = await response.json();
+                
+                let html = '<h3>✅ Конфигурация успешно загружена!</h3>';
+                html += `<p><strong>Источник:</strong> JSON файл</p>`;
+                html += `<p><strong>Разделов:</strong> ${Object.keys(jsonConfig).length}</p>`;
+                html += `<p><strong>Сложности:</strong> ${Object.keys(jsonConfig.difficulty || {}).join(', ')}</p>`;
+                
+                // Проверяем наличие ключевых разделов
+                const requiredSections = ['initialResources', 'moraleSystem', 'difficulty'];
+                const missingSections = requiredSections.filter(section => !jsonConfig[section]);
+                
+                if (missingSections.length > 0) {
+                    html += `<p style="color: red;"><strong>❌ Отсутствуют разделы:</strong> ${missingSections.join(', ')}</p>`;
+                } else {
+                    html += `<p style="color: green;"><strong>✅ Все ключевые разделы присутствуют</strong></p>`;
+                }
+                
+                result.innerHTML = html;
+                result.className = 'result success';
+                
+                // Сохраняем для сравнения
+                window.jsonConfig = jsonConfig;
+                
+            } catch (error) {
+                let html = '<h3>❌ Ошибка загрузки конфигурации</h3>';
+                html += `<p><strong>Ошибка:</strong> ${error.message}</p>`;
+                html += `<p><strong>Возможные причины:</strong></p>`;
+                html += `<ul>`;
+                html += `<li>Файл game-config.json не существует</li>`;
+                html += `<li>Неправильный путь к файлу</li>`;
+                html += `<li>Ошибка синтаксиса в JSON</li>`;
+                html += `<li>Проблемы с веб-сервером</li>`;
+                html += `</ul>`;
+                
+                result.innerHTML = html;
+                result.className = 'result error';
+            }
+        }
+
+        // Тест значений морали
+        function testMoraleValues() {
+            const result = document.getElementById('moraleResult');
+            result.style.display = 'block';
+            
+            let html = '<h3>🎯 Значения морали для разных сложностей</h3>';
+            
+            const difficulties = ['easy', 'normal', 'hard', 'nightmare'];
+            
+            difficulties.forEach(difficulty => {
+                const fallbackValue = fallbackConfig.initialResources[difficulty]?.moral || 'N/A';
+                const jsonValue = window.jsonConfig?.initialResources?.[difficulty]?.moral || 'N/A';
+                
+                let status = '✅';
+                let statusClass = 'success';
+                
+                if (jsonValue === 'N/A') {
+                    status = '❌';
+                    statusClass = 'error';
+                } else if (fallbackValue !== jsonValue) {
+                    status = '⚠️';
+                    statusClass = 'warning';
+                }
+                
+                html += `
+                    <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff;">
+                        <strong>${difficulty.toUpperCase()}:</strong><br>
+                        Fallback: ${fallbackValue}% | JSON: ${jsonValue}% ${status}
+                    </div>
+                `;
+            });
+            
+            result.innerHTML = html;
+            result.className = 'result';
+        }
+
+        // Сравнение конфигураций
+        function compareConfigs() {
+            const result = document.getElementById('compareResult');
+            result.style.display = 'block';
+            
+            if (!window.jsonConfig) {
+                result.innerHTML = '<h3>❌ Сначала загрузите JSON конфигурацию</h3>';
+                result.className = 'result error';
+                return;
+            }
+            
+            let html = '<h3>🔍 Сравнение JSON vs Fallback</h3>';
+            
+            const difficulties = ['easy', 'normal', 'hard', 'nightmare'];
+            const resources = ['happiness', 'defense', 'ammo', 'comfort', 'moral', 'food', 'water', 'money'];
+            
+            html += '<table style="width: 100%; border-collapse: collapse; margin: 10px 0;">';
+            html += '<tr><th>Ресурс</th><th>Easy</th><th>Normal</th><th>Hard</th><th>Nightmare</th></tr>';
+            
+            resources.forEach(resource => {
+                html += '<tr>';
+                html += `<td><strong>${resource}</strong></td>`;
+                
+                difficulties.forEach(difficulty => {
+                    const fallbackValue = fallbackConfig.initialResources[difficulty]?.[resource] || 'N/A';
+                    const jsonValue = window.jsonConfig.initialResources?.[difficulty]?.[resource] || 'N/A';
+                    
+                    let cellClass = '';
+                    if (fallbackValue === jsonValue) {
+                        cellClass = 'background-color: #d4edda;';
+                    } else if (jsonValue !== 'N/A') {
+                        cellClass = 'background-color: #fff3cd;';
+                    } else {
+                        cellClass = 'background-color: #f8d7da;';
+                    }
+                    
+                    html += `<td style="${cellClass}; padding: 5px; border: 1px solid #dee2e6;">`;
+                    html += `F: ${fallbackValue}<br>J: ${jsonValue}`;
+                    html += '</td>';
+                });
+                
+                html += '</tr>';
+            });
+            
+            html += '</table>';
+            
+            result.innerHTML = html;
+            result.className = 'result';
+        }
+
+        // Показать содержимое JSON
+        function showJsonContent() {
+            const result = document.getElementById('jsonContent');
+            result.style.display = 'block';
+            
+            if (!window.jsonConfig) {
+                result.innerHTML = 'Сначала загрузите JSON конфигурацию';
+                return;
+            }
+            
+            result.innerHTML = JSON.stringify(window.jsonConfig, null, 2);
+        }
+
+        // Инициализация при загрузке страницы
+        window.addEventListener('load', () => {
+            console.log('🧪 Тест загрузки конфигурации готов');
+            console.log('📁 Fallback конфигурация загружена:', fallbackConfig);
+        });
+    </script>
+</body>
+</html>

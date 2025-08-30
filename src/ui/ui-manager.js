@@ -65,19 +65,85 @@ class GameUIManager {
       overlayContainer.innerHTML = html;
       this.overlay = overlayContainer;
 
+      // Принудительно выполняем JavaScript код из game-overlay.html
+      this.executeOverlayScripts();
+
       // Wait for DOM to be ready
       await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Проверяем, что функции индикаторов загружены
+      this.checkIndicatorsLoaded();
 
       this.isInitialized = true;
       console.log('[GameUIManager] UI overlay initialized successfully');
 
       // Start periodic updates
       this.startUpdates();
-
     } catch (error) {
       console.error('[GameUIManager] Failed to initialize UI overlay:', error);
     }
+  }
+
+  // Принудительно выполняем JavaScript код из game-overlay.html
+  executeOverlayScripts() {
+    console.log('[GameUIManager] 🔧 Принудительно выполняем JavaScript код из game-overlay.html...');
+    
+    try {
+      // Создаем временный элемент для выполнения скриптов
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = this.overlay.innerHTML;
+      
+      // Находим все script теги
+      const scripts = tempDiv.querySelectorAll('script');
+      console.log(`[GameUIManager] 📜 Найдено ${scripts.length} скриптов для выполнения`);
+      
+      scripts.forEach((script, index) => {
+        try {
+          if (script.textContent) {
+            console.log(`[GameUIManager] 📜 Выполняем скрипт ${index + 1}:`, script.textContent.substring(0, 100) + '...');
+            eval(script.textContent);
+          }
+        } catch (error) {
+          console.warn(`[GameUIManager] ⚠️ Ошибка выполнения скрипта ${index + 1}:`, error);
+        }
+      });
+      
+      console.log('[GameUIManager] ✅ JavaScript код выполнен');
+    } catch (error) {
+      console.error('[GameUIManager] ❌ Ошибка выполнения JavaScript кода:', error);
     }
+  }
+
+  // Проверяем загрузку функций индикаторов
+  checkIndicatorsLoaded() {
+    console.log('[GameUIManager] 🔍 Проверяем загрузку функций индикаторов...');
+    
+    const maxAttempts = 50; // 5 секунд максимум
+    let attempts = 0;
+    
+    const checkInterval = setInterval(() => {
+      attempts++;
+      
+      const hasForceCheck = typeof window.forceCheckResourceChange === 'function';
+      const hasShowIndicator = typeof window.showResourceChangeIndicator === 'function';
+      
+      if (hasForceCheck && hasShowIndicator) {
+        console.log('[GameUIManager] ✅ Функции индикаторов загружены!');
+        console.log('[GameUIManager] 📊 forceCheckResourceChange:', typeof window.forceCheckResourceChange);
+        console.log('[GameUIManager] 📊 showResourceChangeIndicator:', typeof window.showResourceChangeIndicator);
+        clearInterval(checkInterval);
+      } else if (attempts >= maxAttempts) {
+        console.error('[GameUIManager] ❌ Функции индикаторов не загрузились за 5 секунд');
+        console.error('[GameUIManager] 📊 forceCheckResourceChange:', typeof window.forceCheckResourceChange);
+        console.error('[GameUIManager] 📊 showResourceChangeIndicator:', typeof window.showResourceChangeIndicator);
+        clearInterval(checkInterval);
+      } else {
+        console.log(`[GameUIManager] 🔍 Ожидаем функции индикаторов... попытка ${attempts}/${maxAttempts}`);
+        console.log(`[GameUIManager] 📊 forceCheckResourceChange: ${hasForceCheck ? '✅' : '❌'}`);
+        console.log(`[GameUIManager] 📊 showResourceChangeIndicator: ${hasShowIndicator ? '✅' : '❌'}`);
+      }
+    }, 100);
+  }
 
     /**
      * Start periodic UI updates
@@ -422,10 +488,10 @@ function getMoral() {
     return 50; // default value
 }
 
-// Auto-initialize when DOM is ready
+// НЕ инициализируем автоматически - только делаем функции доступными
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
-        // Make functions globally available
+        // Make functions globally available (but don't auto-initialize)
         window.initGameUI = initGameUI;
         window.getGameUIManager = getGameUIManager;
         window.updateGameUI = updateGameUI;
@@ -433,6 +499,8 @@ if (typeof document !== 'undefined') {
         window.setGameUILoading = setGameUILoading;
         window.changeMoral = changeMoral;
         window.getMoral = getMoral;
+        
+        console.log('[ui-manager.js] Функции UI доступны, но НЕ инициализированы автоматически');
     });
 }
 

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест системы производства ресурсов</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .production-display {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #555;
+        }
+        .production-step {
+            margin: 10px 0;
+            padding: 8px;
+            background-color: #444;
+            border-radius: 3px;
+            border-left: 3px solid #4CAF50;
+        }
+        .production-result {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .production-formula {
+            font-family: monospace;
+            color: #FFD700;
+            background-color: #222;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .log {
+            background-color: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .status.warning {
+            background-color: #ff9800;
+            color: white;
+        }
+        .status.error {
+            background-color: #f44336;
+            color: white;
+        }
+        .resource-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .resource-card {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+        .resource-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        .resource-value {
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        .resident-list {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #555;
+        }
+        .resident-item {
+            background-color: #444;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border-left: 3px solid #2196F3;
+        }
+        .resident-working {
+            border-left-color: #4CAF50;
+        }
+        .resident-idle {
+            border-left-color: #FF9800;
+        }
+        .simulation-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .input-group label {
+            font-size: 12px;
+            color: #ccc;
+        }
+        .input-group input, .input-group select {
+            padding: 5px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            background-color: #333;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏭 Тест системы производства ресурсов</h1>
+    
+    <div class="test-section">
+        <h2>📊 Текущие параметры</h2>
+        <div class="resource-info" id="resourceInfo">
+            <!-- Информация о ресурсах будет отображаться здесь -->
+        </div>
+        
+        <div class="status success" id="status">
+            ✅ Готов к тестированию
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>👥 Жители бункера</h2>
+        <div class="resident-list" id="residentList">
+            <!-- Список жителей будет отображаться здесь -->
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Управление тестом</h2>
+        <div class="simulation-controls">
+            <div class="input-group">
+                <label>Добавить повара</label>
+                <button onclick="addResident('повар')">+ Повар</button>
+            </div>
+            <div class="input-group">
+                <label>Добавить сантехника</label>
+                <button onclick="addResident('сантехник')">+ Сантехник</button>
+            </div>
+            <div class="input-group">
+                <label>Добавить обычного жителя</label>
+                <button onclick="addResident('безработный')">+ Житель</button>
+            </div>
+            <div class="input-group">
+                <label>Количество столовых</label>
+                <input type="number" id="diningCount" value="1" min="0" max="10">
+            </div>
+            <div class="input-group">
+                <label>Количество туалетов</label>
+                <input type="number" id="toiletCount" value="1" min="0" max="10">
+            </div>
+        </div>
+        
+        <div class="simulation-controls">
+            <button onclick="simulateHour()">⏰ Симулировать 1 час</button>
+            <button onclick="simulateDay()">🌅 Симулировать 1 день</button>
+            <button onclick="toggleAllWork()">🔄 Переключить работу всех</button>
+            <button onclick="clearLog()">🧹 Очистить лог</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог производства</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // Имитация данных игры
+        let gameData = {
+            difficulty: 'hard',
+            dayNumber: 1,
+            food: 100,
+            water: 100,
+            diningCount: 1,
+            toiletCount: 1
+        };
+
+        let residents = [
+            { id: 1, name: 'Иван', profession: 'повар', status: 'работает', working: true },
+            { id: 2, name: 'Петр', profession: 'сантехник', status: 'работает', working: true }
+        ];
+
+        // Функция логирования
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollTop + 1000;
+        }
+
+        // Функция обновления статуса
+        function updateStatus(message, type = 'success') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+
+        // Функция обновления отображения ресурсов
+        function updateResourceDisplay() {
+            const display = document.getElementById('resourceInfo');
+            display.innerHTML = `
+                <div class="resource-card">
+                    <div class="resource-title">🍖 Еда</div>
+                    <div class="resource-value">Количество: ${gameData.food}</div>
+                    <div class="resource-value">Столовые: ${gameData.diningCount}</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-title">💧 Вода</div>
+                    <div class="resource-value">Количество: ${gameData.water}</div>
+                    <div class="resource-value">Туалеты: ${gameData.toiletCount}</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-title">⚙️ Параметры</div>
+                    <div class="resource-value">Сложность: ${gameData.difficulty}</div>
+                    <div class="resource-value">День: ${gameData.dayNumber}</div>
+                    <div class="resource-value">Жители: ${residents.length}</div>
+                </div>
+            `;
+        }
+
+        // Функция обновления списка жителей
+        function updateResidentList() {
+            const display = document.getElementById('residentList');
+            let html = '';
+            
+            residents.forEach(resident => {
+                const statusClass = resident.working ? 'resident-working' : 'resident-idle';
+                const statusText = resident.working ? '🟢 Работает' : '🟡 Отдыхает';
+                
+                html += `
+                    <div class="resident-item ${statusClass}">
+                        <div><strong>${resident.name}</strong> (${resident.profession})</div>
+                        <div>Статус: ${statusText}</div>
+                        <div>ID: ${resident.id}</div>
+                        <button onclick="toggleWork(${resident.id})" style="margin-top: 5px; padding: 5px 10px; font-size: 12px;">
+                            ${resident.working ? 'Остановить работу' : 'Начать работу'}
+                        </button>
+                    </div>
+                `;
+            });
+            
+            display.innerHTML = html;
+        }
+
+        // Функция добавления жителя
+        function addResident(profession) {
+            const id = residents.length + 1;
+            const names = ['Алексей', 'Иван', 'Петр', 'Сергей', 'Дмитрий', 'Анна', 'Мария', 'Ольга', 'Елена', 'Татьяна'];
+            const name = names[id % names.length];
+            
+            residents.push({
+                id: id,
+                name: name,
+                profession: profession,
+                status: 'отдыхает',
+                working: false
+            });
+            
+            log(`👤 Добавлен житель: ${name} (${profession})`);
+            updateResidentList();
+            updateResourceDisplay();
+        }
+
+        // Функция переключения работы жителя
+        function toggleWork(residentId) {
+            const resident = residents.find(r => r.id === residentId);
+            if (resident) {
+                resident.working = !resident.working;
+                resident.status = resident.working ? 'работает' : 'отдыхает';
+                log(`🔄 ${resident.name} ${resident.working ? 'начал' : 'остановил'} работу`);
+                updateResidentList();
+            }
+        }
+
+        // Функция переключения работы всех жителей
+        function toggleAllWork() {
+            const allWorking = residents.every(r => r.working);
+            residents.forEach(resident => {
+                resident.working = !allWorking;
+                resident.status = resident.working ? 'работает' : 'отдыхает';
+            });
+            
+            const action = allWorking ? 'остановили' : 'начали';
+            log(`🔄 Все жители ${action} работу`);
+            updateResidentList();
+        }
+
+        // Функция симуляции часа
+        function simulateHour() {
+            log('⏰ Симуляция 1 часа...');
+            
+            let foodProduction = 0;
+            let waterProduction = 0;
+            let workingResidents = 0;
+            
+            // Производство от работающих жителей
+            residents.forEach(resident => {
+                if (resident.working) {
+                    if (resident.profession === 'повар') {
+                        const production = 5; // 5 ед. еды в час
+                        foodProduction += production;
+                        log(`🍳 Повар ${resident.name} производит ${production} ед. еды`);
+                    }
+                    
+                    if (resident.profession === 'сантехник') {
+                        const production = 4; // 4 ед. воды в час
+                        waterProduction += production;
+                        log(`🔧 Сантехник ${resident.name} производит ${production} ед. воды`);
+                    }
+                    
+                    workingResidents++;
+                }
+            });
+            
+            // Производство от комнат (распределяем по часам)
+            const hourlyFoodFromRooms = Math.round((gameData.diningCount * 10) / 24);
+            const hourlyWaterFromRooms = Math.round((gameData.toiletCount * 10) / 24);
+            
+            foodProduction += hourlyFoodFromRooms;
+            waterProduction += hourlyWaterFromRooms;
+            
+            if (foodProduction > 0 || waterProduction > 0) {
+                log(`📊 Почасовое производство: еда +${foodProduction} (${hourlyFoodFromRooms} от комнат), вода +${waterProduction} (${hourlyWaterFromRooms} от комнат)`);
+                
+                // Добавляем ресурсы
+                gameData.food += foodProduction;
+                gameData.water += waterProduction;
+                
+                log(`✅ Ресурсы обновлены: еда=${gameData.food}, вода=${gameData.water}`);
+            } else {
+                log(`ℹ️ Нет производства ресурсов в этот час`);
+            }
+            
+            log(`📈 Работающих специалистов: ${workingResidents}`);
+            log('---');
+            
+            updateResourceDisplay();
+            updateStatus(`✅ Час симулирован. Производство: еда +${foodProduction}, вода +${waterProduction}`, 'success');
+        }
+
+        // Функция симуляции дня
+        function simulateDay() {
+            log('🌅 Симуляция 1 дня (24 часа)...');
+            
+            for (let hour = 1; hour <= 24; hour++) {
+                log(`⏰ Час ${hour}:`);
+                simulateHour();
+            }
+            
+            log('🌅 День завершен!');
+            gameData.dayNumber++;
+            updateResourceDisplay();
+            updateStatus(`✅ День ${gameData.dayNumber} завершен`, 'success');
+        }
+
+        // Функция очистки лога
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+            log('🧹 Лог очищен');
+        }
+
+        // Функция обновления количества комнат
+        function updateRoomCounts() {
+            gameData.diningCount = parseInt(document.getElementById('diningCount').value) || 0;
+            gameData.toiletCount = parseInt(document.getElementById('toiletCount').value) || 0;
+            updateResourceDisplay();
+        }
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            log('🚀 Тест системы производства ресурсов запущен');
+            log('📊 Параметры игры:');
+            log(`   Сложность: ${gameData.difficulty}`);
+            log(`   День: ${gameData.dayNumber}`);
+            log(`   Жители: ${residents.length}`);
+            log(`   Столовые: ${gameData.diningCount}`);
+            log(`   Туалеты: ${gameData.toiletCount}`);
+            log('');
+            
+            // Добавляем обработчики для полей ввода
+            document.getElementById('diningCount').addEventListener('change', updateRoomCounts);
+            document.getElementById('toiletCount').addEventListener('change', updateRoomCounts);
+            
+            updateResourceDisplay();
+            updateResidentList();
+        };
+    </script>
+</body>
+</html>

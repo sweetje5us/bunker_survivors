@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест системы опыта</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .test-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background-color: #45a049;
+        }
+        .test-button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        .experience-display {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #555;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+        .log {
+            background-color: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест системы опыта</h1>
+    
+    <div class="test-section">
+        <h2>📊 Текущий статус</h2>
+        <div class="experience-display">
+            <div><strong>Уровень бункера:</strong> <span id="current-level">1</span></div>
+            <div><strong>Опыт:</strong> <span id="current-xp">0</span> / <span id="max-xp">100</span></div>
+            <div><strong>Очки способностей:</strong> <span id="ability-points">0</span></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="xp-progress" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тестирование начисления опыта</h2>
+        <div>
+            <button class="test-button" onclick="testKillEnemy('МАРОДЕР')">Убить мародера (+1 XP)</button>
+            <button class="test-button" onclick="testKillEnemy('ЗОМБИ')">Убить зомби (+3 XP)</button>
+            <button class="test-button" onclick="testKillEnemy('МУТАНТ')">Убить мутанта (+6 XP)</button>
+            <button class="test-button" onclick="testKillEnemy('СОЛДАТ')">Убить солдата (+10 XP)</button>
+        </div>
+        <div style="margin-top: 10px;">
+            <button class="test-button" onclick="testNewDay()">Новый день (+25 XP)</button>
+            <button class="test-button" onclick="testLevelUp()">Принудительное повышение уровня</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог событий</h2>
+        <div class="log" id="event-log">
+            <div>Система готова к тестированию...</div>
+        </div>
+        <button class="test-button" onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <script>
+        // Имитация данных игры
+        let gameState = {
+            level: 1,
+            experience: 0,
+            maxExperience: 100,
+            abilityPoints: 0
+        };
+
+        // Функция логирования
+        function log(message) {
+            const logElement = document.getElementById('event-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        // Очистка лога
+        function clearLog() {
+            document.getElementById('event-log').innerHTML = '<div>Лог очищен...</div>';
+        }
+
+        // Обновление UI
+        function updateUI() {
+            document.getElementById('current-level').textContent = gameState.level;
+            document.getElementById('current-xp').textContent = gameState.experience;
+            document.getElementById('max-xp').textContent = gameState.maxExperience;
+            document.getElementById('ability-points').textContent = gameState.abilityPoints;
+            
+            const progress = (gameState.experience / gameState.maxExperience) * 100;
+            document.getElementById('xp-progress').style.width = `${Math.max(0, Math.min(100, progress))}%`;
+        }
+
+        // Начисление опыта
+        function awardExperience(source, amount) {
+            gameState.experience += amount;
+            log(`🎯 +${amount} XP за: ${source}`);
+            
+            // Проверка повышения уровня
+            checkLevelUp();
+            
+            updateUI();
+        }
+
+        // Проверка повышения уровня
+        function checkLevelUp() {
+            while (gameState.experience >= gameState.maxExperience) {
+                gameState.experience -= gameState.maxExperience;
+                gameState.level++;
+                gameState.maxExperience = 100; // Фиксированное количество опыта
+                
+                // Добавляем очки способностей
+                gameState.abilityPoints += 3;
+                
+                log(`🎉 УРОВЕНЬ ПОВЫШЕН! Новый уровень: ${gameState.level} (+3 очка способностей)`);
+                
+                // Показываем визуальный эффект
+                showLevelUpEffect();
+            }
+        }
+
+        // Визуальный эффект повышения уровня
+        function showLevelUpEffect() {
+            const body = document.body;
+            
+            // Создаем вспышку
+            const flash = document.createElement('div');
+            flash.style.position = 'fixed';
+            flash.style.top = '0';
+            flash.style.left = '0';
+            flash.style.width = '100%';
+            flash.style.height = '100%';
+            flash.style.backgroundColor = 'rgba(0, 255, 0, 0.3)';
+            flash.style.zIndex = '9999';
+            flash.style.pointerEvents = 'none';
+            body.appendChild(flash);
+            
+            // Анимация вспышки
+            setTimeout(() => {
+                flash.style.transition = 'opacity 1s ease';
+                flash.style.opacity = '0';
+                setTimeout(() => flash.remove(), 1000);
+            }, 100);
+            
+            // Создаем текст LEVEL UP
+            const levelUpText = document.createElement('div');
+            levelUpText.textContent = 'LEVEL UP!';
+            levelUpText.style.position = 'fixed';
+            levelUpText.style.top = '50%';
+            levelUpText.style.left = '50%';
+            levelUpText.style.transform = 'translate(-50%, -50%)';
+            levelUpText.style.fontSize = '48px';
+            levelUpText.style.color = '#00ff00';
+            levelUpText.style.textShadow = '2px 2px 4px #000';
+            levelUpText.style.zIndex = '10000';
+            levelUpText.style.pointerEvents = 'none';
+            body.appendChild(levelUpText);
+            
+            // Анимация текста
+            setTimeout(() => {
+                levelUpText.style.transition = 'transform 0.5s ease';
+                levelUpText.style.transform = 'translate(-50%, -50%) scale(1.5)';
+                setTimeout(() => {
+                    levelUpText.style.transform = 'translate(-50%, -50%) scale(1)';
+                    setTimeout(() => levelUpText.remove(), 500);
+                }, 500);
+            }, 100);
+        }
+
+        // Тестовые функции
+        function testKillEnemy(enemyType) {
+            const experienceReward = getEnemyExperienceReward(enemyType);
+            awardExperience(`убийство ${enemyType}`, experienceReward);
+        }
+
+        function testNewDay() {
+            awardExperience('прожитый день', 25);
+        }
+
+        function testLevelUp() {
+            // Добавляем достаточно опыта для повышения уровня
+            const needed = gameState.maxExperience - gameState.experience;
+            if (needed > 0) {
+                awardExperience('тестовое повышение', needed);
+            }
+        }
+
+        // Получение опыта за врага
+        function getEnemyExperienceReward(enemyType) {
+            switch (enemyType) {
+                case 'МАРОДЕР': return 1;
+                case 'ЗОМБИ': return 3;
+                case 'МУТАНТ': return 6;
+                case 'СОЛДАТ': return 10;
+                default: return 2;
+            }
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            updateUI();
+            log('🚀 Система опыта инициализирована');
+            log('💡 Используйте кнопки для тестирования различных сценариев');
+        });
+    </script>
+</body>
+</html>

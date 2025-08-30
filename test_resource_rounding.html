@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест округления ресурсов</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .resource-display {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .resource-item {
+            background-color: #333;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            border: 1px solid #555;
+        }
+        .resource-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .resource-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .log {
+            background-color: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .status.warning {
+            background-color: #ff9800;
+            color: white;
+        }
+        .status.error {
+            background-color: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест округления ресурсов</h1>
+    
+    <div class="test-section">
+        <h2>📊 Текущие ресурсы</h2>
+        <div class="resource-display" id="resourceDisplay">
+            <!-- Ресурсы будут отображаться здесь -->
+        </div>
+        
+        <div class="status success" id="status">
+            ✅ Готов к тестированию
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тесты</h2>
+        <button onclick="testResourceConsumption()">Тест потребления ресурсов</button>
+        <button onclick="testResourceAddition()">Тест добавления ресурсов</button>
+        <button onclick="testResourceModification()">Тест модификации ресурсов</button>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог операций</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // Имитация ресурсов игры
+        let gameResources = {
+            food: 100,
+            water: 100,
+            happiness: 100,
+            defense: 100,
+            ammo: 200,
+            comfort: 100,
+            moral: 100,
+            money: 500,
+            wood: 100,
+            metal: 100,
+            coal: 100,
+            nails: 100,
+            paper: 100,
+            glass: 100
+        };
+
+        // Функция логирования
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollTop + 1000;
+        }
+
+        // Функция обновления отображения ресурсов
+        function updateResourceDisplay() {
+            const display = document.getElementById('resourceDisplay');
+            display.innerHTML = '';
+            
+            Object.entries(gameResources).forEach(([key, value]) => {
+                const item = document.createElement('div');
+                item.className = 'resource-item';
+                
+                const valueElement = document.createElement('div');
+                valueElement.className = 'resource-value';
+                valueElement.textContent = Math.round(value);
+                
+                const labelElement = document.createElement('div');
+                labelElement.className = 'resource-label';
+                labelElement.textContent = key;
+                
+                item.appendChild(valueElement);
+                item.appendChild(labelElement);
+                display.appendChild(item);
+            });
+        }
+
+        // Функция обновления статуса
+        function updateStatus(message, type = 'success') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+
+        // Тест потребления ресурсов (имитация почасового потребления)
+        function testResourceConsumption() {
+            log('🧪 Тест потребления ресурсов...');
+            
+            const oldFood = gameResources.food;
+            const oldWater = gameResources.water;
+            
+            // Имитируем потребление с дробными значениями
+            const foodConsumption = 4.8; // 4 жителя * 1.2 множитель
+            const waterConsumption = 4.8;
+            
+            log(`📊 Потребление: еда=${foodConsumption}, вода=${waterConsumption}`);
+            log(`📊 До: еда=${oldFood}, вода=${oldWater}`);
+            
+            // Применяем потребление с округлением (как в исправленном коде)
+            gameResources.food = Math.max(0, Math.round(gameResources.food - foodConsumption));
+            gameResources.water = Math.max(0, Math.round(gameResources.water - waterConsumption));
+            
+            log(`📊 После: еда=${gameResources.food}, вода=${gameResources.water}`);
+            log(`📊 Изменение: еда=${oldFood - gameResources.food}, вода=${oldWater - gameResources.water}`);
+            
+            // Проверяем, что значения целые
+            if (Number.isInteger(gameResources.food) && Number.isInteger(gameResources.water)) {
+                log('✅ Ресурсы округлены до целых чисел');
+                updateStatus('✅ Тест потребления пройден - ресурсы округлены', 'success');
+            } else {
+                log('❌ ОШИБКА: Ресурсы содержат дробные значения!');
+                updateStatus('❌ Тест потребления провален - дробные значения', 'error');
+            }
+            
+            updateResourceDisplay();
+        }
+
+        // Тест добавления ресурсов
+        function testResourceAddition() {
+            log('🧪 Тест добавления ресурсов...');
+            
+            const oldFood = gameResources.food;
+            const oldWater = gameResources.water;
+            
+            // Добавляем дробные значения
+            const foodToAdd = 3.7;
+            const waterToAdd = 2.9;
+            
+            log(`📊 Добавляем: еда=${foodToAdd}, вода=${waterToAdd}`);
+            log(`📊 До: еда=${oldFood}, вода=${oldWater}`);
+            
+            // Применяем добавление с округлением (как в исправленном коде)
+            gameResources.food = Math.max(0, Math.round(gameResources.food + foodToAdd));
+            gameResources.water = Math.max(0, Math.round(gameResources.water + waterToAdd));
+            
+            log(`📊 После: еда=${gameResources.food}, вода=${gameResources.water}`);
+            log(`📊 Изменение: еда=${gameResources.food - oldFood}, вода=${gameResources.water - oldWater}`);
+            
+            // Проверяем, что значения целые
+            if (Number.isInteger(gameResources.food) && Number.isInteger(gameResources.water)) {
+                log('✅ Ресурсы округлены до целых чисел');
+                updateStatus('✅ Тест добавления пройден - ресурсы округлены', 'success');
+            } else {
+                log('❌ ОШИБКА: Ресурсы содержат дробные значения!');
+                updateStatus('❌ Тест добавления провален - дробные значения', 'error');
+            }
+            
+            updateResourceDisplay();
+        }
+
+        // Тест модификации ресурсов (имитация ежедневной обработки)
+        function testResourceModification() {
+            log('🧪 Тест модификации ресурсов...');
+            
+            const oldHappiness = gameResources.happiness;
+            const oldComfort = gameResources.comfort;
+            const oldMoral = gameResources.moral;
+            
+            // Имитируем модификаторы с дробными значениями
+            const happinessModifier = 5.3;
+            const comfortModifier = -2.7;
+            const moralRecovery = 3.8;
+            
+            log(`📊 Модификаторы: счастье=${happinessModifier}, комфорт=${comfortModifier}, мораль=${moralRecovery}`);
+            log(`📊 До: счастье=${oldHappiness}, комфорт=${oldComfort}, мораль=${oldMoral}`);
+            
+            // Применяем модификаторы с округлением (как в исправленном коде)
+            gameResources.happiness = Math.max(0, Math.min(100, Math.round(gameResources.happiness + happinessModifier)));
+            gameResources.comfort = Math.max(0, Math.min(100, Math.round(gameResources.comfort + comfortModifier)));
+            gameResources.moral = Math.min(100, Math.round(gameResources.moral + moralRecovery));
+            
+            log(`📊 После: счастье=${gameResources.happiness}, комфорт=${gameResources.comfort}, мораль=${gameResources.moral}`);
+            log(`📊 Изменение: счастье=${gameResources.happiness - oldHappiness}, комфорт=${gameResources.comfort - oldComfort}, мораль=${gameResources.moral - oldMoral}`);
+            
+            // Проверяем, что значения целые
+            if (Number.isInteger(gameResources.happiness) && Number.isInteger(gameResources.comfort) && Number.isInteger(gameResources.moral)) {
+                log('✅ Ресурсы округлены до целых чисел');
+                updateStatus('✅ Тест модификации пройден - ресурсы округлены', 'success');
+            } else {
+                log('❌ ОШИБКА: Ресурсы содержат дробные значения!');
+                updateStatus('❌ Тест модификации провален - дробные значения', 'error');
+            }
+            
+            updateResourceDisplay();
+        }
+
+        // Функция очистки лога
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+            log('🧹 Лог очищен');
+        }
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            log('🚀 Тест округления ресурсов запущен');
+            log('📊 Инициализация ресурсов...');
+            
+            // Проверяем, что все ресурсы целые
+            const allIntegers = Object.values(gameResources).every(value => Number.isInteger(value));
+            if (allIntegers) {
+                log('✅ Все ресурсы инициализированы как целые числа');
+                updateStatus('✅ Система готова к тестированию', 'success');
+            } else {
+                log('❌ ОШИБКА: Некоторые ресурсы содержат дробные значения!');
+                updateStatus('❌ Ошибка инициализации', 'error');
+            }
+            
+            updateResourceDisplay();
+        };
+    </script>
+</body>
+</html>

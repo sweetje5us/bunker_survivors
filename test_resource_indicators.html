@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест индикаторов изменений ресурсов</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .resources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .resource-item {
+            background: #1a1a1a;
+            border: 2px solid #444;
+            padding: 8px;
+            font-size: 12px;
+            color: #ffffff;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 6px;
+            position: relative;
+            min-height: 60px;
+        }
+        .resource-item:hover {
+            background: #2a2a2a;
+            border-color: #ff0000;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3);
+        }
+        .resource-icon {
+            width: 20px;
+            height: 20px;
+            background-color: #666;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        .resource-value {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.negative {
+            background-color: #f44336;
+        }
+        button.negative:hover {
+            background-color: #da190b;
+        }
+        button.percentage {
+            background-color: #FFD700;
+            color: #000;
+        }
+        button.percentage:hover {
+            background-color: #FFC107;
+        }
+        .log {
+            background-color: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .status.info {
+            background-color: #2196F3;
+            color: white;
+        }
+        .indicator-info {
+            background-color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border: 1px solid #555;
+        }
+        .indicator-example {
+            display: inline-block;
+            margin: 5px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .indicator-positive {
+            color: #4CAF50;
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+        .indicator-negative {
+            color: #f44336;
+            background-color: rgba(244, 67, 54, 0.1);
+        }
+        .indicator-percentage {
+            color: #FFD700;
+            background-color: rgba(255, 215, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Тест индикаторов изменений ресурсов</h1>
+    
+    <div class="test-section">
+        <h2>📊 Описание системы</h2>
+        <div class="indicator-info">
+            <h3>🎨 Типы индикаторов:</h3>
+            <div class="indicator-example indicator-positive">+5 ед</div>
+            <div class="indicator-example indicator-negative">-3 ед</div>
+            <div class="indicator-example indicator-percentage">+10%</div>
+            <div class="indicator-example indicator-percentage">-5%</div>
+            
+            <h3>🔧 Принцип работы:</h3>
+            <ul>
+                <li><strong>Зеленый (+)</strong> - добавление ресурсов (производство, находки)</li>
+                <li><strong>Красный (-)</strong> - расход ресурсов (потребление, потери)</li>
+                <li><strong>Золотой (%)</strong> - изменения процентов (мораль, счастье, защита)</li>
+            </ul>
+            
+            <h3>📱 Анимация:</h3>
+            <ul>
+                <li>Индикатор появляется над ресурсом</li>
+                <li>Плавно поднимается вверх</li>
+                <li>Увеличивается и исчезает через 2 секунды</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎮 Тестирование индикаторов</h2>
+        
+        <div class="resources-grid">
+            <div class="resource-item" id="food">
+                <div class="resource-icon">🍖</div>
+                <div class="resource-value">100</div>
+            </div>
+            <div class="resource-item" id="water">
+                <div class="resource-icon">💧</div>
+                <div class="resource-value">80</div>
+            </div>
+            <div class="resource-item" id="money">
+                <div class="resource-icon">💰</div>
+                <div class="resource-value">500</div>
+            </div>
+            <div class="resource-item" id="wood">
+                <div class="resource-icon">🪵</div>
+                <div class="resource-value">25</div>
+            </div>
+            <div class="resource-item" id="metal">
+                <div class="resource-icon">🔩</div>
+                <div class="resource-value">15</div>
+            </div>
+            <div class="resource-item" id="happiness">
+                <div class="resource-icon">😊</div>
+                <div class="resource-value">85%</div>
+            </div>
+            <div class="resource-item" id="defense">
+                <div class="resource-icon">🛡️</div>
+                <div class="resource-value">90%</div>
+            </div>
+            <div class="resource-item" id="comfort">
+                <div class="resource-icon">🛋️</div>
+                <div class="resource-value">75%</div>
+            </div>
+            <div class="resource-item" id="moral">
+                <div class="resource-icon">⭐</div>
+                <div class="resource-value">80%</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <h3>➕ Добавление ресурсов:</h3>
+            <button onclick="testResourceChange('food', 5)">🍖 +5 еды</button>
+            <button onclick="testResourceChange('water', 10)">💧 +10 воды</button>
+            <button onclick="testResourceChange('money', 100)">💰 +100 денег</button>
+            <button onclick="testResourceChange('wood', 3)">🪵 +3 дерева</button>
+            <button onclick="testResourceChange('metal', 2)">🔩 +2 металла</button>
+        </div>
+
+        <div class="controls">
+            <h3>➖ Расход ресурсов:</h3>
+            <button class="negative" onclick="testResourceChange('food', -3)">🍖 -3 еды</button>
+            <button class="negative" onclick="testResourceChange('water', -5)">💧 -5 воды</button>
+            <button class="negative" onclick="testResourceChange('money', -50)">💰 -50 денег</button>
+            <button class="negative" onclick="testResourceChange('wood', -1)">🪵 -1 дерева</button>
+            <button class="negative" onclick="testResourceChange('metal', -1)">🔩 -1 металла</button>
+        </div>
+
+        <div class="controls">
+            <h3>📊 Изменения процентов:</h3>
+            <button class="percentage" onclick="testResourceChange('happiness', 5, true)">😊 +5% счастья</button>
+            <button class="percentage" onclick="testResourceChange('happiness', -3, true)">😊 -3% счастья</button>
+            <button class="percentage" onclick="testResourceChange('defense', 10, true)">🛡️ +10% защиты</button>
+            <button class="percentage" onclick="testResourceChange('defense', -5, true)">🛡️ -5% защиты</button>
+            <button class="percentage" onclick="testResourceChange('comfort', 8, true)">🛋️ +8% комфорта</button>
+            <button class="percentage" onclick="testResourceChange('comfort', -2, true)">🛋️ -2% комфорта</button>
+            <button class="percentage" onclick="testResourceChange('moral', 7, true)">⭐ +7% морали</button>
+            <button class="percentage" onclick="testResourceChange('moral', -4, true)">⭐ -4% морали</button>
+        </div>
+
+        <div class="controls">
+            <h3>🧪 Специальные тесты:</h3>
+            <button onclick="testProduction()">🏭 Симуляция производства</button>
+            <button onclick="testConsumption()">🍽️ Симуляция потребления</button>
+            <button onclick="testMixedChanges()">🔄 Смешанные изменения</button>
+            <button onclick="clearLog()">🧹 Очистить лог</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // Имитация данных ресурсов
+        let resources = {
+            food: 100,
+            water: 80,
+            money: 500,
+            wood: 25,
+            metal: 15,
+            happiness: 85,
+            defense: 90,
+            comfort: 75,
+            moral: 80
+        };
+
+        // Функция логирования
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollTop + 1000;
+        }
+
+        // Функция тестирования изменения ресурса
+        function testResourceChange(resourceId, change, isPercentage = false) {
+            const oldValue = resources[resourceId];
+            resources[resourceId] += change;
+            
+            // Обновляем отображение
+            updateResourceDisplay(resourceId);
+            
+            // Показываем индикатор
+            if (window.forceCheckResourceChange) {
+                window.forceCheckResourceChange(resourceId, change, false, isPercentage);
+                log(`✅ Показан индикатор для ${resourceId}: ${change > 0 ? '+' : ''}${change}${isPercentage ? '%' : ' ед'}`);
+            } else {
+                log(`❌ Функция forceCheckResourceChange не найдена`);
+            }
+            
+            log(`📊 ${resourceId}: ${oldValue}${isPercentage ? '%' : ''} → ${resources[resourceId]}${isPercentage ? '%' : ''} (${change > 0 ? '+' : ''}${change}${isPercentage ? '%' : ' ед'})`);
+        }
+
+        // Функция обновления отображения ресурса
+        function updateResourceDisplay(resourceId) {
+            const element = document.getElementById(resourceId);
+            if (element) {
+                const valueElement = element.querySelector('.resource-value');
+                if (valueElement) {
+                    const value = resources[resourceId];
+                    if (['happiness', 'defense', 'comfort', 'moral'].includes(resourceId)) {
+                        valueElement.textContent = `${value}%`;
+                    } else {
+                        valueElement.textContent = value;
+                    }
+                }
+            }
+        }
+
+        // Симуляция производства ресурсов
+        function testProduction() {
+            log('🏭 Симуляция производства ресурсов...');
+            
+            // Производство еды от повара
+            setTimeout(() => testResourceChange('food', 5), 100);
+            
+            // Производство воды от сантехника
+            setTimeout(() => testResourceChange('water', 4), 300);
+            
+            // Производство дерева от лесоруба
+            setTimeout(() => testResourceChange('wood', 2), 500);
+            
+            // Производство металла от шахтера
+            setTimeout(() => testResourceChange('metal', 1), 700);
+            
+            log('✅ Производство запущено');
+        }
+
+        // Симуляция потребления ресурсов
+        function testConsumption() {
+            log('🍽️ Симуляция потребления ресурсов...');
+            
+            // Потребление еды жителями
+            setTimeout(() => testResourceChange('food', -3), 100);
+            
+            // Потребление воды жителями
+            setTimeout(() => testResourceChange('water', -2), 300);
+            
+            // Снижение морали
+            setTimeout(() => testResourceChange('moral', -2, true), 500);
+            
+            // Снижение счастья
+            setTimeout(() => testResourceChange('happiness', -1, true), 700);
+            
+            log('✅ Потребление запущено');
+        }
+
+        // Смешанные изменения
+        function testMixedChanges() {
+            log('🔄 Симуляция смешанных изменений...');
+            
+            // Одновременные изменения
+            setTimeout(() => {
+                testResourceChange('food', 8);
+                testResourceChange('water', 6);
+                testResourceChange('happiness', 3, true);
+                testResourceChange('defense', 5, true);
+            }, 100);
+            
+            log('✅ Смешанные изменения запущены');
+        }
+
+        // Функция очистки лога
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+            log('🧹 Лог очищен');
+        }
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            log('🚀 Тест индикаторов изменений ресурсов запущен');
+            log('📊 Система показывает визуальные индикаторы при любых изменениях ресурсов');
+            log('🎯 Индикаторы появляются над ресурсами и плавно исчезают');
+            log('');
+            
+            // Проверяем доступность функций
+            if (window.forceCheckResourceChange) {
+                log('✅ Функция forceCheckResourceChange доступна');
+            } else {
+                log('❌ Функция forceCheckResourceChange не найдена');
+            }
+            
+            if (window.showResourceChangeIndicator) {
+                log('✅ Функция showResourceChangeIndicator доступна');
+            } else {
+                log('❌ Функция showResourceChangeIndicator не найдена');
+            }
+            
+            log('');
+        };
+    </script>
+</body>
+</html>
