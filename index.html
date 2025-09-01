@@ -1283,8 +1283,8 @@
             population: gameScene.bunkerResidents ? gameScene.bunkerResidents.length : 0
           };
 
-          // Если это еда или вода, получаем расширенную информацию
-          if (resource === 'food' || resource === 'water') {
+          // Если это еда, вода или ресурсы инженера, получаем расширенную информацию
+          if (['food', 'water', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(resource)) {
             try {
               const detailedInfo = gameScene.getDetailedResourceInfo(resource);
               gameData = {
@@ -1294,6 +1294,47 @@
               console.log(`[openResource] Получена детальная информация для ${resource}:`, detailedInfo);
             } catch (error) {
               console.warn(`[openResource] Ошибка получения детальной информации для ${resource}:`, error);
+            }
+          }
+
+          // Если это показатели, получаем детальную информацию
+          if (resource === 'happiness' && gameScene.getHappinessInfo) {
+            try {
+              const happinessInfo = gameScene.getHappinessInfo();
+              gameData = { ...gameData, ...happinessInfo };
+              console.log(`[openResource] Получена детальная информация о счастье:`, happinessInfo);
+            } catch (error) {
+              console.warn(`[openResource] Ошибка получения информации о счастье:`, error);
+            }
+          }
+
+          if (resource === 'defense' && gameScene.getDefenseInfo) {
+            try {
+              const defenseInfo = gameScene.getDefenseInfo();
+              gameData = { ...gameData, ...defenseInfo };
+              console.log(`[openResource] Получена детальная информация о защите:`, defenseInfo);
+            } catch (error) {
+              console.warn(`[openResource] Ошибка получения информации о защите:`, error);
+            }
+          }
+
+          if (resource === 'comfort' && gameScene.getComfortInfo) {
+            try {
+              const comfortInfo = gameScene.getComfortInfo();
+              gameData = { ...gameData, ...comfortInfo };
+              console.log(`[openResource] Получена детальная информация о комфорте:`, comfortInfo);
+            } catch (error) {
+              console.warn(`[openResource] Ошибка получения информации о комфорте:`, error);
+            }
+          }
+
+          if (resource === 'moral' && gameScene.getMoralInfo) {
+            try {
+              const moralInfo = gameScene.getMoralInfo();
+              gameData = { ...gameData, ...moralInfo };
+              console.log(`[openResource] Получена детальная информация о морали:`, moralInfo);
+            } catch (error) {
+              console.warn(`[openResource] Ошибка получения информации о морали:`, error);
             }
           }
         }
@@ -1660,18 +1701,24 @@
             <div class="resource-details">
               <div class="resource-stat positive">
                 <span>Текущий уровень</span>
-                <span>${data.happiness}%</span>
+                <span>${data.currentLevel || data.happiness}%</span>
               </div>
+              ${data.recoveryRate !== undefined ? `
+              <div class="resource-stat ${data.recoveryRate > 0 ? 'positive' : 'neutral'}">
+                <span>Скорость восстановления</span>
+                <span>${data.recoveryRate > 0 ? `+${data.recoveryRate}% в час` : 'Не восстанавливается'}</span>
+              </div>
+              ` : ''}
               <div class="resource-stat neutral">
                 <span>От чего зависит</span>
-                <span>Уровень комфорта, наличие работы, здоровье</span>
+                <span>${data.dependencies ? data.dependencies.join(', ') : 'Уровень комфорта, наличие работы, здоровье'}</span>
               </div>
               <div class="resource-stat neutral">
                 <span>На что влияет</span>
-                <span>Довольство жителей, возможность ухода, бунты</span>
+                <span>${data.effects ? data.effects.join(', ') : 'Довольство жителей, возможность ухода, бунты'}</span>
               </div>
               <div class="resource-description">
-                <p>Счастье жителей влияет на их производительность и лояльность. Низкий уровень счастья может привести к бунтам и снижению эффективности работы.</p>
+                <p>${data.description || 'Счастье жителей влияет на их производительность и лояльность. Низкий уровень счастья может привести к бунтам и снижению эффективности работы.'}</p>
               </div>
             </div>
           `;
@@ -1682,22 +1729,22 @@
             <div class="resource-details">
               <div class="resource-stat positive">
                 <span>Текущий уровень</span>
-                <span>${data.defense}%</span>
+                <span>${data.currentLevel || data.defense}%</span>
               </div>
-              <div class="resource-stat neutral">
+              <div class="resource-stat ${data.recoveryRate > 0 ? 'positive' : 'neutral'}">
                 <span>Скорость восстановления</span>
-                <span>5 единиц в день</span>
+                <span>${data.recoveryRate > 0 ? `+${data.recoveryRate}% в час` : 'Не восстанавливается'}</span>
               </div>
               <div class="resource-stat neutral">
                 <span>От чего зависит</span>
-                <span>Наличие укреплений, оружия, обученных защитников</span>
+                <span>${data.dependencies ? data.dependencies.join(', ') : 'Наличие укреплений, оружия, обученных защитников'}</span>
               </div>
               <div class="resource-stat neutral">
                 <span>На что влияет</span>
-                <span>Попадание врагов внутрь бункера</span>
+                <span>${data.effects ? data.effects.join(', ') : 'Попадание врагов внутрь бункера'}</span>
               </div>
               <div class="resource-description">
-                <p>Защита бункера включает укрепления стен, вооружение и подготовку жителей к обороне. Высокий уровень защиты снижает риск успешных атак врагов.</p>
+                <p>${data.description || 'Защита бункера включает укрепления стен, вооружение и подготовку жителей к обороне. Высокий уровень защиты снижает риск успешных атак врагов.'}</p>
               </div>
             </div>
           `;
@@ -1836,18 +1883,176 @@
             <div class="resource-details">
               <div class="resource-stat positive">
                 <span>Текущий уровень</span>
-                <span>${data.comfort}%</span>
+                <span>${data.currentLevel || data.comfort}%</span>
               </div>
               <div class="resource-stat neutral">
                 <span>От чего зависит</span>
-                <span>Качество помещений, наличие удобств, освещение</span>
+                <span>${data.dependencies ? data.dependencies.join(', ') : 'Качество помещений, наличие удобств, освещение'}</span>
               </div>
               <div class="resource-stat neutral">
                 <span>На что влияет</span>
-                <span>Привлечение новых жителей</span>
+                <span>${data.effects ? data.effects.join(', ') : 'Привлечение новых жителей'}</span>
               </div>
               <div class="resource-description">
-                <p>Комфорт влияет на мораль и здоровье жителей. Хорошие условия жизни повышают производительность и снижают риск заболеваний.</p>
+                <p>${data.description || 'Комфорт влияет на мораль и здоровье жителей. Хорошие условия жизни повышают производительность и снижают риск заболеваний.'}</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'moral':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Текущий уровень</span>
+                <span>${data.currentLevel || data.moral}%</span>
+              </div>
+              <div class="resource-stat ${data.recoveryRate > 0 ? 'positive' : 'neutral'}">
+                <span>Скорость восстановления</span>
+                <span>${data.recoveryRate > 0 ? `+${data.recoveryRate}% в час` : 'Не восстанавливается'}</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>От чего зависит</span>
+                <span>${data.dependencies ? data.dependencies.join(', ') : 'Комфорт, события в игре, принятие посетителей'}</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>На что влияет</span>
+                <span>${data.effects ? data.effects.join(', ') : 'Качество торговли, риск безумия жителей'}</span>
+              </div>
+              <div class="resource-description">
+                <p>${data.description || 'Мораль отражает общее настроение и сплоченность жителей бункера. Влияет на торговлю и стабильность.'}</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'wood':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.currentAmount || data.wood} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих инженеров</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Работающих инженеров</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-description">
+                <p>Дерево является основным строительным материалом для постройки комнат и крафта. Производится инженерами во время работы. Используется для строительства и ремонта.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'metal':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.currentAmount || data.metal} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих инженеров</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Работающих инженеров</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-description">
+                <p>Металл используется для крафта оружия, инструментов и укреплений. Производится инженерами во время работы. Необходим для создания прочных конструкций.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'coal':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.currentAmount || data.coal} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих инженеров</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Работающих инженеров</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-description">
+                <p>Уголь используется как топливо для отопления и энергетических систем бункера. Производится инженерами во время работы. Критически важен для поддержания температуры.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'nails':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.currentAmount || data.nails} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих инженеров</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Работающих инженеров</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-description">
+                <p>Гвозди используются для скрепления деревянных конструкций и строительства. Производится инженерами во время работы. Необходимы для прочного соединения материалов.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'paper':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.currentAmount || data.paper} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих инженеров</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Работающих инженеров</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-description">
+                <p>Бумага используется для записей, чертежей и документооборота в бункере. Производится инженерами во время работы. Важна для ведения учета и планирования.</p>
+              </div>
+            </div>
+          `;
+          break;
+
+        case 'glass':
+          details = `
+            <div class="resource-details">
+              <div class="resource-stat positive">
+                <span>Общее количество</span>
+                <span>${data.currentAmount || data.glass} единиц</span>
+              </div>
+              <div class="resource-stat positive">
+                <span>Производство от работающих инженеров</span>
+                <span>${data.hourlyProduction || 0} ед./час (${data.dailyProduction || 0} ед./день)</span>
+              </div>
+              <div class="resource-stat neutral">
+                <span>Работающих инженеров</span>
+                <span>${data.workingResidents || 0} чел.</span>
+              </div>
+              <div class="resource-description">
+                <p>Стекло используется для создания окон, приборов и защитных элементов. Производится инженерами во время работы. Необходимо для освещения и наблюдения.</p>
               </div>
             </div>
           `;

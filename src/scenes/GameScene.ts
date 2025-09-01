@@ -224,6 +224,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Получает уровень способности по ID
+   */
+  private getAbilityLevel(abilityId: string): number {
+    // Проверяем, доступна ли функция получения данных о способностях
+    if (typeof window !== 'undefined' && (window as any).getAbilitiesData) {
+      try {
+        const abilitiesData = (window as any).getAbilitiesData()
+        if (abilitiesData) {
+          // Ищем способность во всех категориях
+          for (const category of Object.values(abilitiesData) as any[]) {
+            if (Array.isArray(category)) {
+              const ability = category.find((a: any) => a.id === abilityId)
+              if (ability) {
+                return ability.currentLevel || 0
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`[getAbilityLevel] Ошибка при получении уровня способности ${abilityId}:`, error)
+      }
+    }
+    return 0
+  }
+
+  /**
    * Get current moral value
    */
   private getCurrentMoral(): number {
@@ -302,6 +328,7 @@ export class GameScene extends Phaser.Scene {
 
     let foodProduction = 0
     let waterProduction = 0
+    let engineerProduction: { [key: string]: number } = {}
 
     // Проходим по всем жителям и проверяем их работу
     this.bunkerResidents.forEach(resident => {
@@ -320,6 +347,29 @@ export class GameScene extends Phaser.Scene {
           waterProduction += production
           console.log(`[processHourlyResourceProduction] 🔧 Сантехник ${resident.name} производит ${production} ед. воды`)
         }
+        
+        // Инженер производит случайные ресурсы
+        if (resident.profession === 'инженер') {
+          const production = 2 // 2 ед. случайного ресурса в игровой час
+          const engineerResources = ['wood', 'metal', 'coal', 'nails', 'paper', 'glass']
+          const randomResource = engineerResources[Math.floor(Math.random() * engineerResources.length)]
+          
+          if (!engineerProduction[randomResource]) {
+            engineerProduction[randomResource] = 0
+          }
+          engineerProduction[randomResource] += production
+          
+          console.log(`[processHourlyResourceProduction] 🔨 Инженер ${resident.name} производит ${production} ед. ${randomResource}`)
+        }
+        
+        // Солдат стреляет по врагам
+        if (resident.profession === 'солдат') {
+          console.log(`[processHourlyResourceProduction] 🎯 Солдат ${resident.name} стреляет по врагам`)
+          const success = this.soldierAutoFireWeapon(resident.id)
+          if (!success) {
+            console.log(`[processHourlyResourceProduction] ❌ Солдат ${resident.name} не смог стрелять (нет патронов или погиб)`)
+          }
+        }
       }
     })
 
@@ -335,12 +385,40 @@ export class GameScene extends Phaser.Scene {
     foodProduction += hourlyFoodFromRooms
     waterProduction += hourlyWaterFromRooms
 
-    if (foodProduction > 0 || waterProduction > 0) {
+    // Проверяем, есть ли производство ресурсов
+    const hasEngineerProduction = Object.keys(engineerProduction).length > 0
+    
+    if (foodProduction > 0 || waterProduction > 0 || hasEngineerProduction) {
       console.log(`[processHourlyResourceProduction] 📊 Почасовое производство: еда +${foodProduction} (${hourlyFoodFromRooms} от комнат), вода +${waterProduction} (${hourlyWaterFromRooms} от комнат)`)
       
       // Добавляем ресурсы
       this.food = Math.max(0, Math.round(this.food + foodProduction))
       this.water = Math.max(0, Math.round(this.water + waterProduction))
+      
+      // Добавляем ресурсы инженера
+      Object.entries(engineerProduction).forEach(([resource, amount]) => {
+        console.log(`[processHourlyResourceProduction] 🔨 Добавляем ${amount} ед. ${resource}`)
+        switch (resource) {
+          case 'wood':
+            this.wood = Math.max(0, Math.round(this.wood + amount))
+            break
+          case 'metal':
+            this.metal = Math.max(0, Math.round(this.metal + amount))
+            break
+          case 'coal':
+            this.coal = Math.max(0, Math.round(this.coal + amount))
+            break
+          case 'nails':
+            this.nails = Math.max(0, Math.round(this.nails + amount))
+            break
+          case 'paper':
+            this.paper = Math.max(0, Math.round(this.paper + amount))
+            break
+          case 'glass':
+            this.glass = Math.max(0, Math.round(this.glass + amount))
+            break
+        }
+      })
       
       // Показываем индикаторы изменений от производства ПОСЛЕ обновления ресурсов
       console.log(`[processHourlyResourceProduction] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
@@ -356,11 +434,17 @@ export class GameScene extends Phaser.Scene {
           console.log(`[processHourlyResourceProduction] 🎯 Показываем индикатор для воды: +${waterProduction}`);
           (window as any).forceCheckResourceChange('water', waterProduction, false);
         }
+        
+        // Показываем индикаторы для ресурсов инженера
+        Object.entries(engineerProduction).forEach(([resource, amount]) => {
+          console.log(`[processHourlyResourceProduction] 🎯 Показываем индикатор для ${resource}: +${amount}`);
+          (window as any).forceCheckResourceChange(resource, amount, false);
+        })
       } else {
         console.warn(`[processHourlyResourceProduction] ❌ forceCheckResourceChange недоступен`);
       }
       
-      console.log(`[processHourlyResourceProduction] ✅ Ресурсы обновлены: еда=${this.food}, вода=${this.water}`)
+      console.log(`[processHourlyResourceProduction] ✅ Ресурсы обновлены: еда=${this.food}, вода=${this.water}, дерево=${this.wood}, металл=${this.metal}, уголь=${this.coal}, гвозди=${this.nails}, бумага=${this.paper}, стекло=${this.glass}`)
     } else {
       console.log(`[processHourlyResourceProduction] ℹ️ Нет производства ресурсов в этот час`)
     }
@@ -870,18 +954,53 @@ export class GameScene extends Phaser.Scene {
   private computeSoldierShotsPerHour(skills: Array<{ text: string; positive: boolean }> | undefined): number {
     // База 1 выстрел/час
     let shots = 1
-    if (!Array.isArray(skills)) return shots
+    console.log(`[computeSoldierShotsPerHour] 🎯 Базовая стрельба: ${shots} выстрелов`)
+    
+    if (!Array.isArray(skills)) {
+      console.log(`[computeSoldierShotsPerHour] ❌ Навыки не найдены, возвращаем базовое значение: ${shots}`)
+      return shots
+    }
+    
+    console.log(`[computeSoldierShotsPerHour] 🎯 Навыки солдата: ${skills.map(s => s.text).join(', ')}`)
+    
     // трудолюбивый: +1
-    if (this.hasSkill(skills, 'трудолюбивый')) shots += 1
+    if (this.hasSkill(skills, 'трудолюбивый')) {
+      shots += 1
+      console.log(`[computeSoldierShotsPerHour] ✅ Трудолюбивый: +1 выстрел, итого: ${shots}`)
+    }
     // гений: +2
-    if (this.hasSkill(skills, 'гений')) shots += 2
+    if (this.hasSkill(skills, 'гений')) {
+      shots += 2
+      console.log(`[computeSoldierShotsPerHour] ✅ Гений: +2 выстрела, итого: ${shots}`)
+    }
     // выгоревший: 30% не работает в этот час
-    if (this.hasSkill(skills, 'выгоревший') && Math.random() < 0.3) return 0
+    if (this.hasSkill(skills, 'выгоревший')) {
+      const random = Math.random()
+      console.log(`[computeSoldierShotsPerHour] 🔥 Выгоревший: случайное число ${random.toFixed(3)} (порог 0.3)`)
+      if (random < 0.3) {
+        console.log(`[computeSoldierShotsPerHour] ❌ Выгоревший не работает в этот час`)
+        return 0
+      }
+    }
     // группа инвалидности: -33%
-    if (this.hasSkill(skills, 'группа инвалидности')) shots = Math.max(0, Math.floor(shots * (2 / 3)))
+    if (this.hasSkill(skills, 'группа инвалидности')) {
+      const oldShots = shots
+      shots = Math.max(0, Math.floor(shots * (2 / 3)))
+      console.log(`[computeSoldierShotsPerHour] ♿ Группа инвалидности: ${oldShots} → ${shots} выстрелов`)
+    }
     // лентяй: 60% отдыхает
-    if (this.hasSkill(skills, 'лентяй') && Math.random() < 0.6) return 0
-    return Math.max(0, shots)
+    if (this.hasSkill(skills, 'лентяй')) {
+      const random = Math.random()
+      console.log(`[computeSoldierShotsPerHour] 😴 Лентяй: случайное число ${random.toFixed(3)} (порог 0.6)`)
+      if (random < 0.6) {
+        console.log(`[computeSoldierShotsPerHour] ❌ Лентяй отдыхает в этот час`)
+        return 0
+      }
+    }
+    
+    const finalShots = Math.max(0, shots)
+    console.log(`[computeSoldierShotsPerHour] ✅ Финальное количество выстрелов: ${finalShots}`)
+    return finalShots
   }
   private getBunkerCapacity(): number {
     // 1 "Спальня" = 4 места. Считаем из текущего bunkerView
@@ -893,7 +1012,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private playPistolOnce(): void {
-    if (!this.gunSprite) return
+    console.log(`[playPistolOnce] 🎯 Начинаем анимацию пистолета`)
+    if (!this.gunSprite) {
+      console.log(`[playPistolOnce] ❌ gunSprite не найден`)
+      return
+    }
+    console.log(`[playPistolOnce] ✅ gunSprite найден, запускаем анимацию`)
     this.gunAnimTimer?.remove(false)
     const seq: Array<{ key: string; d: number }> = [
       { key: 'pistol_f00', d: 300 },
@@ -1309,11 +1433,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private fireWeaponOnce(): void {
+  private fireWeaponOnce(skipAmmoConsumption: boolean = false): void {
     // Требуется враг
     if (this.enemyQueueItems.length === 0) return
-    // Тратим патрон (кроме melee)
-    if (this.currentWeapon !== 'melee') {
+    // Тратим патрон (кроме melee), если не пропускаем расход
+    if (this.currentWeapon !== 'melee' && !skipAmmoConsumption) {
       if (this.ammo <= 0) { this.showToast('Нет патронов'); return }
       
       const oldAmmo = this.ammo;
@@ -1333,12 +1457,13 @@ export class GameScene extends Phaser.Scene {
       this.updateAllResources();
     }
     // Анимация выстрела в зависимости от текущего оружия
+    console.log(`[fireWeaponOnce] 🎯 Запускаем анимацию оружия: ${this.currentWeapon}`)
     switch (this.currentWeapon) {
       case 'pistol': this.playPistolOnce(); break
       case 'shotgun': this.playShotgunOnce(); break
       case 'ar': this.playAssaultRifleOnce(); break
       case 'sniper': this.playSniperRifleOnce(); break
-      case 'melee': /* Нет анимации для melee */ break
+      case 'melee': console.log(`[fireWeaponOnce] ℹ️ Нет анимации для melee`); break
     }
 
     // Урон по первому врагу в очереди
@@ -5734,7 +5859,7 @@ export class GameScene extends Phaser.Scene {
   /**
    * Получает расширенную информацию о ресурсах для модальных окон
    */
-  public getDetailedResourceInfo(resourceType: 'food' | 'water'): {
+  public getDetailedResourceInfo(resourceType: 'food' | 'water' | 'wood' | 'metal' | 'coal' | 'nails' | 'paper' | 'glass'): {
     currentAmount: number;
     dailyConsumption: number;
     dailyGain: number;
@@ -5760,27 +5885,44 @@ export class GameScene extends Phaser.Scene {
     if (resourceType === 'food') {
       roomType = 'Столовая';
       roomCount = this.getRoomCount('Столовая');
-    } else {
+    } else if (resourceType === 'water') {
       roomType = 'Туалет';
       roomCount = this.getRoomCount('Туалет');
+    } else {
+      // Для ресурсов инженера нет комнат
+      roomType = 'Нет';
+      roomCount = 0;
     }
     
     // Рассчитываем ежедневные значения
-    // Получаем интервал потребления из конфигурации
-    const configManager = this.configManager;
-    const intervalHours = configManager.getResourceConsumptionInterval(resourceType);
+    let intervalHours: number;
+    let dailyConsumption: number;
+    let consumptionPerResident: number;
+    let dailyGain: number;
     
-    // Количество потреблений в день
-    const consumptionsPerDay = 24 / intervalHours;
-    
-    // Ежедневное потребление = почасовое потребление × количество потреблений в день
-    const dailyConsumption = Math.round(consumptionInfo[`${resourceType}Consumption`] * consumptionsPerDay);
-    
-    const dailyGain = roomCount * 2; // Каждая комната дает 2 единицы в день
-    
-    // Расход на жителя в день = базовое потребление × множитель × количество потреблений в день
-    const baseConsumption = 1; // Из конфигурации
-    const consumptionPerResident = Math.round(baseConsumption * consumptionInfo[`${resourceType}Multiplier`] * consumptionsPerDay);
+    if (resourceType === 'food' || resourceType === 'water') {
+      // Для еды и воды используем существующую логику
+      const configManager = this.configManager;
+      intervalHours = configManager.getResourceConsumptionInterval(resourceType);
+      
+      // Количество потреблений в день
+      const consumptionsPerDay = 24 / intervalHours;
+      
+      // Ежедневное потребление = почасовое потребление × количество потреблений в день
+      dailyConsumption = Math.round(consumptionInfo[`${resourceType}Consumption`] * consumptionsPerDay);
+      
+      dailyGain = roomCount * 2; // Каждая комната дает 2 единицы в день
+      
+      // Расход на жителя в день = базовое потребление × множитель × количество потреблений в день
+      const baseConsumption = 1; // Из конфигурации
+      consumptionPerResident = Math.round(baseConsumption * consumptionInfo[`${resourceType}Multiplier`] * consumptionsPerDay);
+    } else {
+      // Для ресурсов инженера нет потребления
+      intervalHours = 24; // Не потребляются
+      dailyConsumption = 0;
+      consumptionPerResident = 0;
+      dailyGain = 0;
+    }
     
     // Рассчитываем производство ресурсов
     let hourlyProduction = 0;
@@ -5804,55 +5946,307 @@ export class GameScene extends Phaser.Scene {
           hourlyProduction += 4; // Сантехник производит 4 ед. воды в час
           workingResidents++;
           console.log(`[getDetailedResourceInfo] ✅ ${resident.name} (сантехник) работает и производит воду`)
+        } else if (['wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(resourceType) && resident.profession === 'инженер') {
+          // Инженер производит случайные ресурсы, но для расчета берем среднее значение
+          // 2 ед. в час, но только 1/6 времени на каждый ресурс (6 типов ресурсов)
+          hourlyProduction += 2 / 6; // Среднее производство конкретного ресурса
+          workingResidents++;
+          console.log(`[getDetailedResourceInfo] ✅ ${resident.name} (инженер) работает и производит ${resourceType}`)
         }
       } else {
         if (resourceType === 'food' && resident.profession === 'повар') {
           console.log(`[getDetailedResourceInfo] ⚠️ ${resident.name} (повар) не работает, статус: "${resident.status}"`)
         } else if (resourceType === 'water' && resident.profession === 'сантехник') {
           console.log(`[getDetailedResourceInfo] ⚠️ ${resident.name} (сантехник) не работает, статус: "${resident.status}"`)
+        } else if (['wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(resourceType) && resident.profession === 'инженер') {
+          console.log(`[getDetailedResourceInfo] ⚠️ ${resident.name} (инженер) не работает, статус: "${resident.status}"`)
         }
       }
     });
     
-    // Добавляем производство от комнат
+    // Добавляем производство от комнат (только для еды и воды)
     if (resourceType === 'food') {
       hourlyProduction += Math.round((roomCount * 10) / 24); // Столовая: 10 ед. в день
-    } else {
+    } else if (resourceType === 'water') {
       hourlyProduction += Math.round((roomCount * 10) / 24); // Туалет: 10 ед. в день
     }
     
-    const dailyProduction = hourlyProduction * 24;
+    const dailyProduction = Math.round(hourlyProduction * 24);
+    
+    // Получаем текущее количество ресурса
+    let currentAmount: number;
+    switch (resourceType) {
+      case 'food':
+        currentAmount = this.food;
+        break;
+      case 'water':
+        currentAmount = this.water;
+        break;
+      case 'wood':
+        currentAmount = this.wood;
+        break;
+      case 'metal':
+        currentAmount = this.metal;
+        break;
+      case 'coal':
+        currentAmount = this.coal;
+        break;
+      case 'nails':
+        currentAmount = this.nails;
+        break;
+      case 'paper':
+        currentAmount = this.paper;
+        break;
+      case 'glass':
+        currentAmount = this.glass;
+        break;
+      default:
+        currentAmount = 0;
+    }
     
     // Отладочная информация
     console.log(`[getDetailedResourceInfo] ${resourceType}:`, {
       intervalHours,
-      consumptionsPerDay,
-      hourlyConsumption: consumptionInfo[`${resourceType}Consumption`],
-      dailyConsumption,
-      baseConsumption,
-      multiplier: consumptionInfo[`${resourceType}Multiplier`],
-      consumptionPerResident,
-      hourlyProduction,
-      dailyProduction,
-      workingResidents
-    });
-    
-    return {
-      currentAmount: resourceType === 'food' ? this.food : this.water,
       dailyConsumption,
       dailyGain,
       consumptionPerResident,
-      multiplier: consumptionInfo[`${resourceType}Multiplier`],
+      hourlyProduction,
+      dailyProduction,
+      workingResidents,
+      currentAmount
+    });
+    
+    return {
+      currentAmount,
+      dailyConsumption,
+      dailyGain,
+      consumptionPerResident,
+      multiplier: resourceType === 'food' || resourceType === 'water' ? consumptionInfo[`${resourceType}Multiplier`] : 1,
       difficulty: consumptionInfo.difficulty,
       dayNumber: consumptionInfo.dayNumber,
       nextIncreaseDay: consumptionInfo.nextIncreaseDay,
       roomCount,
       roomType,
       intervalHours,
-      hourlyProduction,
+      hourlyProduction: Math.round(hourlyProduction * 100) / 100, // Округляем до 2 знаков
       dailyProduction,
       workingResidents
     };
+  }
+
+  /**
+   * Обрабатывает возвращение жителя с поверхности и дает ресурсы
+   */
+  public handleSurfaceReturn(agent: any, hoursAway: number): void {
+    const profession = (agent.profession || '').toLowerCase()
+    const residentName = this.getResidentName(agent) || 'Неизвестный'
+    console.log(`[handleSurfaceReturn] ${profession} ${residentName} вернулся после ${hoursAway} часов на поверхности`)
+    
+    if (profession === 'охотник') {
+      this.handleHunterReturn(agent, hoursAway)
+    } else if (profession === 'разведчик') {
+      this.handleScoutReturn(agent, hoursAway)
+    }
+  }
+
+  /**
+   * Обрабатывает возвращение охотника с ресурсами
+   */
+  private handleHunterReturn(agent: any, hoursAway: number): void {
+    // Множитель удачи (в будущем будет зависеть от навыков)
+    const luckMultiplier = this.getLuckMultiplier(agent)
+    
+    // Получаем имя охотника из данных жителя
+    const hunterName = this.getResidentName(agent) || 'Неизвестный'
+    
+    // Охотник приносит 1-2 типа ресурсов из: вода, еда, деньги, патроны
+    const hunterResources = ['water', 'food', 'money', 'ammo']
+    const numResourceTypes = Math.floor(Math.random() * 2) + 1 // 1-2 типа
+    const selectedResources = this.getRandomItems(hunterResources, numResourceTypes)
+    
+    let totalResources = 0
+    const resourceDetails: string[] = []
+    
+    selectedResources.forEach(resourceType => {
+      // Количество ресурса зависит от времени на поверхности (2-5 ед. за час)
+      const baseAmount = Math.floor(Math.random() * 4) + 2 // 2-5 ед. за час
+      const amount = Math.round(baseAmount * hoursAway * luckMultiplier)
+      
+      switch (resourceType) {
+        case 'water':
+          this.water = Math.max(0, Math.round(this.water + amount))
+          resourceDetails.push(`${amount} ед. воды`)
+          break
+        case 'food':
+          this.food = Math.max(0, Math.round(this.food + amount))
+          resourceDetails.push(`${amount} ед. еды`)
+          break
+        case 'money':
+          this.money = Math.max(0, Math.round(this.money + amount))
+          resourceDetails.push(`${amount} монет`)
+          break
+        case 'ammo':
+          this.ammo = Math.max(0, Math.round(this.ammo + amount))
+          resourceDetails.push(`${amount} патронов`)
+          break
+      }
+      
+      totalResources += amount
+      console.log(`[handleHunterReturn] Охотник ${hunterName} принес ${amount} ед. ${resourceType} (время на поверхности: ${hoursAway} часов)`)
+      
+      // Показываем индикатор изменения ресурса
+      if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+        (window as any).forceCheckResourceChange(resourceType, amount, false)
+      }
+    })
+    
+    const detailsText = resourceDetails.join(', ')
+    this.showToast(`Охотник ${hunterName} принес: ${detailsText} (всего: ${totalResources} ед.)`)
+  }
+
+  /**
+   * Обрабатывает возвращение разведчика с ресурсами и предметами
+   */
+  private handleScoutReturn(agent: any, hoursAway: number): void {
+    // Множитель удачи (в будущем будет зависеть от навыков)
+    const luckMultiplier = this.getLuckMultiplier(agent)
+    
+    // Получаем имя разведчика из данных жителя
+    const scoutName = this.getResidentName(agent) || 'Неизвестный'
+    
+    // Разведчик приносит 1 тип ресурса из: дерево, металл, гвозди, уголь, бумага, стекло
+    const scoutResources = ['wood', 'metal', 'nails', 'coal', 'paper', 'glass']
+    const selectedResource = scoutResources[Math.floor(Math.random() * scoutResources.length)]
+    
+    // Количество ресурса зависит от времени на поверхности (2-4 ед. за час)
+    const baseAmount = Math.floor(Math.random() * 3) + 2 // 2-4 ед. за час
+    const resourceAmount = Math.round(baseAmount * hoursAway * luckMultiplier)
+    
+    // Добавляем ресурс
+    let resourceName = ''
+    switch (selectedResource) {
+      case 'wood':
+        this.wood = Math.max(0, Math.round(this.wood + resourceAmount))
+        resourceName = 'дерева'
+        break
+      case 'metal':
+        this.metal = Math.max(0, Math.round(this.metal + resourceAmount))
+        resourceName = 'металла'
+        break
+      case 'nails':
+        this.nails = Math.max(0, Math.round(this.nails + resourceAmount))
+        resourceName = 'гвоздей'
+        break
+      case 'coal':
+        this.coal = Math.max(0, Math.round(this.coal + resourceAmount))
+        resourceName = 'угля'
+        break
+      case 'paper':
+        this.paper = Math.max(0, Math.round(this.paper + resourceAmount))
+        resourceName = 'бумаги'
+        break
+      case 'glass':
+        this.glass = Math.max(0, Math.round(this.glass + resourceAmount))
+        resourceName = 'стекла'
+        break
+    }
+    
+    console.log(`[handleScoutReturn] Разведчик ${scoutName} принес ${resourceAmount} ед. ${selectedResource} (время на поверхности: ${hoursAway} часов)`)
+    
+    // Показываем индикатор изменения ресурса
+    if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
+      (window as any).forceCheckResourceChange(selectedResource, resourceAmount, false)
+    }
+    
+    // Разведчик также приносит 1 случайный нестакающийся предмет
+    const randomItem = this.getRandomNonStackableItem()
+    if (randomItem) {
+      // Добавляем предмет в инвентарь бункера
+      const added = this.addItemToBunkerInventory(randomItem.id, 1)
+      if (added) {
+        console.log(`[handleScoutReturn] Разведчик ${scoutName} принес предмет: ${randomItem.name}`)
+        this.showToast(`Разведчик ${scoutName} принес: ${resourceAmount} ед. ${resourceName} и ${randomItem.name}`)
+      } else {
+        this.showToast(`Разведчик ${scoutName} принес: ${resourceAmount} ед. ${resourceName}`)
+      }
+    } else {
+      this.showToast(`Разведчик ${scoutName} принес: ${resourceAmount} ед. ${resourceName}`)
+    }
+  }
+
+  /**
+   * Получает имя жителя по агенту
+   */
+  private getResidentName(agent: any): string | null {
+    // Ищем жителя в списке bunkerResidents по ID агента
+    const resident = this.bunkerResidents.find(r => r.id === agent.id)
+    return resident ? resident.name : null
+  }
+
+  /**
+   * Получает множитель удачи для жителя (в будущем будет зависеть от навыков)
+   */
+  private getLuckMultiplier(agent: any): number {
+    // Пока возвращаем базовый множитель 1.0
+    // В будущем здесь будет проверка навыков: везунчик (x2), неудачник (x0.5)
+    return 1.0
+  }
+
+  /**
+   * Получает случайные элементы из массива
+   */
+  private getRandomItems<T>(array: T[], count: number): T[] {
+    const shuffled = [...array].sort(() => 0.5 - Math.random())
+    return shuffled.slice(0, count)
+  }
+
+  /**
+   * Получает случайный нестакающийся предмет из списка предметов
+   */
+  private getRandomNonStackableItem(): any {
+    // Используем реальные предметы из игры (нестакающиеся - только 1 шт)
+    const nonStackableItems = [
+      'backpack', 'compass', 'map', 'flashlight', 'bottle', 'lighter', 'matches',
+      'multi_tool', 'laptop', 'phone', 'radio', 'gps', 'transmitter',
+      'shirt', 'shirt2', 'pants', 'pants3', 'jacket1', 'jacket2', 'boots', 'hat', 'cap',
+      'medicine', 'medicine2', 'med_backpack', 'book1', 'book2', 'battery'
+    ]
+    
+    const randomItemId = nonStackableItems[Math.floor(Math.random() * nonStackableItems.length)]
+    const itemData = this.getItemById(randomItemId)
+    
+    return itemData ? { id: randomItemId, name: itemData.name, category: itemData.category } : null
+  }
+
+  /**
+   * Добавляет предмет в инвентарь бункера
+   */
+  private addItemToBunkerInventory(itemId: string, quantity: number = 1): boolean {
+    // Проверяем, что предмет существует
+    const itemData = this.getItemById(itemId)
+    if (!itemData) {
+      console.warn(`[addItemToBunkerInventory] Предмет ${itemId} не найден в справочнике`)
+      return false
+    }
+
+    // Ищем существующий предмет в инвентаре
+    const existingItem = this.bunkerInventory.find(item => item && item.id === itemId)
+
+    if (existingItem) {
+      // Если предмет уже есть, увеличиваем количество
+      existingItem.quantity += quantity
+    } else {
+      // Если предмета нет, добавляем его
+      this.bunkerInventory.push({ id: itemId, quantity: quantity })
+    }
+
+    // Обновляем модальное окно инвентаря
+    if (typeof window.populateInventoryModal === 'function') {
+      window.populateInventoryModal(this.getDefaultInventory(), this.inventoryRows)
+    }
+
+    console.log(`[addItemToBunkerInventory] Добавлен предмет: ${itemData.name} (${quantity} шт.)`)
+    return true
   }
 
   /**
@@ -5878,6 +6272,128 @@ export class GameScene extends Phaser.Scene {
       tradingType: tradingInfo.type,
       value: tradingInfo.value,
       description: description
+    }
+  }
+
+  /**
+   * Получает детальную информацию о показателе счастья
+   */
+  public getHappinessInfo(): {
+    currentLevel: number;
+    dependencies: string[];
+    effects: string[];
+    recoveryRate: number;
+    description: string;
+  } {
+    return {
+      currentLevel: this.happiness,
+      dependencies: [
+        'Комфорт (основной фактор)',
+        'Наличие работы у жителей',
+        'Здоровье жителей',
+        'Отсутствие врагов в бункере',
+        'Достаток еды и воды'
+      ],
+      effects: [
+        'Эффективность работы жителей',
+        'Сопротивление безумию',
+        'Качество производимых ресурсов',
+        'Скорость восстановления здоровья'
+      ],
+      recoveryRate: this.comfort > 80 ? 2 : this.comfort > 50 ? 1 : 0,
+      description: 'Счастье жителей - центральный показатель мотивации. Влияет на производительность и лояльность.'
+    }
+  }
+
+  /**
+   * Получает детальную информацию о показателе защиты
+   */
+  public getDefenseInfo(): {
+    currentLevel: number;
+    recoveryRate: number;
+    dependencies: string[];
+    effects: string[];
+    description: string;
+  } {
+    const baseRegeneration = this.configManager.getDefenseRegenerationPerHour()
+    const isRegenerationEnabled = this.configManager.isDefenseRegenerationEnabled()
+    
+    return {
+      currentLevel: this.defense,
+      recoveryRate: isRegenerationEnabled ? baseRegeneration : 0,
+      dependencies: [
+        'Атаки врагов (снижают защиту)',
+        'Количество жителей-солдат',
+        'Наличие укреплений',
+        'Качество оружия'
+      ],
+      effects: [
+        'Комфорт жителей',
+        'Скорость появления врагов',
+        'Эффективность оружия',
+        'Стоимость ремонта'
+      ],
+      description: 'Защита бункера включает укрепления, вооружение и подготовку жителей к обороне.'
+    }
+  }
+
+  /**
+   * Получает детальную информацию о показателе комфорта
+   */
+  public getComfortInfo(): {
+    currentLevel: number;
+    dependencies: string[];
+    effects: string[];
+    description: string;
+  } {
+    return {
+      currentLevel: this.comfort,
+      dependencies: [
+        'Уровень защиты (основной фактор)',
+        'Качество помещений',
+        'Наличие удобств',
+        'Освещение',
+        'Отсутствие повреждений'
+      ],
+      effects: [
+        'Счастье жителей',
+        'Частоту появления новых жителей',
+        'Скорость восстановления морали',
+        'Эффективность работы'
+      ],
+      description: 'Комфорт влияет на мораль и здоровье жителей. Хорошие условия жизни повышают производительность.'
+    }
+  }
+
+  /**
+   * Получает детальную информацию о показателе морали
+   */
+  public getMoralInfo(): {
+    currentLevel: number;
+    recoveryRate: number;
+    dependencies: string[];
+    effects: string[];
+    description: string;
+  } {
+    const comfortRecovery = this.configManager.getMoraleComfortRecovery(this.comfort)
+    
+    return {
+      currentLevel: this.moral,
+      recoveryRate: comfortRecovery,
+      dependencies: [
+        'Комфорт (основной фактор восстановления)',
+        'События в игре',
+        'Принятие/отклонение посетителей',
+        'Убийство врагов',
+        'Строительство комнат'
+      ],
+      effects: [
+        'Качество торговли',
+        'Риск безумия жителей',
+        'Эффективность групповых действий',
+        'Общую атмосферу в бункере'
+      ],
+      description: 'Мораль отражает общее настроение и сплоченность жителей бункера.'
     }
   }
 
@@ -6514,13 +7030,27 @@ export class GameScene extends Phaser.Scene {
 
   // Автоматический выстрел солдата раз в час. Возвращает false, если нет патронов и стрелять нельзя
   public soldierAutoFireWeapon(soldierId?: number): boolean {
+    console.log(`[soldierAutoFireWeapon] 🎯 Начинаем автоматический выстрел солдата ID: ${soldierId}`)
+    console.log(`[soldierAutoFireWeapon] 🎯 Врагов в очереди: ${this.enemyQueueItems.length}`)
+    
     // Если врагов нет — солдат на посту, но не стреляет
-    if (this.enemyQueueItems.length === 0) return true
+    if (this.enemyQueueItems.length === 0) {
+      console.log(`[soldierAutoFireWeapon] ❌ Нет врагов, солдат не стреляет`)
+      return true
+    }
+    
     // Навыки солдата
     const soldier = soldierId != null ? this.bunkerResidents.find(r => r.id === soldierId) : undefined
+    console.log(`[soldierAutoFireWeapon] 🎯 Солдат найден: ${soldier ? soldier.name : 'НЕ НАЙДЕН'}`)
+    
     const skills = soldier?.skills
     const shots = this.computeSoldierShotsPerHour(skills)
-    if (shots <= 0) return true
+    console.log(`[soldierAutoFireWeapon] 🎯 Количество выстрелов в час: ${shots}`)
+    
+    if (shots <= 0) {
+      console.log(`[soldierAutoFireWeapon] ❌ Количество выстрелов <= 0, солдат не стреляет`)
+      return true
+    }
     // Неудачник: шанс 10% умереть при работе
     if (this.hasSkill(skills, 'неудачник') && Math.random() < 0.1 && soldier) {
       this.removeResidentFromBunker(soldier.id, 'погиб при исполнении')
@@ -6528,35 +7058,58 @@ export class GameScene extends Phaser.Scene {
       return false
     }
     // Выполняем shots раз выстрел с модификаторами патронов
+    console.log(`[soldierAutoFireWeapon] 🎯 Начинаем цикл выстрелов: ${shots} выстрелов`)
     for (let i = 0; i < shots; i++) {
-      // Слепой: тратит в 2 раза больше патронов
+      console.log(`[soldierAutoFireWeapon] 🎯 Выстрел ${i + 1}/${shots}`)
+      
+      // Для автоматических выстрелов солдат: базовый расход 1 патрон, навык "слепой" увеличивает расход
+      // Везунчик: 10% не тратит патрон
+      const luckyChance = this.hasSkill(skills, 'везунчик') ? 0.1 : 0
+      
+      // Способность "Осечка": +5% за уровень к шансу не тратить патрон
+      const misfireLevel = this.getAbilityLevel('def_misfire')
+      const misfireChance = misfireLevel * 0.05 // 5% за уровень
+      
+      // Общий шанс не тратить патрон
+      const totalFreeShotChance = luckyChance + misfireChance
+      const freeShot = totalFreeShotChance > 0 && Math.random() < totalFreeShotChance
+      
+      // Слепой: тратит в 2 раза больше патронов (2 вместо 1)
       const extraAmmo = this.hasSkill(skills, 'слепой') ? 1 : 0
-      // Везунчик: 50% не тратит патрон
-      const freeShot = this.hasSkill(skills, 'везунчик') && Math.random() < 0.5
+      const baseAmmoCost = 1
+      const totalAmmoCost = freeShot ? 0 : (baseAmmoCost + extraAmmo)
+      
+      console.log(`[soldierAutoFireWeapon] 🎯 Навыки: слепой=${extraAmmo > 0}, везунчик=${luckyChance > 0}, осечка=${misfireLevel} уровней, бесплатный выстрел=${freeShot}`)
+      console.log(`[soldierAutoFireWeapon] 🎯 Расход патронов: база=${baseAmmoCost}, слепой=+${extraAmmo}, итого=${totalAmmoCost}`)
+      
       if (this.currentWeapon !== 'melee') {
-        const ammoCost = freeShot ? 0 : 1 + extraAmmo
-        if (this.ammo < ammoCost) return false
+        if (this.ammo < totalAmmoCost) return false
         
         const oldAmmo = this.ammo;
-        this.ammo = Math.max(0, Math.round(this.ammo - ammoCost));
+        this.ammo = Math.max(0, Math.round(this.ammo - totalAmmoCost));
         
         // Показываем индикатор изменения патронов
-        console.log(`[shootRifle] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
+        console.log(`[soldierAutoFireWeapon] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
         
         if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
           const ammoChange = this.ammo - oldAmmo;
-          console.log(`[shootRifle] 🎯 Показываем индикатор для патронов: ${ammoChange > 0 ? '+' : ''}${ammoChange} ед`);
+          console.log(`[soldierAutoFireWeapon] 🎯 Показываем индикатор для патронов: ${ammoChange > 0 ? '+' : ''}${ammoChange} ед`);
           (window as any).forceCheckResourceChange('ammo', ammoChange, false);
         } else {
-          console.warn(`[shootRifle] ❌ forceCheckResourceChange недоступен`);
+          console.warn(`[soldierAutoFireWeapon] ❌ forceCheckResourceChange недоступен`);
         }
         
         this.updateAllResources()
       }
-      // Выстрел
-      this.fireWeaponOnce()
-      if (this.enemyQueueItems.length === 0) break
+      // Выстрел (пропускаем расход патронов, так как уже потратили их выше)
+      console.log(`[soldierAutoFireWeapon] 🎯 Вызываем fireWeaponOnce(skipAmmoConsumption=true)`)
+      this.fireWeaponOnce(true)
+      if (this.enemyQueueItems.length === 0) {
+        console.log(`[soldierAutoFireWeapon] ❌ Врагов больше нет, прерываем стрельбу`)
+        break
+      }
     }
+    console.log(`[soldierAutoFireWeapon] ✅ Завершили автоматическую стрельбу солдата`)
     return true
   }
 

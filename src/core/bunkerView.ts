@@ -179,6 +179,12 @@ export class SimpleBunkerView {
     return agent || null;
   }
 
+  // Проверяет, есть ли враги на поверхности (для логики работы солдат)
+  public hasEnemiesOnSurface(): boolean {
+    const sceneAny: any = this.scene as any
+    return sceneAny.enemyQueueItems && sceneAny.enemyQueueItems.length > 0
+  }
+
   /**
    * Удаляет агента жителя по ID
    * Вызывается при смерти жителя для синхронизации с GameScene
@@ -470,9 +476,95 @@ export class SimpleBunkerView {
 
       const prof = (agent.profession || '').toLowerCase()
       if (!['ученый', 'химик', 'безработный', 'бездомный', 'сантехник', 'повар', 'инженер', 'солдат', 'доктор', 'врач', 'охотник', 'разведчик'].includes(prof)) continue
+      
+      // Специальная логика для солдат - работают только при наличии врагов
+      if (prof === 'солдат') {
+        let desired: 'sleep' | 'work' | 'rest' = 'rest'
+        
+        if (this.hasEnemiesOnSurface()) {
+          // Есть враги - солдат работает
+          desired = 'work'
+        } else {
+          // Нет врагов - солдат отдыхает или спит по обычному расписанию
+          const type = agent.schedType || 'normal'
+          if (type === 'normal') {
+            if (hour >= 0 && hour <= 7) desired = 'sleep'
+            else desired = 'rest'
+          } else if (type === 'owl') {
+            if (hour >= 8 && hour <= 21) desired = 'sleep'
+            else desired = 'rest'
+          } else {
+            // insomnia: 4ч sleep, 20ч rest, циклом, со случайным сдвигом
+            const off = agent.insomniaOffsetHour || 0
+            const t = (hour - off + 24) % 24
+            if (t < 4) desired = 'sleep'
+            else desired = 'rest'
+          }
+        }
+        
+        // Применяем новое состояние для солдата
+        if (agent.scheduleState === desired) continue
+        agent.scheduleState = desired
+        
+        // Переход в состояние
+        if (desired === 'work') {
+          const ok = this.tryAssignAndPathToWorkRoom(agent)
+          if (ok) { agent.dwellUntil = Number.MAX_SAFE_INTEGER }
+        } else if (desired === 'sleep') {
+          // Освобождаем лабораторную бронь
+          this.releaseRoomAssignment(agent)
+          // Выбираем ближайшую комнату отдыха с доступным слотом (максимум 4 на комнату)
+          const restIdxs: number[] = []
+          for (let i = 0; i < this.roomNames.length; i++) if (this.roomNames[i] === 'Спальня') restIdxs.push(i)
+          restIdxs.sort((a, b) => {
+            const ra = this.roomRects[a], rb = this.roomRects[b]
+            const dax = (ra.x + ra.width / 2) - agent.rect.x
+            const day = (ra.y + ra.height / 2) - agent.rect.y
+            const dbx = (rb.x + rb.width / 2) - agent.rect.x
+            const dby = (rb.y + rb.height / 2) - agent.rect.y
+            return (dax * dax + day * day) - (dbx * dbx + dby * dby)
+          })
+          for (const idx of restIdxs) {
+            const slots = this.ensureSleepEntry(idx)
+            if (slots.size >= 4) continue
+            // точки для сна — первые 4
+            const pts = this.getRoomStopPoints(idx).slice(0, 4)
+            let chosen = -1
+            for (let s = 0; s < pts.length; s++) { if (!slots.has(s)) { chosen = s; break } }
+            if (chosen < 0) continue
+            const target = pts[chosen]
+            this.buildPathTo(agent, idx, target, false)
+            ;(agent as any).sleepAssignedRoomIndex = idx
+            ;(agent as any).sleepAssignedSlotIndex = chosen
+            slots.add(chosen)
+            agent.sleeping = true
+            agent.dwellUntil = Number.MAX_SAFE_INTEGER
+            break
+          }
+        } else {
+          // rest — освободить бронь, разрешить блуждание
+          this.releaseRoomAssignment(agent)
+          agent.sleeping = false
+          // освободить слот сна, если был
+          if ((agent as any).sleepAssignedRoomIndex != null && (agent as any).sleepAssignedSlotIndex != null) {
+            const ridx = (agent as any).sleepAssignedRoomIndex as number
+            const sidx = (agent as any).sleepAssignedSlotIndex as number
+            const slots = this.ensureSleepEntry(ridx)
+            slots.delete(sidx)
+            ;(agent as any).sleepAssignedRoomIndex = undefined
+            ;(agent as any).sleepAssignedSlotIndex = undefined
+          }
+          agent.dwellUntil = undefined
+        }
+        
+        // Пушим статус немедленно после смены расписания
+        this.pushAgentStatus(agent)
+        continue // Пропускаем обычную логику расписания для солдат
+      }
+      
       const type = agent.schedType || 'normal'
       let desired: 'sleep' | 'work' | 'rest' = 'rest'
-      const workerProf = ['ученый','химик','сантехник','повар','инженер','солдат','доктор','врач','охотник','разведчик'].includes(prof)
+      const workerProf = ['ученый','химик','сантехник','повар','инженер','доктор','врач','охотник','разведчик'].includes(prof)
       const surfaceProf = prof === 'охотник' || prof === 'разведчик'
       if (type === 'normal') {
         if (hour >= 0 && hour <= 7) desired = 'sleep'
@@ -529,7 +621,7 @@ export class SimpleBunkerView {
           const role: 'chemist' | 'scientist' = (prof === 'химик') ? 'chemist' : 'scientist'
           const ok = this.tryAssignAndPathToLab(agent, role)
           if (ok) { agent.dwellUntil = Number.MAX_SAFE_INTEGER; agent.settled = false }
-        } else if (['сантехник','повар','инженер','солдат','доктор','врач'].includes(prof)) {
+        } else if (['сантехник','повар','инженер','доктор','врач'].includes(prof)) {
           const ok = this.tryAssignAndPathToWorkRoom(agent)
           if (ok) { agent.dwellUntil = Number.MAX_SAFE_INTEGER }
         } else if (prof === 'охотник' || prof === 'разведчик') {
@@ -6043,6 +6135,7 @@ export class SimpleBunkerView {
             }
             ;(agent as any).away = true
               ;(agent as any)._surfacePending = false
+              ;(agent as any).awayTime = this.scene.time.now // Записываем время ухода на поверхность
               this.showNotification(`${agent.profession} ушел на поверхность`, 'info')
             }
           }
@@ -6070,6 +6163,16 @@ export class SimpleBunkerView {
             agent.rect.setPosition(cx, cy)
           }
           ;(agent as any).away = false
+          
+          // Обрабатываем возвращение с ресурсами
+          const gameScene = this.scene as any
+          if (gameScene && gameScene.handleSurfaceReturn) {
+            const awayTime = (agent as any).awayTime || 0
+            // В Phaser время в миллисекундах, переводим в игровые часы (1 игровой час = 1 реальная минута)
+            const hoursAway = Math.max(1, Math.floor((this.scene.time.now - awayTime) / (1000 * 60))) // Минимум 1 час
+            gameScene.handleSurfaceReturn(agent, hoursAway)
+          }
+          
           this.showNotification(`${agent.profession} вернулся`, 'success')
           
           // Перерисовываем шкалу здоровья при возвращении с поверхности

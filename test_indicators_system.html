@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест системы показателей</title>
+    <style>
+        body {
+            font-family: 'Press Start 2P', monospace;
+            background: #000;
+            color: #fff;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 2px solid #ff0000;
+            border-radius: 8px;
+        }
+        .indicator-info {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-left: 4px solid #ff0000;
+        }
+        .positive { border-left-color: #4CAF50; }
+        .neutral { border-left-color: #FF9800; }
+        .negative { border-left-color: #f44336; }
+        button {
+            background: #ff0000;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест системы показателей</h1>
+    
+    <div class="test-section">
+        <h2>📊 Информация о показателях</h2>
+        <p>Этот тест проверяет работу новых функций получения информации о показателях.</p>
+        
+        <button onclick="testHappinessInfo()">Тест счастья</button>
+        <button onclick="testDefenseInfo()">Тест защиты</button>
+        <button onclick="testComfortInfo()">Тест комфорта</button>
+        <button onclick="testMoralInfo()">Тест морали</button>
+        <button onclick="clearResults()">Очистить</button>
+    </div>
+
+    <div id="results" class="test-section">
+        <h2>📋 Результаты тестов</h2>
+        <div id="test-output"></div>
+    </div>
+
+    <script>
+        // Симуляция данных GameScene для тестирования
+        const mockGameScene = {
+            happiness: 75,
+            defense: 60,
+            comfort: 80,
+            moral: 45,
+            configManager: {
+                getDefenseRegenerationPerHour: () => 1,
+                isDefenseRegenerationEnabled: () => true,
+                getMoraleComfortRecovery: (comfort) => comfort > 80 ? 0.5 : comfort > 60 ? 0.2 : 0
+            }
+        };
+
+        // Симуляция функций GameScene
+        function getHappinessInfo() {
+            return {
+                currentLevel: mockGameScene.happiness,
+                dependencies: [
+                    'Комфорт (основной фактор)',
+                    'Наличие работы у жителей',
+                    'Здоровье жителей',
+                    'Отсутствие врагов в бункере',
+                    'Достаток еды и воды'
+                ],
+                effects: [
+                    'Эффективность работы жителей',
+                    'Сопротивление безумию',
+                    'Качество производимых ресурсов',
+                    'Скорость восстановления здоровья'
+                ],
+                recoveryRate: mockGameScene.comfort > 80 ? 2 : mockGameScene.comfort > 50 ? 1 : 0,
+                description: 'Счастье жителей - центральный показатель мотивации. Влияет на производительность и лояльность.'
+            };
+        }
+
+        function getDefenseInfo() {
+            const baseRegeneration = mockGameScene.configManager.getDefenseRegenerationPerHour();
+            const isRegenerationEnabled = mockGameScene.configManager.isDefenseRegenerationEnabled();
+            
+            return {
+                currentLevel: mockGameScene.defense,
+                recoveryRate: isRegenerationEnabled ? baseRegeneration : 0,
+                dependencies: [
+                    'Атаки врагов (снижают защиту)',
+                    'Количество жителей-солдат',
+                    'Наличие укреплений',
+                    'Качество оружия'
+                ],
+                effects: [
+                    'Комфорт жителей',
+                    'Скорость появления врагов',
+                    'Эффективность оружия',
+                    'Стоимость ремонта'
+                ],
+                description: 'Защита бункера включает укрепления, вооружение и подготовку жителей к обороне.'
+            };
+        }
+
+        function getComfortInfo() {
+            return {
+                currentLevel: mockGameScene.comfort,
+                dependencies: [
+                    'Уровень защиты (основной фактор)',
+                    'Качество помещений',
+                    'Наличие удобств',
+                    'Освещение',
+                    'Отсутствие повреждений'
+                ],
+                effects: [
+                    'Счастье жителей',
+                    'Частоту появления новых жителей',
+                    'Скорость восстановления морали',
+                    'Эффективность работы'
+                ],
+                description: 'Комфорт влияет на мораль и здоровье жителей. Хорошие условия жизни повышают производительность.'
+            };
+        }
+
+        function getMoralInfo() {
+            const comfortRecovery = mockGameScene.configManager.getMoraleComfortRecovery(mockGameScene.comfort);
+            
+            return {
+                currentLevel: mockGameScene.moral,
+                recoveryRate: comfortRecovery,
+                dependencies: [
+                    'Комфорт (основной фактор восстановления)',
+                    'События в игре',
+                    'Принятие/отклонение посетителей',
+                    'Убийство врагов',
+                    'Строительство комнат'
+                ],
+                effects: [
+                    'Качество торговли',
+                    'Риск безумия жителей',
+                    'Эффективность групповых действий',
+                    'Общую атмосферу в бункере'
+                ],
+                description: 'Мораль отражает общее настроение и сплоченность жителей бункера.'
+            };
+        }
+
+        function displayIndicatorInfo(name, info) {
+            const output = document.getElementById('test-output');
+            const div = document.createElement('div');
+            div.className = 'indicator-info';
+            
+            let html = `<h3>${name}</h3>`;
+            html += `<p><strong>Текущий уровень:</strong> ${info.currentLevel}%</p>`;
+            
+            if (info.recoveryRate !== undefined) {
+                const recoveryClass = info.recoveryRate > 0 ? 'positive' : 'neutral';
+                html += `<p class="${recoveryClass}"><strong>Скорость восстановления:</strong> ${info.recoveryRate > 0 ? `+${info.recoveryRate}% в час` : 'Не восстанавливается'}</p>`;
+            }
+            
+            html += `<p><strong>От чего зависит:</strong> ${info.dependencies.join(', ')}</p>`;
+            html += `<p><strong>На что влияет:</strong> ${info.effects.join(', ')}</p>`;
+            html += `<p><strong>Описание:</strong> ${info.description}</p>`;
+            
+            div.innerHTML = html;
+            output.appendChild(div);
+        }
+
+        function testHappinessInfo() {
+            const info = getHappinessInfo();
+            displayIndicatorInfo('😊 Счастье', info);
+        }
+
+        function testDefenseInfo() {
+            const info = getDefenseInfo();
+            displayIndicatorInfo('🛡️ Защита', info);
+        }
+
+        function testComfortInfo() {
+            const info = getComfortInfo();
+            displayIndicatorInfo('🛋️ Комфорт', info);
+        }
+
+        function testMoralInfo() {
+            const info = getMoralInfo();
+            displayIndicatorInfo('💪 Мораль', info);
+        }
+
+        function clearResults() {
+            document.getElementById('test-output').innerHTML = '';
+        }
+
+        // Автоматически запускаем тест всех показателей при загрузке
+        window.onload = function() {
+            console.log('🧪 Запуск автоматического теста системы показателей...');
+            testHappinessInfo();
+            testDefenseInfo();
+            testComfortInfo();
+            testMoralInfo();
+        };
+    </script>
+</body>
+</html>

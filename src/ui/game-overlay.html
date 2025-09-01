@@ -2947,10 +2947,10 @@
             const rect = resourceElement.getBoundingClientRect();
             console.log(`[showResourceChangeIndicator] 📍 Позиция элемента ${resourceId}:`, rect);
             
-            // Позиционируем как toast уведомления - фиксированно относительно viewport
+            // Позиционируем над контейнером ресурса по вертикали
             indicator.style.left = `${rect.left + rect.width / 2}px`;
-            indicator.style.top = `${Math.max(20, rect.top - 10)}px`; // Минимум 20px от верха экрана
-            console.log(`[showResourceChangeIndicator] 📍 Позиция индикатора: left=${indicator.style.left}, top=${indicator.style.top}`);
+            indicator.style.top = `${Math.max(20, rect.top - 50)}px`; // Увеличиваем отступ сверху для отображения над контейнером
+            console.log(`[showResourceChangeIndicator] 📍 Позиция индикатора над контейнером: left=${indicator.style.left}, top=${indicator.style.top}`);
 
             // Добавляем в body для глобального позиционирования
             document.body.appendChild(indicator);
@@ -2961,20 +2961,20 @@
             console.log(`[showResourceChangeIndicator] 🔍 Computed styles:`, window.getComputedStyle(indicator));
             console.log(`[showResourceChangeIndicator] ✅ Индикатор добавлен в DOM:`, indicator);
 
-            // Анимация через JavaScript
+            // Анимация через JavaScript - движение вверх над контейнером
             let opacity = 1;
             let translateY = 0;
             let scale = 1;
             
             const animate = () => {
-                opacity -= 0.02;
-                translateY -= 1;
-                scale -= 0.005;
+                opacity -= 0.015; // Медленнее исчезает
+                translateY -= 1.5; // Быстрее движется вверх
+                scale -= 0.003; // Медленнее уменьшается
                 
                 indicator.style.opacity = opacity;
-                indicator.style.transform = `translateY(${translateY}px) scale(${scale})`;
+                indicator.style.transform = `translateX(-50%) translateY(${translateY}px) scale(${scale})`;
                 
-                if (opacity > 0 && scale > 0.5) {
+                if (opacity > 0 && scale > 0.6) {
                     requestAnimationFrame(animate);
                 } else {
                     // Удаляем индикатор после анимации
