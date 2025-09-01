@@ -370,6 +370,20 @@ export class GameScene extends Phaser.Scene {
             console.log(`[processHourlyResourceProduction] ❌ Солдат ${resident.name} не смог стрелять (нет патронов или погиб)`)
           }
         }
+        
+        // Химик производит опыт
+        if (resident.profession === 'химик') {
+          const experienceProduction = 2 // 2 ед. опыта в игровой час
+          this.addBunkerExperience(experienceProduction)
+          console.log(`[processHourlyResourceProduction] 🧪 Химик ${resident.name} производит ${experienceProduction} ед. опыта`)
+        }
+        
+        // Ученый производит опыт
+        if (resident.profession === 'ученый') {
+          const experienceProduction = 2 // 2 ед. опыта в игровой час
+          this.addBunkerExperience(experienceProduction)
+          console.log(`[processHourlyResourceProduction] 🔬 Ученый ${resident.name} производит ${experienceProduction} ед. опыта`)
+        }
       }
     })
 
