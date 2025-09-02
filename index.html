@@ -173,6 +173,22 @@
     openJournal = window.openJournal;
     openAbilities = window.openAbilities;
 
+    // Инициализация блока источника информации при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function() {
+      // Проверяем, есть ли уже активный источник информации
+      setTimeout(function() {
+        if (window.game && window.game.scene) {
+          const gameScene = window.game.scene.getScene('Game');
+          if (gameScene && typeof gameScene.getActiveQuestItem === 'function') {
+            const activeQuestItem = gameScene.getActiveQuestItem();
+            if (activeQuestItem && typeof window.updateActiveInfoSource === 'function') {
+              window.updateActiveInfoSource(activeQuestItem);
+            }
+          }
+        }
+      }, 1000); // Даем время на инициализацию Phaser
+    });
+
     // Функция для открытия журнала уведомлений
     window.openJournal = function() {
 

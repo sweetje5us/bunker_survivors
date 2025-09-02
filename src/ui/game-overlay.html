@@ -2951,7 +2951,558 @@
       </div>
     </div>
 
+    <!-- Стили для блока источника информации -->
+    <style>
+        /* Основные стили блока источника информации */
+        .info-source-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 350px;
+            max-height: 500px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid var(--bunker-gold);
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+            z-index: 10000;
+            pointer-events: auto;
+            font-family: 'Press Start 2P', monospace;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
 
+        /* Заголовок с иконкой и названием */
+        .info-source-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(212, 175, 55, 0.1);
+            border-bottom: 1px solid var(--bunker-gold);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+
+        .info-source-header:hover {
+            background: rgba(212, 175, 55, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .source-icon {
+            font-size: 20px;
+            color: var(--bunker-gold);
+            margin-right: 10px;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .source-name {
+            flex: 1;
+            color: var(--bunker-gold);
+            font-size: 10px;
+            text-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
+            transition: color 0.3s ease;
+        }
+
+        .info-source-header:hover .source-name {
+            color: #ffffff;
+        }
+
+        .source-close-btn {
+            background: none;
+            border: none;
+            color: var(--bunker-gold);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .source-toggle-indicator {
+            color: var(--bunker-gold);
+            font-size: 12px;
+            transition: transform 0.3s ease;
+            margin-left: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .info-source-header:hover .source-toggle-indicator {
+            transform: scale(1.1);
+        }
+
+        .info-source-panel.collapsed .source-toggle-indicator {
+            transform: rotate(180deg);
+        }
+
+        /* Блок информации */
+        .info-content {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 16px;
+            color: #ffffff;
+            font-size: 9px;
+            transition: all 0.3s ease;
+        }
+
+        /* Свернутое состояние блока */
+        .info-source-panel.collapsed .info-content,
+        .info-source-panel.collapsed .quests-content {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        .info-source-panel.collapsed {
+            max-height: 60px;
+            overflow: hidden;
+        }
+
+        /* Стили для разных источников информации */
+
+        /* Карта - Сокровища и секреты */
+        .info-source-map .info-content {
+            position: relative;
+            background: linear-gradient(135deg, #8B4513 0%, #DAA520 100%);
+            border: 2px solid #DAA520;
+            box-shadow: inset 0 0 20px rgba(218, 165, 32, 0.3);
+        }
+
+        .info-source-map .info-source-header {
+            background: rgba(218, 165, 32, 0.2);
+            border-bottom: 1px solid #DAA520;
+        }
+
+        .map-square {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: rgba(212, 175, 55, 0.8);
+            border: 2px solid var(--bunker-gold);
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: #000;
+            font-weight: bold;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .map-square:hover {
+            background: rgba(212, 175, 55, 1);
+            transform: scale(1.05);
+        }
+
+        .map-square:active {
+            cursor: grabbing;
+        }
+
+        /* Телефон - Мародеры */
+        .info-source-phone .info-content {
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            border: 2px solid #FF6B35;
+            box-shadow: inset 0 0 20px rgba(255, 107, 53, 0.3);
+        }
+
+        .info-source-phone .info-source-header {
+            background: rgba(255, 107, 53, 0.2);
+            border-bottom: 1px solid #FF6B35;
+        }
+
+        .sms-message {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 12px;
+            position: relative;
+            max-width: 80%;
+        }
+
+        .sms-message.incoming {
+            margin-right: auto;
+            margin-left: 0;
+        }
+
+        .sms-message.outgoing {
+            margin-left: auto;
+            margin-right: 0;
+            background: var(--bunker-gold);
+            color: #000;
+        }
+
+        .sms-reply-options {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .sms-reply-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .sms-reply-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* GPS - Повстанцы */
+        .info-source-gps .info-content {
+            background: linear-gradient(135deg, #DC143C 0%, #8B0000 100%);
+            border: 2px solid #DC143C;
+            box-shadow: inset 0 0 20px rgba(220, 20, 60, 0.3);
+        }
+
+        .info-source-gps .info-source-header {
+            background: rgba(220, 20, 60, 0.2);
+            border-bottom: 1px solid #DC143C;
+        }
+
+        .gps-message {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #11998e;
+        }
+
+        .gps-coordinates {
+            font-weight: bold;
+            color: #11998e;
+            margin-bottom: 4px;
+        }
+
+        /* Laptop - Свобода */
+        .info-source-laptop .info-content {
+            background: linear-gradient(135deg, #32CD32 0%, #228B22 100%);
+            border: 2px solid #32CD32;
+            box-shadow: inset 0 0 20px rgba(50, 205, 50, 0.3);
+        }
+
+        .info-source-laptop .info-source-header {
+            background: rgba(50, 205, 50, 0.2);
+            border-bottom: 1px solid #32CD32;
+        }
+
+        .email-message {
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        .email-header {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+
+        .email-from {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .email-subject {
+            font-size: 10px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .email-body {
+            font-size: 9px;
+            line-height: 1.4;
+        }
+
+        /* Трансмиттер - Тайна */
+        .info-source-transmitter .info-content {
+            background: linear-gradient(135deg, #4B0082 0%, #8B008B 100%);
+            border: 2px solid #9370DB;
+            box-shadow: inset 0 0 20px rgba(147, 112, 219, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .info-source-transmitter .info-source-header {
+            background: rgba(147, 112, 219, 0.2);
+            border-bottom: 1px solid #9370DB;
+        }
+
+        .ticker-text {
+            white-space: nowrap;
+            animation: ticker 15s linear infinite;
+            font-size: 10px;
+            color: var(--bunker-gold);
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.8);
+        }
+
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* Рация - Штаб */
+        .info-source-radio .info-content {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            border: 2px solid #FFD700;
+            box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.3);
+            position: relative;
+        }
+
+        .info-source-radio .info-source-header {
+            background: rgba(255, 215, 0, 0.2);
+            border-bottom: 1px solid #FFD700;
+        }
+
+        .radio-message {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            animation: radioPopup 0.5s ease-out;
+            border: 2px solid #ff6b6b;
+        }
+
+        @keyframes radioPopup {
+            0% {
+                opacity: 0;
+                transform: translateY(20px) scale(0.8);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Блок заданий */
+        .quests-content {
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.8);
+            border-top: 1px solid var(--bunker-border);
+        }
+
+        .quests-header {
+            color: var(--bunker-gold);
+            font-size: 10px;
+            margin-bottom: 8px;
+            text-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
+        }
+
+        .quest-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 8px;
+        }
+
+        .quest-text {
+            color: #ffffff;
+            font-size: 8px;
+        }
+
+        .quest-status {
+            font-size: 12px;
+        }
+
+        /* Система сообщений */
+        .message-content {
+            margin-bottom: 16px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .message-sender {
+            color: var(--bunker-gold);
+            font-size: 9px;
+            font-weight: bold;
+        }
+
+        .message-time {
+            color: #cccccc;
+            font-size: 7px;
+        }
+
+        .message-text {
+            color: #ffffff;
+            font-size: 8px;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .message-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 7px;
+            font-family: 'Press Start 2P', monospace;
+            transition: all 0.3s ease;
+        }
+
+        .message-btn.accept {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .message-btn.accept:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .message-btn.decline {
+            background: #f44336;
+            color: white;
+        }
+
+        .message-btn.decline:hover {
+            background: #da190b;
+            transform: translateY(-1px);
+        }
+
+        .message-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Состояние активного задания */
+        .quest-active {
+            border-color: var(--bunker-gold);
+            background: rgba(212, 175, 55, 0.1);
+        }
+
+        .quest-completed {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        /* Новые стили для блока заданий */
+        .quest-info {
+            flex: 1;
+        }
+
+        .quest-title {
+            color: var(--bunker-gold);
+            font-size: 9px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .quest-description {
+            color: #ffffff;
+            font-size: 7px;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+
+        .quest-reward {
+            color: #cccccc;
+            font-size: 6px;
+            font-style: italic;
+        }
+
+        .quest-progress {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .quest-progress-bar {
+            width: 60px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .quest-progress-fill {
+            height: 100%;
+            background: var(--bunker-gold);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .quest-completed .quest-progress-fill {
+            background: #4CAF50;
+        }
+
+        .quest-status-text {
+            font-size: 6px;
+            color: #ffffff;
+            text-align: center;
+        }
+
+        .no-quests {
+            justify-content: center !important;
+            text-align: center;
+        }
+
+        .no-quests .quest-text {
+            color: #cccccc !important;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .info-source-panel {
+                width: 300px;
+                right: 10px;
+                bottom: 10px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .info-source-panel {
+                max-height: 400px;
+            }
+
+            .info-content {
+                max-height: 200px;
+            }
+        }
+    </style>
 
 <script>
         // Game UI Bridge - connects Phaser game data to HTML overlay
@@ -3596,6 +4147,613 @@
             }
         }
 
+        // ===== Функции управления блоком источника информации =====
+
+        // Показать блок источника информации
+        window.showInfoSourcePanel = function(questItem) {
+            const panel = document.getElementById('info-source-panel');
+            const iconElement = document.getElementById('source-icon');
+            const nameElement = document.getElementById('source-name');
+            const contentElement = document.getElementById('info-content');
+
+            if (panel && iconElement && nameElement && contentElement) {
+                // Устанавливаем иконку и название
+                iconElement.textContent = getQuestItemIcon(questItem.id);
+                const factionData = getFactionData(questItem.id);
+                nameElement.textContent = factionData.name;
+
+                // Устанавливаем класс стиля в зависимости от типа источника
+                panel.className = 'info-source-panel ' + getSourceClass(questItem.id);
+
+                // Заполняем контент в зависимости от типа источника
+                contentElement.innerHTML = getSourceContent(questItem.id);
+
+                // Показываем панель (убираем collapsed класс, если он был)
+                panel.style.display = 'block';
+                panel.classList.remove('collapsed');
+
+                // Добавляем обработчики для специальных элементов
+                if (questItem.id === 'map') {
+                    setTimeout(() => setupMapDragging(), 100);
+                }
+
+                // Обновляем отображение заданий
+                updateQuestsDisplay(questItem.id);
+            }
+        };
+
+        // Скрыть блок источника информации
+        window.hideInfoSourcePanel = function() {
+            const panel = document.getElementById('info-source-panel');
+            if (panel) {
+                panel.style.display = 'none';
+            }
+        };
+
+        // Получить иконку для квестового предмета
+        function getQuestItemIcon(itemId) {
+            const icons = {
+                'map': '🗺️',
+                'phone': '📱',
+                'gps': '📡',
+                'laptop': '💻',
+                'transmitter': '📻',
+                'radio': '📻'
+            };
+            return icons[itemId] || '📡';
+        }
+
+        // Получить CSS класс для типа источника
+        function getSourceClass(itemId) {
+            const classes = {
+                'map': 'info-source-map',
+                'phone': 'info-source-phone',
+                'gps': 'info-source-gps',
+                'laptop': 'info-source-laptop',
+                'transmitter': 'info-source-transmitter',
+                'radio': 'info-source-radio'
+            };
+            return classes[itemId] || 'info-source-gps';
+        }
+
+        // Получить контент для типа источника
+        function getSourceContent(itemId) {
+            // Получить фракцию и проверить есть ли активное задание
+            const factionData = getFactionData(itemId);
+            const activeQuest = window.sourceQuests.activeQuests[itemId];
+
+            if (activeQuest) {
+                // Показать активное задание
+                return getActiveQuestContent(itemId, activeQuest);
+            } else {
+                // Показать первое сообщение с предложением принять задание
+                return getInitialMessageContent(itemId, factionData);
+            }
+        }
+
+        // Получить данные о фракции
+        function getFactionData(itemId) {
+            const factionData = {
+                'radio': {
+                    name: 'Штаб',
+                    greeting: 'Внимание! Говорит командование.',
+                    style: 'military'
+                },
+                'gps': {
+                    name: 'Повстанцы',
+                    greeting: 'Братья и сестры по борьбе!',
+                    style: 'rebel'
+                },
+                'laptop': {
+                    name: 'Свобода',
+                    greeting: 'Друзья свободных людей!',
+                    style: 'freedom'
+                },
+                'phone': {
+                    name: 'Мародеры',
+                    greeting: 'Эй, приятель!',
+                    style: 'raider'
+                },
+                'transmitter': {
+                    name: 'Тайна',
+                    greeting: 'Шепот из тьмы...',
+                    style: 'mystery'
+                },
+                'map': {
+                    name: 'Сокровища',
+                    greeting: 'Древние тайны зовут...',
+                    style: 'treasure'
+                }
+            };
+            return factionData[itemId] || { name: 'Неизвестно', greeting: 'Внимание!', style: 'default' };
+        }
+
+        // Показать первое сообщение с предложением принять задание
+        function getInitialMessageContent(itemId, factionData) {
+            const randomQuest = window.sourceQuests.getRandomQuest(itemId);
+            if (!randomQuest) return '<div style="color: #fff;">Нет доступных заданий</div>';
+
+            return `
+                <div class="message-content">
+                    <div class="message-header">
+                        <div class="message-sender">${factionData.name}</div>
+                        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                    <div class="message-text">
+                        ${factionData.greeting}<br><br>
+                        У нас есть задание для вас. Готовы ли вы помочь?<br><br>
+                        <strong>Задание: ${randomQuest.title}</strong><br>
+                        ${randomQuest.description}<br><br>
+                        <em>Награда: ${randomQuest.reward}</em>
+                    </div>
+                    <div class="message-actions">
+                        <button class="message-btn decline" onclick="declineQuest('${itemId}')">Отказаться</button>
+                        <button class="message-btn accept" onclick="acceptQuest('${itemId}', '${randomQuest.id}')">Принять</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Показать активное задание
+        function getActiveQuestContent(itemId, activeQuest) {
+            const factionData = getFactionData(itemId);
+            const progressPercent = Math.min(100, (activeQuest.progress / activeQuest.target) * 100);
+            const isCompleted = window.sourceQuests.isQuestCompleted(itemId);
+
+            let statusClass = '';
+            let statusText = '';
+
+            if (isCompleted) {
+                statusClass = 'quest-completed';
+                statusText = '✅ Выполнено!';
+            } else {
+                statusClass = 'quest-active';
+                statusText = `📋 ${activeQuest.progress}/${activeQuest.target}`;
+            }
+
+            return `
+                <div class="message-content">
+                    <div class="message-header">
+                        <div class="message-sender">${factionData.name}</div>
+                        <div class="message-time">${new Date(activeQuest.acceptedAt).toLocaleTimeString()}</div>
+                    </div>
+                    <div class="message-text">
+                        <strong>Текущее задание: ${activeQuest.title}</strong><br>
+                        ${activeQuest.description}<br><br>
+                        <em>Награда: ${activeQuest.reward}</em>
+                    </div>
+                    <div class="quest-progress" style="margin-top: 10px;">
+                        <div class="quest-progress-bar" style="background: rgba(255,255,255,0.2); height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="background: ${isCompleted ? '#4CAF50' : '#FFD700'}; height: 100%; width: ${progressPercent}%; transition: width 0.3s ease;"></div>
+                        </div>
+                        <div style="color: #fff; font-size: 7px; margin-top: 4px; text-align: center;">
+                            ${statusText}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Функции для работы с заданиями
+        window.acceptQuest = function(sourceType, questId) {
+            if (window.sourceQuests.acceptQuest(sourceType, questId)) {
+                // Обновляем отображение заданий
+                updateQuestsDisplay(sourceType);
+
+                // Показать уведомление
+                if (window.showToast) {
+                    window.showToast('Задание принято!');
+                }
+            }
+        };
+
+        window.declineQuest = function(sourceType) {
+            window.sourceQuests.declineQuest(sourceType);
+
+            // Обновляем отображение заданий
+            updateQuestsDisplay(sourceType);
+
+            // Показать уведомление
+            if (window.showToast) {
+                window.showToast('Задание отклонено');
+            }
+        };
+
+        // Настройка перетаскивания для карты
+        function setupMapDragging() {
+            const mapSquare = document.querySelector('.map-square');
+            if (!mapSquare) return;
+
+            // Удаляем предыдущие обработчики, если они есть
+            const oldHandlers = mapSquare._dragHandlers;
+            if (oldHandlers) {
+                mapSquare.removeEventListener('mousedown', oldHandlers.mousedown);
+                document.removeEventListener('mousemove', oldHandlers.mousemove);
+                document.removeEventListener('mouseup', oldHandlers.mouseup);
+            }
+
+            let isDragging = false;
+            let startX, startY, startLeft, startTop;
+
+            const mousedownHandler = function(e) {
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startLeft = parseInt(mapSquare.style.left || '20px');
+                startTop = parseInt(mapSquare.style.top || '20px');
+                mapSquare.style.cursor = 'grabbing';
+                e.preventDefault();
+            };
+
+            const mousemoveHandler = function(e) {
+                if (!isDragging) return;
+
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+
+                const newLeft = Math.max(0, Math.min(250, startLeft + dx));
+                const newTop = Math.max(0, Math.min(150, startTop + dy));
+
+                mapSquare.style.left = newLeft + 'px';
+                mapSquare.style.top = newTop + 'px';
+            };
+
+            const mouseupHandler = function() {
+                if (isDragging) {
+                    isDragging = false;
+                    mapSquare.style.cursor = 'move';
+                }
+            };
+
+            // Сохраняем ссылки на обработчики для возможности их удаления
+            mapSquare._dragHandlers = {
+                mousedown: mousedownHandler,
+                mousemove: mousemoveHandler,
+                mouseup: mouseupHandler
+            };
+
+            // Добавляем новые обработчики
+            mapSquare.addEventListener('mousedown', mousedownHandler);
+            document.addEventListener('mousemove', mousemoveHandler);
+            document.addEventListener('mouseup', mouseupHandler);
+        }
+
+        // Функция для отправки SMS ответа
+        window.sendSmsReply = function(reply) {
+            const contentElement = document.getElementById('info-content');
+            if (contentElement) {
+                const replyMessage = document.createElement('div');
+                replyMessage.className = 'sms-message outgoing';
+                replyMessage.textContent = reply;
+                contentElement.appendChild(replyMessage);
+
+                // Прокручиваем вниз
+                contentElement.scrollTop = contentElement.scrollHeight;
+
+                // Имитируем ответ через 2 секунды
+                setTimeout(() => {
+                    const autoReply = document.createElement('div');
+                    autoReply.className = 'sms-message incoming';
+                    autoReply.textContent = 'Понял. Продолжаем миссию.';
+                    contentElement.appendChild(autoReply);
+                    contentElement.scrollTop = contentElement.scrollHeight;
+                }, 2000);
+            }
+        };
+
+        // Функция для сворачивания/разворачивания блока источника информации
+        window.toggleInfoSourcePanel = function() {
+            const panel = document.getElementById('info-source-panel');
+            if (!panel) return;
+
+            const isCollapsed = panel.classList.contains('collapsed');
+
+            if (isCollapsed) {
+                // Разворачиваем блок
+                panel.classList.remove('collapsed');
+                console.log('[toggleInfoSourcePanel] Блок источника развернут');
+
+                // Переинициализируем drag для карты, если это карта
+                if (panel.classList.contains('info-source-map')) {
+                    setTimeout(() => setupMapDragging(), 350); // Ждем окончания анимации
+                }
+            } else {
+                // Сворачиваем блок
+                panel.classList.add('collapsed');
+                console.log('[toggleInfoSourcePanel] Блок источника свернут');
+            }
+        };
+
+        // Система заданий для источников информации
+        window.sourceQuests = {
+            // Текущие активные задания
+            activeQuests: {},
+
+            // Доступные задания по фракциям
+            availableQuests: {
+                'radio': [ // Штаб
+                    {
+                        id: 'headquarters_supply',
+                        title: 'Поставка припасов',
+                        description: 'Собрать и доставить 5 единиц еды в штаб',
+                        type: 'supply',
+                        target: 5,
+                        reward: 'Военная поддержка',
+                        faction: 'headquarters'
+                    },
+                    {
+                        id: 'headquarters_recruit',
+                        title: 'Набор рекрутов',
+                        description: 'Принять 3 новых жителей в бункер',
+                        type: 'recruit',
+                        target: 3,
+                        reward: 'Дополнительные патроны',
+                        faction: 'headquarters'
+                    },
+                    {
+                        id: 'headquarters_defense',
+                        title: 'Укрепление обороны',
+                        description: 'Улучшить защиту бункера до 80%',
+                        type: 'defense',
+                        target: 80,
+                        reward: 'Оружейная поддержка',
+                        faction: 'headquarters'
+                    }
+                ],
+                'gps': [ // Повстанцы
+                    {
+                        id: 'rebels_sabotage',
+                        title: 'Диверсия',
+                        description: 'Ослабить оборону противника',
+                        type: 'sabotage',
+                        target: 1,
+                        reward: 'Информация о слабостях',
+                        faction: 'rebels'
+                    },
+                    {
+                        id: 'rebels_recruit',
+                        title: 'Вербуем союзников',
+                        description: 'Найти и завербовать 2 новых бойцов',
+                        type: 'recruit',
+                        target: 2,
+                        reward: 'Оружие повстанцев',
+                        faction: 'rebels'
+                    },
+                    {
+                        id: 'rebels_intel',
+                        title: 'Сбор разведданных',
+                        description: 'Получить информацию о передвижениях противника',
+                        type: 'intel',
+                        target: 1,
+                        reward: 'Координаты уязвимостей',
+                        faction: 'rebels'
+                    }
+                ],
+                'laptop': [ // Свобода
+                    {
+                        id: 'freedom_trade',
+                        title: 'Свободная торговля',
+                        description: 'Организовать торговый обмен с другими группами',
+                        type: 'trade',
+                        target: 1,
+                        reward: 'Редкие ресурсы',
+                        faction: 'freedom'
+                    },
+                    {
+                        id: 'freedom_explore',
+                        title: 'Исследование',
+                        description: 'Найти 3 новых безопасных маршрута',
+                        type: 'explore',
+                        target: 3,
+                        reward: 'Карта безопасных зон',
+                        faction: 'freedom'
+                    },
+                    {
+                        id: 'freedom_help',
+                        title: 'Гуманитарная помощь',
+                        description: 'Помочь 5 нуждающимся группам',
+                        type: 'help',
+                        target: 5,
+                        reward: 'Доверие и альянсы',
+                        faction: 'freedom'
+                    }
+                ],
+                'phone': [ // Мародеры
+                    {
+                        id: 'raiders_loot',
+                        title: 'Добыча',
+                        description: 'Собрать ценные предметы из 3 разных источников',
+                        type: 'loot',
+                        target: 3,
+                        reward: 'Ценные трофеи',
+                        faction: 'raiders'
+                    },
+                    {
+                        id: 'raiders_ambush',
+                        title: 'Засада',
+                        description: 'Организовать засаду на торговый караван',
+                        type: 'ambush',
+                        target: 1,
+                        reward: 'Богатая добыча',
+                        faction: 'raiders'
+                    },
+                    {
+                        id: 'raiders_expand',
+                        title: 'Расширение территории',
+                        description: 'Занять 2 новых стратегических точки',
+                        type: 'expand',
+                        target: 2,
+                        reward: 'Контроль над маршрутами',
+                        faction: 'raiders'
+                    }
+                ],
+                'transmitter': [ // Тайна
+                    {
+                        id: 'mystery_research',
+                        title: 'Исследование аномалий',
+                        description: 'Изучить 4 странных сигнала',
+                        type: 'research',
+                        target: 4,
+                        reward: 'Знания о мутациях',
+                        faction: 'mystery'
+                    },
+                    {
+                        id: 'mystery_artifact',
+                        title: 'Поиск артефактов',
+                        description: 'Найти и исследовать 2 загадочных объекта',
+                        type: 'artifact',
+                        target: 2,
+                        reward: 'Древние технологии',
+                        faction: 'mystery'
+                    },
+                    {
+                        id: 'mystery_contact',
+                        title: 'Контакт с неизвестным',
+                        description: 'Установить связь с таинственной сущностью',
+                        type: 'contact',
+                        target: 1,
+                        reward: 'Запретные знания',
+                        faction: 'mystery'
+                    }
+                ],
+                'map': [ // Сокровища
+                    {
+                        id: 'treasure_hunt',
+                        title: 'Охота за сокровищами',
+                        description: 'Найти 3 спрятанных тайника',
+                        type: 'treasure',
+                        target: 3,
+                        reward: 'Ценные артефакты',
+                        faction: 'treasure'
+                    },
+                    {
+                        id: 'treasure_explore',
+                        title: 'Исследование руин',
+                        description: 'Обследовать 2 забытых комплекса',
+                        type: 'explore',
+                        target: 2,
+                        reward: 'Древние реликвии',
+                        faction: 'treasure'
+                    },
+                    {
+                        id: 'treasure_secret',
+                        title: 'Разгадка тайн',
+                        description: 'Раскрыть 1 древнюю загадку',
+                        type: 'secret',
+                        target: 1,
+                        reward: 'Запретные знания',
+                        faction: 'treasure'
+                    }
+                ]
+            },
+
+            // Получить случайное задание для фракции
+            getRandomQuest: function(sourceType) {
+                const quests = this.availableQuests[sourceType];
+                if (!quests || quests.length === 0) return null;
+                return quests[Math.floor(Math.random() * quests.length)];
+            },
+
+            // Принять задание
+            acceptQuest: function(sourceType, questId) {
+                const quest = this.availableQuests[sourceType]?.find(q => q.id === questId);
+                if (!quest) return false;
+
+                this.activeQuests[sourceType] = {
+                    ...quest,
+                    progress: 0,
+                    accepted: true,
+                    acceptedAt: new Date()
+                };
+
+                console.log(`[sourceQuests] Задание принято: ${quest.title}`);
+                return true;
+            },
+
+            // Отказаться от задания
+            declineQuest: function(sourceType) {
+                if (this.activeQuests[sourceType]) {
+                    delete this.activeQuests[sourceType];
+                    console.log(`[sourceQuests] Задание отклонено для ${sourceType}`);
+                }
+            },
+
+            // Обновить прогресс задания
+            updateQuestProgress: function(sourceType, amount = 1) {
+                if (this.activeQuests[sourceType]) {
+                    this.activeQuests[sourceType].progress += amount;
+                    console.log(`[sourceQuests] Прогресс обновлен: ${sourceType} - ${this.activeQuests[sourceType].progress}/${this.activeQuests[sourceType].target}`);
+                }
+            },
+
+            // Проверить, выполнено ли задание
+            isQuestCompleted: function(sourceType) {
+                const quest = this.activeQuests[sourceType];
+                return quest && quest.progress >= quest.target;
+            }
+        };
+
+        // Функция для обновления блока заданий
+        function updateQuestsDisplay(sourceType) {
+            const questsList = document.getElementById('quests-list');
+            if (!questsList) return;
+
+            const activeQuest = window.sourceQuests.activeQuests[sourceType];
+
+            if (activeQuest) {
+                // Показываем активное задание
+                const progressPercent = Math.min(100, (activeQuest.progress / activeQuest.target) * 100);
+                const isCompleted = window.sourceQuests.isQuestCompleted(sourceType);
+
+                let statusClass = '';
+                let statusText = '';
+                let statusIcon = '';
+
+                if (isCompleted) {
+                    statusClass = 'quest-completed';
+                    statusText = 'Выполнено!';
+                    statusIcon = '✅';
+                } else {
+                    statusClass = 'quest-active';
+                    statusText = `${activeQuest.progress}/${activeQuest.target}`;
+                    statusIcon = '📋';
+                }
+
+                questsList.innerHTML = `
+                    <div class="quest-item ${statusClass}">
+                        <div class="quest-info">
+                            <div class="quest-title">${activeQuest.title}</div>
+                            <div class="quest-description">${activeQuest.description}</div>
+                            <div class="quest-reward">Награда: ${activeQuest.reward}</div>
+                        </div>
+                        <div class="quest-progress">
+                            <div class="quest-progress-bar">
+                                <div class="quest-progress-fill" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="quest-status-text">${statusIcon} ${statusText}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Показываем сообщение о том, что заданий нет
+                questsList.innerHTML = `
+                    <div class="quest-item no-quests">
+                        <span class="quest-text">Нет активных заданий</span>
+                        <span class="quest-status">📭</span>
+                    </div>
+                `;
+            }
+        }
+
+        // Функция для обновления активного источника информации
+        window.updateActiveInfoSource = function(questItem) {
+            if (questItem) {
+                window.showInfoSourcePanel(questItem);
+            } else {
+                window.hideInfoSourcePanel();
+            }
+        };
+
     </script>
 
     <!-- Модальное окно журнала уведомлений -->
@@ -3663,6 +4821,29 @@
                         <!-- Уведомления будут загружены здесь -->
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Блок источника информации (правый нижний угол) -->
+    <div id="info-source-panel" class="info-source-panel" style="display: none;">
+        <!-- Заголовок с иконкой и названием -->
+        <div class="info-source-header" onclick="window.toggleInfoSourcePanel()">
+            <div class="source-icon" id="source-icon">📡</div>
+            <div class="source-name" id="source-name">Нет источника</div>
+            <div class="source-toggle-indicator">▼</div>
+        </div>
+
+        <!-- Блок информации -->
+        <div class="info-content" id="info-content">
+            <!-- Содержимое будет меняться в зависимости от источника -->
+        </div>
+
+        <!-- Блок заданий -->
+        <div class="quests-content" id="quests-content">
+            <div class="quests-header">📋 Задания</div>
+            <div id="quests-list">
+                <!-- Задания будут загружаться динамически -->
             </div>
         </div>
     </div>

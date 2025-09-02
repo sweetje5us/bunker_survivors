@@ -8442,6 +8442,11 @@ export class GameScene extends Phaser.Scene {
     // Обновляем UI модального окна инвентаря
     this.updateActiveQuestItemUI();
 
+    // Обновляем блок источника информации в правом нижнем углу
+    if (typeof (window as any).updateActiveInfoSource === 'function') {
+      (window as any).updateActiveInfoSource(this.activeQuestItem);
+    }
+
     console.log(`[setActiveQuestItem] КОНЕЦ: предмет ${itemId} успешно установлен в слот источника`);
     this.logInventoryState("ПОСЛЕ setActiveQuestItem");
     this.logActiveQuestItem("ПОСЛЕ setActiveQuestItem");
@@ -8460,6 +8465,11 @@ export class GameScene extends Phaser.Scene {
 
     this.activeQuestItem = null;
     this.updateActiveQuestItemUI();
+
+    // Скрываем блок источника информации в правом нижнем углу
+    if (typeof (window as any).hideInfoSourcePanel === 'function') {
+      (window as any).hideInfoSourcePanel();
+    }
 
     console.log(`[clearActiveQuestItem] КОНЕЦ: слот источника очищен`);
     this.logInventoryState("ПОСЛЕ clearActiveQuestItem");
