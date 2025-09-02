@@ -920,9 +920,10 @@
         }
 
         .inventory-slot {
+            width: 56px !important;
+            height: 56px !important;
             background: #1a1a1a !important;
             border: 2px solid #444 !important;
-            aspect-ratio: 1;
             cursor: pointer;
             transition: all 0.3s ease !important;
             border-radius: 6px !important;
@@ -938,6 +939,230 @@
 
         .inventory-slot.occupied {
             background: #2a2a2a !important;
+        }
+
+        /* Подсветка для квестовых предметов */
+        .inventory-slot.quest-item {
+            background: rgba(255, 215, 0, 0.95) !important;
+            border-color: #ffd700 !important;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5) !important;
+        }
+
+        .inventory-slot.sidequest-item {
+            background: rgba(156, 39, 176, 0.95) !important;
+            border-color: #9c27b0 !important;
+            box-shadow: 0 0 10px rgba(156, 39, 176, 0.5) !important;
+        }
+
+        .inventory-slot.regular-item {
+            background: rgba(85, 85, 85, 0.9) !important;
+            border-color: #555555 !important;
+        }
+
+        .inventory-slot.empty-slot {
+            background: rgba(51, 51, 51, 0.8) !important;
+            border-color: #333333 !important;
+        }
+
+        /* Hover эффекты для разных типов предметов */
+        .inventory-slot.quest-item:hover {
+            border-color: #ffed4e !important;
+            background: rgba(255, 237, 78, 0.98) !important;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.7) !important;
+        }
+
+        .inventory-slot.sidequest-item:hover {
+            border-color: #ba68c8 !important;
+            background: rgba(186, 104, 200, 0.98) !important;
+            box-shadow: 0 0 20px rgba(156, 39, 176, 0.7) !important;
+        }
+
+        /* Quest Item Slot Styles */
+        .quest-section {
+            margin-bottom: 30px;
+        }
+
+        .quest-section h3 {
+            color: var(--bunker-gold);
+            font-size: 14px;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 2px solid var(--bunker-gold);
+            padding-bottom: 5px;
+        }
+
+        .quest-slot-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .quest-slot {
+            flex: 0 0 180px;
+            height: 180px;
+            background: rgba(26, 26, 26, 0.9);
+            border: 3px solid #444;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .quest-slot:hover {
+            border-color: var(--bunker-gold);
+            background: rgba(42, 42, 42, 0.95);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+        }
+
+        .quest-slot.drag-over {
+            border-color: var(--bunker-gold);
+            background: rgba(212, 175, 55, 0.2);
+            box-shadow: 0 0 25px rgba(212, 175, 55, 0.5);
+            transform: scale(1.05);
+        }
+
+        .quest-slot-label {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bunker-bg);
+            color: var(--bunker-gold);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: bold;
+            border: 1px solid var(--bunker-gold);
+            white-space: nowrap;
+        }
+
+        .quest-slot-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .quest-placeholder {
+            text-align: center;
+            color: #666;
+        }
+
+        .quest-placeholder-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+
+        .quest-placeholder-text {
+            font-size: 11px;
+            line-height: 1.3;
+            max-width: 140px;
+        }
+
+        .quest-item-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+        }
+
+        .quest-item-icon {
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        }
+
+        .quest-item-name {
+            color: var(--bunker-gold);
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .quest-info-panel {
+            flex: 1;
+            max-width: 300px;
+            background: rgba(26, 26, 26, 0.9);
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .quest-info-title {
+            color: var(--bunker-gold);
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .quest-info-content {
+            color: var(--bunker-text);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .quest-info-content.active {
+            color: var(--bunker-gold);
+        }
+
+        /* Quest item activation effects */
+        .quest-slot.active {
+            border-color: var(--bunker-gold);
+            background: rgba(212, 175, 55, 0.1);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+        }
+
+        .quest-slot.active .quest-slot-label {
+            background: var(--bunker-gold);
+            color: var(--bunker-bg);
+        }
+
+        /* Стили для перетаскиваемого предмета из слота источника */
+        .quest-item-display[draggable="true"] {
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .quest-item-display[draggable="true"]:hover {
+            cursor: grab;
+        }
+
+        .quest-item-display[draggable="true"]:active {
+            cursor: grabbing;
+        }
+
+        /* Стиль для drag-ghost предмета из слота источника */
+        .quest-drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 10000;
+            opacity: 0.8;
+            transform: rotate(5deg) scale(0.9);
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
         }
 
         /* Drag and Drop Styles */
@@ -2639,6 +2864,33 @@
               <img src="src/sprites/items/glass.png" alt="Стекло" class="resource-icon">
               <div class="resource-quantity" id="resource-glass-quantity">0</div>
               <div class="resource-name">Стекло</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quest Item Slot -->
+        <div class="quest-section">
+          <h3>Активный квестовый предмет</h3>
+          <div class="quest-slot-container">
+            <div class="quest-slot" id="active-quest-slot"
+                 ondrop="handleQuestSlotDrop(event)"
+                 ondragover="event.preventDefault(); this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 onclick="handleQuestSlotClick()">
+              <div class="quest-slot-label">Источник информации</div>
+              <div class="quest-slot-content" id="active-quest-content">
+                <!-- Active quest item will be displayed here -->
+                <div class="quest-placeholder">
+                  <div class="quest-placeholder-icon">📡</div>
+                  <div class="quest-placeholder-text">Перетащите квестовый предмет сюда</div>
+                </div>
+              </div>
+            </div>
+            <div class="quest-info-panel" id="quest-info-panel">
+              <div class="quest-info-title">Информация:</div>
+              <div class="quest-info-content" id="quest-info-content">
+                Нет активного источника информации
+              </div>
             </div>
           </div>
         </div>

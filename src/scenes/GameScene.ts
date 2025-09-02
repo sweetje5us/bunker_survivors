@@ -99,6 +99,9 @@ export class GameScene extends Phaser.Scene {
   // Инвентарь бункера - хранит все предметы, добавленные жителями
   private bunkerInventory: Array<{ id: string; quantity: number } | undefined> = []
 
+  // Активный квестовый предмет для источника информации
+  private activeQuestItem: { id: string; name: string; spritePath: string; infoSource: string; quantity: number } | null = null
+
   // Drag and drop состояние
   private draggedItem: { id: string; quantity: number; fromSlot: number } | null = null
   private dragGhost?: Phaser.GameObjects.Image
@@ -261,7 +264,7 @@ export class GameScene extends Phaser.Scene {
   private getCurrentMoral(): number {
     // Всегда возвращаем локальное значение морали из GameScene
     const moralValue = this.moral;
-    console.log(`[GameScene] getCurrentMoral() возвращает: ${moralValue}%`)
+
     return moralValue
   }
 
@@ -322,15 +325,11 @@ export class GameScene extends Phaser.Scene {
    */
   private processHourlyResourceProduction(): void {
     if (this.bunkerResidents.length === 0) {
-      console.log(`[processHourlyResourceProduction] ⚠️ Нет жителей, пропускаем производство ресурсов`)
+
       return
     }
 
     // Отладочная информация о статусах жителей
-    console.log(`[processHourlyResourceProduction] 📊 Статусы жителей:`)
-    this.bunkerResidents.forEach(resident => {
-      console.log(`  - ${resident.name} (${resident.profession}): статус="${resident.status}"`)
-    })
 
     let foodProduction = 0
     let waterProduction = 0
@@ -479,11 +478,11 @@ export class GameScene extends Phaser.Scene {
     
     const { foodConsumption, waterConsumption } = this.calculateHourlyResourceConsumption()
     
-    console.log(`[processHourlyResourceConsumption] Начинаем обработку: потребление еды=${foodConsumption}, воды=${waterConsumption}, жителей=${this.bunkerResidents.length}`)
+
     
     // Проверяем, есть ли жители для потребления ресурсов
     if (this.bunkerResidents.length === 0) {
-      console.log(`[processHourlyResourceConsumption] ⚠️ Нет жителей, пропускаем потребление ресурсов`)
+
       return
     }
     
@@ -500,19 +499,12 @@ export class GameScene extends Phaser.Scene {
     this.water = Math.max(0, Math.round(this.water - waterConsumption))
     
     // Показываем индикаторы изменений от потребления ПОСЛЕ обновления ресурсов
-    console.log(`[processHourlyResourceConsumption] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
     
     if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
       // Показываем отрицательные изменения (потребление)
-      console.log(`[processHourlyResourceConsumption] 🎯 Показываем индикатор для еды: -${foodConsumption}`);
       (window as any).forceCheckResourceChange('food', -foodConsumption, true);
-      console.log(`[processHourlyResourceConsumption] 🎯 Показываем индикатор для воды: -${waterConsumption}`);
       (window as any).forceCheckResourceChange('water', -waterConsumption, true);
-    } else {
-      console.warn(`[processHourlyResourceConsumption] ❌ forceCheckResourceChange недоступен`);
     }
-    
-    console.log(`[processHourlyResourceConsumption] Расход ресурсов: еда ${oldFood} → ${this.food} (-${actualFoodConsumption}), вода ${oldWater} → ${this.water} (-${actualWaterConsumption})`)
     
     // Проверяем нехватку ресурсов и наносим урон
     const foodShortage = foodConsumption - actualFoodConsumption
@@ -536,31 +528,25 @@ export class GameScene extends Phaser.Scene {
     this.updateAllResources()
     
     // Логируем финальное состояние ресурсов
-    console.log(`[processHourlyResourceConsumption] Финальное состояние: еда=${this.food}, вода=${this.water}`)
   }
 
   /**
    * Обрабатывает нехватку ресурса и наносит урон жителям
    */
   private handleResourceShortage(oldAmount: number, newAmount: number, resourceType: 'food' | 'water', damageReason: string): void {
-    console.log(`[handleResourceShortage] Вход в метод: oldAmount=${oldAmount}, newAmount=${newAmount}, resourceType=${resourceType}, damageReason=${damageReason}`)
+
     
     if (newAmount >= 0) {
-      console.log(`[handleResourceShortage] Ресурса достаточно (${newAmount}), выходим`)
+
       return // Ресурса достаточно
     }
     
     const shortage = Math.abs(newAmount) // Количество недостающих единиц
     const residentCount = this.bunkerResidents.length
     
-    console.log(`[handleResourceShortage] Нехватка: ${shortage} ед., жителей: ${residentCount}`)
-    
     if (residentCount === 0) {
-      console.log(`[handleResourceShortage] Нет жителей, выходим`)
       return
     }
-    
-    console.log(`[handleResourceShortage] Нехватка ${resourceType}: ${shortage} ед., жителей: ${residentCount}`)
     
     // Рассчитываем урон в зависимости от сложности
     let damagePercent: number
@@ -680,24 +666,17 @@ export class GameScene extends Phaser.Scene {
     const moral = this.getCurrentMoral();
     let insanityChance = 0;
 
-    console.log(`[GameScene] shouldResidentGoInsane: moral=${moral}`)
-
     if (moral <= 0) {
-      console.log(`[GameScene] shouldResidentGoInsane: мораль <= 0, возвращаем true`)
       return true; // 100% шанс при морали 0%
     } else if (moral < 25) {
       insanityChance = 0.15; // 15% шанс при морали < 25%
-      console.log(`[GameScene] shouldResidentGoInsane: мораль < 25, шанс=${insanityChance}`)
     } else if (moral <= 35) {
       insanityChance = 0.05; // 5% шанс при морали 25-35%
-      console.log(`[GameScene] shouldResidentGoInsane: мораль <= 35, шанс=${insanityChance}`)
     } else {
-      console.log(`[GameScene] shouldResidentGoInsane: мораль > 35, шанс безумия = 0`)
+      // мораль > 35, шанс безумия = 0
     }
 
-    const result = Math.random() < insanityChance;
-    console.log(`[GameScene] shouldResidentGoInsane: результат=${result}`)
-    return result;
+    return Math.random() < insanityChance;
   }
 
   /**
@@ -826,7 +805,7 @@ export class GameScene extends Phaser.Scene {
    */
   private checkResidentsForInsanity(): void {
     const moral = this.getCurrentMoral();
-    console.log(`[checkResidentsForInsanity] Проверяем жителей на безумие, мораль: ${moral}% (локальная мораль: ${this.moral}%)`)
+
 
     // Инициализируем intent для существующих жителей
     this.bunkerResidents.forEach(resident => {
@@ -856,11 +835,11 @@ export class GameScene extends Phaser.Scene {
     if (moral > 25) {
       const insaneResidents = this.bunkerResidents.filter(r => r.insane && r.intent === 'hostile');
       if (insaneResidents.length > 0) {
-        console.log('[GameScene] Moral improved, stopping insane fights');
+        // Moral improved, stopping insane fights
       }
     }
     
-    console.log(`[checkResidentsForInsanity] Проверка завершена`)
+
   }
 
   /**
@@ -868,7 +847,7 @@ export class GameScene extends Phaser.Scene {
    */
   private restoreSanity(): void {
     const moral = this.getCurrentMoral();
-    console.log(`[restoreSanity] Проверяем восстановление рассудка, мораль: ${moral}% (локальная мораль: ${this.moral}%)`)
+
 
     if (moral > 35) {
       // Находим всех безумных жителей
@@ -4715,7 +4694,7 @@ export class GameScene extends Phaser.Scene {
       quantityText.setPosition(20, 20) // Сбрасываем позицию для больших слотов
       quantityText.setVisible(false)
 
-      // Восстанавливаем фон слота
+      // Восстанавливаем фон слота (серый для пустых слотов)
       bg.setFillStyle(0x333333, 0.8)
       bg.setSize(56, 56) // Размер по умолчанию для новых слотов
 
@@ -5187,8 +5166,23 @@ export class GameScene extends Phaser.Scene {
               quantityText.setVisible(true)
             }
 
-            // Подсвечиваем слот
-            bg.setFillStyle(0x555555, 0.9)
+            // Подсвечиваем слот в зависимости от категории предмета
+            let highlightColor = 0x555555 // Серый для обычных предметов
+            let highlightAlpha = 0.9
+
+            if (itemData.category === 'quest') {
+              // Желтый/золотой цвет для квестовых предметов
+              highlightColor = 0xffd700
+              highlightAlpha = 0.95
+              console.log(`[InventorySlot] Квестовый предмет подсвечен золотым: ${item.id}`)
+            } else if (itemData.category === 'sidequest') {
+              // Синий/фиолетовый цвет для побочных предметов
+              highlightColor = 0x9c27b0
+              highlightAlpha = 0.95
+              console.log(`[InventorySlot] Побочный предмет подсвечен фиолетовым: ${item.id}`)
+            }
+
+            bg.setFillStyle(highlightColor, highlightAlpha)
 
             // Включаем интерактивность для слота с предметом
             console.log(`[InventorySlot] Устанавливаем интерактивность для слота ${index} с предметом ${item.id}`)
@@ -5732,18 +5726,15 @@ export class GameScene extends Phaser.Scene {
           resourceItems++
         }
       } else {
-        // Для остальных предметов добавляем в обычный инвентарь
-        const existingItem = this.bunkerInventory.find(item => item && item.id === personItem.id)
-
-        if (existingItem) {
-          // Если предмет уже есть, увеличиваем количество
-          existingItem.quantity += personItem.quantity
+        // Для остальных предметов добавляем в обычный инвентарь с проверкой лимитов
+        const added = this.addItemToBunkerInventory(personItem.id, personItem.quantity)
+        if (added) {
+          regularItems++
+          inventoryChanged = true
         } else {
-          // Если предмета нет, добавляем его
-          this.bunkerInventory.push({ id: personItem.id, quantity: personItem.quantity })
+          console.log(`[transferPersonInventoryToBunker] Не удалось добавить предмет ${personItem.id} - нет свободных слотов`)
+          // Можно добавить уведомление игроку если нужно
         }
-        regularItems++
-        inventoryChanged = true
       }
     }
 
@@ -5756,7 +5747,8 @@ export class GameScene extends Phaser.Scene {
 
       // Обновляем все модальные окна инвентаря
       if (typeof window.populateInventoryModal === 'function') {
-        window.populateInventoryModal(this.getDefaultInventory(), this.inventoryRows)
+        // Используем полный bunkerInventory вместо getDefaultInventory для точной синхронизации
+        window.populateInventoryModal(this.bunkerInventory, this.inventoryRows)
       }
     }
 
@@ -5845,30 +5837,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  public getInventoryItem(slot: number): { id: string; quantity: number } | null {
-    if (slot < 0 || slot >= this.bunkerInventory.length) return null
-    return this.bunkerInventory[slot] || null
-  }
 
-  public setInventoryItem(slot: number, item: { id: string; quantity: number }): void {
-    const totalSlots = 6 * this.inventoryRows
-    if (slot < 0 || slot >= totalSlots) return
-
-    while (this.bunkerInventory.length <= slot) {
-      this.bunkerInventory.push(undefined)
-    }
-
-    this.bunkerInventory[slot] = item
-    this.cleanupEmptySlots()
-  }
-
-  public removeInventoryItem(slot: number): { id: string; quantity: number } | null {
-    if (slot < 0 || slot >= this.bunkerInventory.length) return null
-
-    const item = this.bunkerInventory[slot]
-    this.bunkerInventory.splice(slot, 1)
-    return item || null
-  }
 
   // Обновление статуса жителя из bunkerView
   public _updateResidentStatus(id: number, status: string): void {
@@ -5912,7 +5881,7 @@ export class GameScene extends Phaser.Scene {
     this.updateUIOverlayWithData(roundedResources);
     
     // Логируем для отладки
-    console.log(`[updateAllResources] Ресурсы обновлены: еда=${roundedResources.food}, вода=${roundedResources.water}, мораль=${roundedResources.moral}%`);
+
   }
 
   /**
@@ -5941,7 +5910,7 @@ export class GameScene extends Phaser.Scene {
         ...resources // Включаем все ресурсы
       };
 
-      console.log(`[updateUIOverlayWithData] Отправляем данные в UI: мораль=${gameData.moral}%, счастье=${gameData.happiness}%, защита=${gameData.defense}%`);
+
       window.updateGameUI(gameData);
 
       // Также обновляем ресурсы в инвентаре
@@ -6430,7 +6399,7 @@ export class GameScene extends Phaser.Scene {
   /**
    * Добавляет предмет в инвентарь бункера
    */
-  private addItemToBunkerInventory(itemId: string, quantity: number = 1): boolean {
+  public addItemToBunkerInventory(itemId: string, quantity: number = 1): boolean {
     // Проверяем, что предмет существует
     const itemData = this.getItemById(itemId)
     if (!itemData) {
@@ -6439,23 +6408,185 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Ищем существующий предмет в инвентаре
-    const existingItem = this.bunkerInventory.find(item => item && item.id === itemId)
+    const existingItemIndex = this.bunkerInventory.findIndex(item => item && item.id === itemId)
 
-    if (existingItem) {
+    if (existingItemIndex !== -1 && this.bunkerInventory[existingItemIndex]) {
       // Если предмет уже есть, увеличиваем количество
-      existingItem.quantity += quantity
+      this.bunkerInventory[existingItemIndex].quantity += quantity
+
     } else {
-      // Если предмета нет, добавляем его
-      this.bunkerInventory.push({ id: itemId, quantity: quantity })
+      // Если предмета нет, ищем свободную позицию в видимых слотах
+      const totalSlots = 6 * this.inventoryRows; // Рассчитываем общее количество видимых слотов
+      let freeSlotIndex = -1;
+
+      // Сначала ищем пустую позицию среди видимых слотов
+      for (let i = 0; i < totalSlots && freeSlotIndex === -1; i++) {
+        if (!this.bunkerInventory[i] || !this.bunkerInventory[i]!.id || this.bunkerInventory[i]!.id === '') {
+          freeSlotIndex = i;
+        }
+      }
+
+      // Если не нашли свободную позицию среди видимых слотов, предмет не добавляется
+      if (freeSlotIndex === -1) {
+        console.log(`[addItemToBunkerInventory] Нет свободного слота для добавления предмета ${itemId}. Предмет не добавлен.`);
+        return false;
+      }
+
+      // Убеждаемся, что массив достаточно большой
+      while (this.bunkerInventory.length <= freeSlotIndex) {
+        this.bunkerInventory.push(undefined);
+      }
+
+      // Добавляем предмет на найденную позицию
+      this.bunkerInventory[freeSlotIndex] = { id: itemId, quantity: quantity };
+
+    }
+
+    // Обновляем модальное окно инвентаря (только если модальное окно открыто)
+    if (typeof window !== 'undefined' && (window as any).populateInventoryModal) {
+      const inventoryModal = document.getElementById('inventory-modal');
+      if (inventoryModal && inventoryModal.style.display !== 'none') {
+        setTimeout(() => {
+          try {
+            const inventory = this.getDefaultInventory();
+            ;(window as any).populateInventoryModal(inventory, this.inventoryRows);
+          } catch (error) {
+            // Игнорируем ошибки обновления UI
+          }
+        }, 50);
+      }
+    }
+
+
+    return true
+  }
+
+  /**
+   * Устанавливает предмет в конкретный слот инвентаря
+   */
+  public setInventoryItem(slotIndex: number, itemData: { id: string; quantity: number }): boolean {
+    console.log(`[setInventoryItem] НАЧАЛО: установка ${itemData.id} x${itemData.quantity} в слот ${slotIndex}`);
+    this.logInventoryState("ДО setInventoryItem");
+    this.logActiveQuestItem("ДО setInventoryItem");
+
+    // Проверяем, что предмет существует
+    const itemInfo = this.getItemById(itemData.id)
+    if (!itemInfo) {
+      console.warn(`[setInventoryItem] Предмет ${itemData.id} не найден в справочнике`)
+      return false
+    }
+
+    // Убеждаемся, что массив достаточно большой
+    while (this.bunkerInventory.length <= slotIndex) {
+      this.bunkerInventory.push(undefined)
+    }
+
+    // Сохраняем предмет, который был в целевом слоте (если он был)
+    const existingItem = this.bunkerInventory[slotIndex]
+
+    // Устанавливаем новый предмет в указанный слот
+    this.bunkerInventory[slotIndex] = { id: itemData.id, quantity: itemData.quantity }
+
+    // Если в слоте был другой предмет, нужно его куда-то переместить
+    if (existingItem && existingItem.id && existingItem.id !== itemData.id) {
+
+
+      // Сдвигаем все предметы вправо от целевого слота, чтобы освободить место
+      console.log(`[setInventoryItem] Сдвигаем предметы вправо от слота ${slotIndex} для размещения ${itemData.id}`);
+      for (let i = this.bunkerInventory.length; i > slotIndex; i--) {
+        this.bunkerInventory[i] = this.bunkerInventory[i - 1];
+      }
+
+      // Помещаем старый предмет в целевой слот
+      this.bunkerInventory[slotIndex] = existingItem;
+
     }
 
     // Обновляем модальное окно инвентаря
-    if (typeof window.populateInventoryModal === 'function') {
-      window.populateInventoryModal(this.getDefaultInventory(), this.inventoryRows)
+    if (typeof window !== 'undefined' && (window as any).populateInventoryModal) {
+      setTimeout(() => {
+        // Используем полный bunkerInventory вместо getDefaultInventory для точной синхронизации
+        ;(window as any).populateInventoryModal(this.bunkerInventory, this.inventoryRows)
+      }, 50)
     }
 
-    console.log(`[addItemToBunkerInventory] Добавлен предмет: ${itemData.name} (${quantity} шт.)`)
+    console.log(`[setInventoryItem] КОНЕЦ: предмет ${itemData.id} успешно установлен в слот ${slotIndex}`);
+    this.logInventoryState("ПОСЛЕ setInventoryItem");
+    this.logActiveQuestItem("ПОСЛЕ setInventoryItem");
+
     return true
+  }
+
+  /**
+   * Удаляет предмет из конкретного слота инвентаря
+   */
+  public removeInventoryItem(slotIndex: number): { id: string; quantity: number } | null {
+    console.log(`[removeInventoryItem] НАЧАЛО: удаление предмета из слота ${slotIndex}`);
+    this.logInventoryState("ДО removeInventoryItem");
+    this.logActiveQuestItem("ДО removeInventoryItem");
+
+    if (slotIndex < 0 || slotIndex >= this.bunkerInventory.length) {
+      console.log(`[removeInventoryItem] ОШИБКА: некорректный индекс слота ${slotIndex}`);
+      return null
+    }
+
+    const removedItem = this.bunkerInventory[slotIndex]
+    console.log(`[removeInventoryItem] Найден предмет в слоте ${slotIndex}:`, removedItem);
+
+    if (removedItem && removedItem.id) {
+      // Удаляем предмет из слота
+      console.log(`[removeInventoryItem] Удаляю предмет ${removedItem.id} x${removedItem.quantity} из слота ${slotIndex}`);
+      this.bunkerInventory[slotIndex] = undefined
+
+      // Сдвигаем все последующие предметы влево, чтобы заполнить пустоту
+      // Это обеспечит плотный массив без пустых слотов в середине
+      console.log(`[removeInventoryItem] Сдвигаем предметы влево после удаления из слота ${slotIndex}`);
+      for (let i = slotIndex; i < this.bunkerInventory.length - 1; i++) {
+        this.bunkerInventory[i] = this.bunkerInventory[i + 1];
+      }
+      // Очищаем последний элемент массива
+      this.bunkerInventory[this.bunkerInventory.length - 1] = undefined;
+
+      // Уменьшаем размер массива, если последний элемент пустой
+      while (this.bunkerInventory.length > 0 && !this.bunkerInventory[this.bunkerInventory.length - 1]) {
+        this.bunkerInventory.pop();
+      }
+
+      // Обновляем модальное окно инвентаря (только если модальное окно открыто)
+      if (typeof window !== 'undefined' && (window as any).populateInventoryModal) {
+        const inventoryModal = document.getElementById('inventory-modal');
+        if (inventoryModal && inventoryModal.style.display !== 'none') {
+          setTimeout(() => {
+            try {
+              // Используем полный bunkerInventory вместо getDefaultInventory для точной синхронизации
+              ;(window as any).populateInventoryModal(this.bunkerInventory, this.inventoryRows);
+            } catch (error) {
+              // Игнорируем ошибки обновления UI
+            }
+          }, 50)
+        }
+      }
+
+      console.log(`[removeInventoryItem] КОНЕЦ: предмет ${removedItem.id} x${removedItem.quantity} успешно удален из слота ${slotIndex}`);
+      this.logInventoryState("ПОСЛЕ removeInventoryItem");
+      this.logActiveQuestItem("ПОСЛЕ removeInventoryItem");
+
+      return removedItem
+    }
+
+    console.log(`[removeInventoryItem] КОНЕЦ: предмет не найден в слоте ${slotIndex}`);
+    return null
+  }
+
+  /**
+   * Получает предмет из конкретного слота инвентаря
+   */
+  public getInventoryItem(slotIndex: number): { id: string; quantity: number } | null {
+    if (slotIndex < 0 || slotIndex >= this.bunkerInventory.length) {
+      return null
+    }
+
+    return this.bunkerInventory[slotIndex] || null
   }
 
   /**
@@ -8021,7 +8152,7 @@ export class GameScene extends Phaser.Scene {
         ...resources // Включаем все ресурсы
       };
 
-      console.log(`[GameScene] Отправляем данные в UI: мораль=${gameData.moral}%, счастье=${gameData.happiness}%, защита=${gameData.defense}%`);
+
       window.updateGameUI(gameData);
 
       // Также обновляем ресурсы в инвентаре
@@ -8087,9 +8218,40 @@ export class GameScene extends Phaser.Scene {
   private getDefaultInventory(): { id: string; quantity: number }[] {
     // Возвращаем только предметы инвентаря, исключая ресурсы
     const resourceIds = ['food', 'water', 'money', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'];
-    return this.bunkerInventory.filter(item => 
+    return this.bunkerInventory.filter(item =>
       item !== undefined && !resourceIds.includes(item.id)
     ) as { id: string; quantity: number }[];
+  }
+
+  /**
+   * Логирует содержимое инвентаря для отладки
+   */
+  private logInventoryState(context: string = ""): void {
+    console.log(`[INVENTORY ${context}] Полный инвентарь bunkerInventory:`);
+    this.bunkerInventory.forEach((item, index) => {
+      if (item && item.id) {
+        console.log(`  [${index}] ${item.id} x${item.quantity}`);
+      } else {
+        console.log(`  [${index}] пустой слот`);
+      }
+    });
+
+    const defaultInventory = this.getDefaultInventory();
+    console.log(`[INVENTORY ${context}] Фильтрованный инвентарь getDefaultInventory (${defaultInventory.length} предметов):`);
+    defaultInventory.forEach((item, index) => {
+      console.log(`  [${index}] ${item.id} x${item.quantity}`);
+    });
+  }
+
+  /**
+   * Логирует активный квестовый предмет
+   */
+  private logActiveQuestItem(context: string = ""): void {
+    if (this.activeQuestItem) {
+      console.log(`[QUEST_SLOT ${context}] Активный предмет: ${this.activeQuestItem.id} x${this.activeQuestItem.quantity} (${this.activeQuestItem.name})`);
+    } else {
+      console.log(`[QUEST_SLOT ${context}] Слот пустой`);
+    }
   }
 
   private getResourcesData(): { [key: string]: number } {
@@ -8218,12 +8380,123 @@ export class GameScene extends Phaser.Scene {
     this.initializeModals();
   }
 
+  // Public methods for active quest item management
+  public setActiveQuestItem(itemId: string): boolean {
+    console.log(`[setActiveQuestItem] НАЧАЛО: установка предмета ${itemId} в слот источника`);
+    this.logInventoryState("ДО setActiveQuestItem");
+    this.logActiveQuestItem("ДО setActiveQuestItem");
+
+    const itemData = this.getItemById(itemId);
+    if (!itemData || (itemData.category !== 'quest' && itemData.category !== 'sidequest')) {
+      console.log(`[setActiveQuestItem] ОШИБКА: предмет ${itemId} не найден или не является квестовым`);
+      return false;
+    }
+
+    // Предотвращаем дублирование вызовов
+    if (this.activeQuestItem && this.activeQuestItem.id === itemId) {
+      console.log(`[setActiveQuestItem] Предмет ${itemId} уже активен, пропускаем`);
+      return true; // Уже установлен этот предмет
+    }
+
+    // Определяем источник информации на основе предмета
+    let infoSource = '';
+    switch (itemId) {
+      case 'laptop':
+        infoSource = 'Свободный интернет - доступ к глобальной сети и свежим новостям';
+        break;
+      case 'gps':
+        infoSource = 'GPS-навигатор - координаты повстанцев и скрытые локации';
+        break;
+      case 'radio':
+        infoSource = 'Радио - частота штаба с официальными сообщениями';
+        break;
+      case 'phone':
+        infoSource = 'Телефон - прослушивание переговоров мародеров';
+        break;
+      case 'transmitter':
+        infoSource = 'Передатчик - доступ к таинственным каналам связи';
+        break;
+      case 'map':
+        infoSource = 'Карта - навигация и разведка территорий';
+        break;
+      default:
+        infoSource = 'Неизвестный источник информации';
+    }
+
+    // Получаем количество предмета из инвентаря (предмет еще не удален)
+    let itemQuantity = 1;
+    const inventoryItem = this.bunkerInventory.find(item => item && item.id === itemId);
+    if (inventoryItem) {
+      itemQuantity = inventoryItem.quantity;
+    }
+
+    console.log(`[setActiveQuestItem] Устанавливаю предмет ${itemId} (${itemData.name}) x${itemQuantity} как активный`);
+    this.activeQuestItem = {
+      id: itemId,
+      name: itemData.name,
+      spritePath: itemData.spritePath,
+      infoSource: infoSource,
+      quantity: itemQuantity
+    };
+
+    // Обновляем UI модального окна инвентаря
+    this.updateActiveQuestItemUI();
+
+    console.log(`[setActiveQuestItem] КОНЕЦ: предмет ${itemId} успешно установлен в слот источника`);
+    this.logInventoryState("ПОСЛЕ setActiveQuestItem");
+    this.logActiveQuestItem("ПОСЛЕ setActiveQuestItem");
+
+    return true;
+  }
+
+  public getActiveQuestItem(): { id: string; name: string; spritePath: string; infoSource: string; quantity: number } | null {
+    return this.activeQuestItem;
+  }
+
+  public clearActiveQuestItem(): void {
+    console.log(`[clearActiveQuestItem] НАЧАЛО: очистка слота источника`);
+    this.logInventoryState("ДО clearActiveQuestItem");
+    this.logActiveQuestItem("ДО clearActiveQuestItem");
+
+    this.activeQuestItem = null;
+    this.updateActiveQuestItemUI();
+
+    console.log(`[clearActiveQuestItem] КОНЕЦ: слот источника очищен`);
+    this.logInventoryState("ПОСЛЕ clearActiveQuestItem");
+    this.logActiveQuestItem("ПОСЛЕ clearActiveQuestItem");
+  }
+
+  private updateActiveQuestItemUI(): void {
+    // Обновляем UI через глобальные функции, если модальное окно открыто
+    // Проверяем, что функция доступна перед вызовом
+    if (typeof (window as any).updateActiveQuestSlot === 'function') {
+      try {
+        // Проверяем, что модальное окно инвентаря открыто, чтобы не вызывать лишние обновления
+        const inventoryModal = document.getElementById('inventory-modal');
+        if (inventoryModal && inventoryModal.style.display !== 'none') {
+          (window as any).updateActiveQuestSlot(this.activeQuestItem);
+
+          // Принудительно обновляем инвентарь после изменения активного предмета
+          // Это критично для поддержания синхронизации между UI и GameScene
+          setTimeout(() => {
+            if (typeof (window as any).populateInventoryModal === 'function' &&
+                typeof (window as any).populateInventoryModalLocked !== 'undefined') {
+              if (!(window as any).populateInventoryModalLocked) {
+                (window as any).populateInventoryModalLocked = true;
+                (window as any).populateInventoryModal(this.bunkerInventory, this.inventoryRows);
+                setTimeout(() => { (window as any).populateInventoryModalLocked = false; }, 100);
+              }
+            }
+          }, 50);
+        }
+      } catch (error) {
+        // Игнорируем ошибки при обновлении UI, чтобы не ломать игру
+      }
+    }
+  }
+
   // Public method to get item by ID from the database
   public getItemById(id: string): Item | undefined {
-    console.log(`[getItemById] Ищем предмет: ${id}, ITEMS_DATABASE доступен:`, typeof ITEMS_DATABASE !== 'undefined')
-    if (typeof ITEMS_DATABASE !== 'undefined') {
-      console.log(`[getItemById] ITEMS_DATABASE содержит ${ITEMS_DATABASE.length} предметов`)
-    }
     
     // Сначала ищем в основной базе предметов
     let result = ITEMS_DATABASE.find(item => item.id === id);
@@ -8250,25 +8523,23 @@ export class GameScene extends Phaser.Scene {
             iconPath: sidequestItem.spritePath,
             stackable: false
           }
-          console.log(`[getItemById] Найден побочный предмет: ${sidequestItem.name} (тема: ${sidequestItem.theme})`)
+
         }
       } catch (error) {
         console.error('[getItemById] Ошибка поиска в побочных предметах:', error)
       }
     }
     
-    console.log(`[getItemById] Результат поиска для ${id}:`, result)
+
     return result;
   }
 
   // Public method to update inventory rows based on storage room count
   public updateInventoryRows(storageCount: number): void {
-    console.log(`[GameScene] updateInventoryRows called with storageCount: ${storageCount}`);
     // Каждый склад дает +1 ряд инвентаря, минимум 1 ряд
     const newRows = Math.max(1, storageCount + 1);
 
     if (newRows !== this.inventoryRows) {
-      console.log(`[GameScene] Updating inventory rows: ${this.inventoryRows} -> ${newRows} (storage rooms: ${storageCount})`);
       this.inventoryRows = newRows;
 
       // Re-initialize inventory with new row count
@@ -8277,17 +8548,19 @@ export class GameScene extends Phaser.Scene {
       // Если модальное окно инвентаря открыто, обновляем его немедленно
       const inventoryModal = document.getElementById('inventory-modal');
       if (inventoryModal && inventoryModal.style.display !== 'none') {
-        console.log(`[GameScene] Inventory modal is open, refreshing immediately after room removal`);
         this.time.delayedCall(100, () => {
           if (typeof window.populateInventoryModal === 'function') {
-            const defaultInventory = this.getDefaultInventory();
-            // Используем только существующие предметы, без заглушек
-            const existingItems = defaultInventory.filter(item => {
-              const itemData = this.getItemById(item.id);
-              return itemData !== undefined;
-            });
-            window.populateInventoryModal(existingItems, this.inventoryRows);
-            console.log(`[GameScene] Immediate inventory refresh with ${this.inventoryRows} rows after room removal`);
+            try {
+              const defaultInventory = this.getDefaultInventory();
+              // Используем только существующие предметы, без заглушек
+              const existingItems = defaultInventory.filter(item => {
+                const itemData = this.getItemById(item.id);
+                return itemData !== undefined;
+              });
+              window.populateInventoryModal(existingItems, this.inventoryRows);
+            } catch (error) {
+              // Игнорируем ошибки обновления UI
+            }
           }
         });
       }
@@ -8295,49 +8568,59 @@ export class GameScene extends Phaser.Scene {
       // Также обновляем глобальное состояние инвентаря с задержкой
       this.time.delayedCall(200, () => {
         if (typeof window.populateInventoryModal === 'function') {
-          const defaultInventory = this.getDefaultInventory();
-          // Используем только существующие предметы, без заглушек
-          const existingItems = defaultInventory.filter(item => {
-            const itemData = this.getItemById(item.id);
-            return itemData !== undefined;
-          });
-          window.populateInventoryModal(existingItems, this.inventoryRows);
-          console.log(`[GameScene] Inventory updated with ${this.inventoryRows} rows via delayed call`);
-
-          // Принудительно обновляем интерфейс инвентаря если модальное окно открыто
           const inventoryModal = document.getElementById('inventory-modal');
-          if (inventoryModal && inventoryModal.style.display !== 'none' && typeof window.populateInventoryModal === 'function') {
-            console.log(`[GameScene] Forcing inventory UI refresh`);
-            this.time.delayedCall(100, () => {
-              if (typeof window.populateInventoryModal === 'function') {
-                const defaultInventory = this.getDefaultInventory();
-                // Используем только существующие предметы, без заглушек
-                const existingItems = defaultInventory.filter(item => {
-                  const itemData = this.getItemById(item.id);
-                  return itemData !== undefined;
-                });
-                window.populateInventoryModal(existingItems, this.inventoryRows);
-              }
-            });
+          if (inventoryModal && inventoryModal.style.display !== 'none') {
+            try {
+              const defaultInventory = this.getDefaultInventory();
+              // Используем только существующие предметы, без заглушек
+              const existingItems = defaultInventory.filter(item => {
+                const itemData = this.getItemById(item.id);
+                return itemData !== undefined;
+              });
+              window.populateInventoryModal(existingItems, this.inventoryRows);
+            } catch (error) {
+              // Игнорируем ошибки обновления UI
+            }
           }
         }
       });
+
+      // Принудительно обновляем интерфейс инвентаря если модальное окно открыто
+      const inventoryModal2 = document.getElementById('inventory-modal');
+      if (inventoryModal2 && inventoryModal2.style.display !== 'none' && typeof window.populateInventoryModal === 'function') {
+        this.time.delayedCall(100, () => {
+          if (typeof window.populateInventoryModal === 'function') {
+            try {
+              const defaultInventory = this.getDefaultInventory();
+              // Используем только существующие предметы, без заглушек
+              const existingItems = defaultInventory.filter(item => {
+                const itemData = this.getItemById(item.id);
+                return itemData !== undefined;
+              });
+              window.populateInventoryModal(existingItems, this.inventoryRows);
+            } catch (error) {
+              // Игнорируем ошибки обновления UI
+            }
+          }
+        });
+      }
     } else {
-      console.log(`[GameScene] No change needed: inventory already has ${this.inventoryRows} rows for ${storageCount} storage rooms`);
       // Даже если нет изменений, обновим интерфейс если модальное окно открыто
       const inventoryModal = document.getElementById('inventory-modal');
       if (inventoryModal && inventoryModal.style.display !== 'none') {
-        console.log(`[GameScene] Inventory modal is open, refreshing even though no change needed`);
         this.time.delayedCall(100, () => {
           if (typeof window.populateInventoryModal === 'function') {
-            const defaultInventory = this.getDefaultInventory();
-            // Используем только существующие предметы, без заглушек
-            const existingItems = defaultInventory.filter(item => {
-              const itemData = this.getItemById(item.id);
-              return itemData !== undefined;
-            });
-            window.populateInventoryModal(existingItems, this.inventoryRows);
-            console.log(`[GameScene] Inventory refresh with ${this.inventoryRows} rows (no change in count)`);
+            try {
+              const defaultInventory = this.getDefaultInventory();
+              // Используем только существующие предметы, без заглушек
+              const existingItems = defaultInventory.filter(item => {
+                const itemData = this.getItemById(item.id);
+                return itemData !== undefined;
+              });
+              window.populateInventoryModal(existingItems, this.inventoryRows);
+            } catch (error) {
+              // Игнорируем ошибки обновления UI
+            }
           }
         });
       }
@@ -8345,22 +8628,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   public openRoomSelection(): void {
-    console.log('[GameScene] openRoomSelection called');
     if (window.populateRoomSelectionModal && window.openModal) {
-      console.log('[GameScene] Opening room selection modal');
       // Передаем this (GameScene) в populateRoomSelectionModal
       window.populateRoomSelectionModal(this);
       window.openModal('room-selection-modal');
-    } else {
-      console.warn('[GameScene] Required UI functions not available');
     }
   }
 
   public getResidentById(id: number): any {
-    console.log('[GameScene] getResidentById called for ID:', id);
-
     // First check bunkerResidents
-    const resident = this.bunkerResidents.find(r => r.id === id);
+    const resident = this.bunkerResidents.find((r: any) => r.id === id);
     if (resident) {
       return {
         id: resident.id,
@@ -8406,14 +8683,13 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    console.warn('[GameScene] Resident not found with ID:', id);
+
     return null;
   }
 
   public onResidentPositionChanged(residentId: number, roomIndex: number, x: number, y: number): void {
-    const resident = this.bunkerResidents.find(r => r.id === residentId)
+    const resident = this.bunkerResidents.find((r: any) => r.id === residentId);
     if (resident) {
-      console.log(`[GameScene] Житель ${resident.profession} (ID: ${residentId}) перемещен в комнату ${roomIndex}`)
       // Здесь можно добавить дополнительную логику для обработки перемещения жителя
       // Например, обновление статистики или проверку специальных условий
     }
@@ -8421,7 +8697,7 @@ export class GameScene extends Phaser.Scene {
 
   // Cleanup - called when scene is destroyed
   onDestroy(): void {
-    if (this.uiUpdateInterval) {
+    if (this.uiUpdateInterval && typeof this.uiUpdateInterval.remove === 'function') {
       this.uiUpdateInterval.remove(false);
     }
 

@@ -125,14 +125,14 @@
   <script>
     // Global functions for UI overlay button clicks
     window.openInventory = function() {
-      console.log('[openInventory] Opening inventory modal');
+
       
       // Open modal first
       openModal('inventory-modal');
 
       // Initialize weapon system when inventory is opened
       setTimeout(() => {
-        console.log('[openInventory] Initializing weapon system...');
+
         
         if (window.initializeWeaponSystem) {
           window.initializeWeaponSystem();
@@ -144,7 +144,6 @@
         if (window.forceWeaponSync) {
           setTimeout(() => {
             window.forceWeaponSync();
-            console.log('[openInventory] Weapon sync completed');
           }, 50);
         }
 
@@ -152,24 +151,20 @@
         if (window.game && window.game.scene && typeof populateInventoryModal === 'function') {
           const gameScene = window.game.scene.getScene('Game');
           if (gameScene && gameScene.inventoryRows) {
-            console.log(`[openInventory] Refreshing inventory with ${gameScene.inventoryRows} rows from GameScene`);
+
 
             // Обновляем ресурсы
             if (window.updateAllResourceDisplays) {
               window.updateAllResourceDisplays();
             }
 
-            // Используем реальный инвентарь из GameScene если доступен
-            let inventoryData = [];
-            if (gameScene.getDefaultInventory) {
-              inventoryData = gameScene.getDefaultInventory();
-            }
-
-            populateInventoryModal(inventoryData, gameScene.inventoryRows);
+            // Используем полный инвентарь bunkerInventory для правильного отображения
+            const bunkerInventory = gameScene.bunkerInventory || [];
+            populateInventoryModal(bunkerInventory, gameScene.inventoryRows);
           }
         }
         
-        console.log('[openInventory] Inventory modal setup completed');
+
       }, 100);
     };
 
@@ -180,7 +175,7 @@
 
     // Функция для открытия журнала уведомлений
     window.openJournal = function() {
-      console.log('[openJournal] Opening journal modal');
+
       
       // Заполняем журнал уведомлениями
       if (window.populateJournalModal) {
@@ -1131,7 +1126,7 @@
           // Получаем GameScene из window.game
           let gameScene = null;
           if (window.game && window.game.scene) {
-            console.log('[HTML] Available scenes:', window.game.scene.scenes.map(s => s.scene.key));
+
             
             // Пробуем разные варианты имен сцены
             gameScene = window.game.scene.getScene('GameScene') || 
@@ -1145,7 +1140,7 @@
               }
             }
             
-            console.log('[HTML] Found gameScene:', !!gameScene);
+
           }
           populateRoomSelectionModal(gameScene);
         }
@@ -1161,27 +1156,22 @@
     };
 
     window.openResidents = function() {
-      console.log('=== OPENING RESIDENTS MODAL ===');
-      console.log('window.game exists:', !!window.game);
-      console.log('window.game.scene exists:', !!(window.game && window.game.scene));
+
 
       // Get real data from game scene
       let residents = [];
       if (window.game && window.game.scene) {
         try {
           const gameScene = window.game.scene.getScene('Game');
-          console.log('Game scene found:', !!gameScene);
+
 
           if (gameScene) {
             // Try to use the new method first
             if (typeof gameScene.getCurrentResidentsData === 'function') {
               residents = gameScene.getCurrentResidentsData();
-              console.log('Got residents using getCurrentResidentsData method');
             } else {
               // Fallback to manual data collection
               const rawResidents = gameScene.bunkerResidents || [];
-              console.log('Raw residents from game:', rawResidents);
-              console.log('Raw residents count:', rawResidents.length);
 
               residents = rawResidents.map((resident, index) => ({
                 id: resident.id,
@@ -1202,12 +1192,9 @@
                 isEnemy: false
               }));
 
-              console.log('Formatted residents count:', residents.length);
             }
 
-            if (residents.length > 0) {
-              console.log('First resident sample:', residents[0]);
-            } else {
+            if (residents.length === 0) {
               console.warn('No residents found in bunker');
             }
           } else {
@@ -1223,20 +1210,20 @@
 
       // Store residents data globally for detail view
       window.currentResidentsData = residents;
-      console.log('Stored residents data count:', residents.length);
+
 
       // If no residents found, try to get them from bunkerView
       if (residents.length === 0 && window.game && window.game.scene) {
         const gameScene = window.game.scene.getScene('Game');
         if (gameScene && gameScene.simpleBunker) {
-          console.log('Trying to get residents from bunkerView...');
+
           // Some residents might be managed by bunkerView
         }
       }
 
       // Populate modal with data
       if (typeof window.populatePopulationModal === 'function') {
-        console.log('Calling populatePopulationModal with', residents.length, 'residents');
+
         window.populatePopulationModal(residents);
       } else {
         console.error('populatePopulationModal function not found');
@@ -1244,17 +1231,17 @@
 
       // Open modal
       if (typeof window.openModal === 'function') {
-        console.log('Opening population-modal');
+
         window.openModal('population-modal');
       } else {
         console.error('openModal function not found');
       }
 
-      console.log('=== RESIDENTS MODAL OPENING COMPLETE ===');
+
     };
 
     window.openResource = function(resource) {
-      console.log('Opening resource modal:', resource);
+
 
       // Get resource data from game or use defaults
       let gameData = {
@@ -1291,7 +1278,7 @@
                 ...gameData,
                 ...detailedInfo
               };
-              console.log(`[openResource] Получена детальная информация для ${resource}:`, detailedInfo);
+
             } catch (error) {
               console.warn(`[openResource] Ошибка получения детальной информации для ${resource}:`, error);
             }
@@ -1302,7 +1289,7 @@
             try {
               const happinessInfo = gameScene.getHappinessInfo();
               gameData = { ...gameData, ...happinessInfo };
-              console.log(`[openResource] Получена детальная информация о счастье:`, happinessInfo);
+
             } catch (error) {
               console.warn(`[openResource] Ошибка получения информации о счастье:`, error);
             }
@@ -1312,7 +1299,7 @@
             try {
               const defenseInfo = gameScene.getDefenseInfo();
               gameData = { ...gameData, ...defenseInfo };
-              console.log(`[openResource] Получена детальная информация о защите:`, defenseInfo);
+
             } catch (error) {
               console.warn(`[openResource] Ошибка получения информации о защите:`, error);
             }
@@ -1322,7 +1309,7 @@
             try {
               const comfortInfo = gameScene.getComfortInfo();
               gameData = { ...gameData, ...comfortInfo };
-              console.log(`[openResource] Получена детальная информация о комфорте:`, comfortInfo);
+
             } catch (error) {
               console.warn(`[openResource] Ошибка получения информации о комфорте:`, error);
             }
@@ -1332,7 +1319,7 @@
             try {
               const moralInfo = gameScene.getMoralInfo();
               gameData = { ...gameData, ...moralInfo };
-              console.log(`[openResource] Получена детальная информация о морали:`, moralInfo);
+
             } catch (error) {
               console.warn(`[openResource] Ошибка получения информации о морали:`, error);
             }
@@ -1691,7 +1678,7 @@
 
       title.textContent = resourceType.toUpperCase();
       
-      console.log(`[populateResourceModal] Заполняем модальное окно для ${resourceType} с данными:`, data);
+
 
       let details = '';
 
@@ -2156,12 +2143,52 @@
       return fallbackItems[id] || null;
     };
 
-    window.populateInventoryModal = function(inventory, inventoryRows = 1) {
-      console.log(`[populateInventoryModal] Called with inventoryRows: ${inventoryRows}, inventory length: ${inventory ? inventory.length : 0}`);
+    // Флаг блокировки повторных вызовов populateInventoryModal
+    let populateInventoryModalLocked = false;
+
+    // Флаг блокировки повторных вызовов handleQuestSlotDrop
+    let handleQuestSlotDropLocked = false;
+
+    window.populateInventoryModal = function(bunkerInventory, inventoryRows = 1) {
+      console.log(`[populateInventoryModal] НАЧАЛО: обновление инвентаря (${bunkerInventory ? bunkerInventory.length : 0} слотов, ${inventoryRows} рядов)`);
+
+      // Логируем содержимое полного инвентаря
+      if (bunkerInventory && bunkerInventory.length > 0) {
+        console.log(`[populateInventoryModal] bunkerInventory содержимое:`);
+        bunkerInventory.forEach((item, index) => {
+          if (item && item.id) {
+            console.log(`  [${index}] ${item.id} x${item.quantity}`);
+          } else {
+            console.log(`  [${index}] пустой слот`);
+          }
+        });
+
+        // Фильтруем только предметы для отображения
+        const displayItems = bunkerInventory.filter(item =>
+          item !== undefined && item !== null && item.id && !['food', 'water', 'money', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(item.id)
+        );
+        console.log(`[populateInventoryModal] Фильтрованные предметы для отображения (${displayItems.length}):`);
+        displayItems.forEach((item, index) => {
+          console.log(`  [${index}] ${item.id} x${item.quantity}`);
+        });
+      }
+
+      // Защита от бесконечных вызовов
+      if (populateInventoryModalLocked) {
+        console.log(`[populateInventoryModal] Пропущено: функция заблокирована`);
+        return;
+      }
+
+      populateInventoryModalLocked = true;
+
+      // Разблокировать через короткое время
+      setTimeout(() => {
+        populateInventoryModalLocked = false;
+      }, 50);
 
       const grid = document.getElementById('inventory-grid');
       if (!grid) {
-        console.log(`[populateInventoryModal] inventory-grid element not found`);
+        populateInventoryModalLocked = false;
         return;
       }
 
@@ -2170,16 +2197,21 @@
 
       // Create inventory slots (6 columns × inventoryRows)
       const totalSlots = 6 * inventoryRows;
-      console.log(`[populateInventoryModal] Creating ${totalSlots} slots (6 columns × ${inventoryRows} rows)`);
 
       for (let i = 0; i < totalSlots; i++) {
         const slot = document.createElement('div');
         slot.className = 'inventory-slot';
+        // Очищаем все классы подсветки перед присвоением новых
+        clearInventorySlotClasses(slot);
+
+        // Сохраняем реальный индекс bunkerInventory для этого слота
+        slot.dataset.realIndex = i.toString();
         slot.onclick = (e) => selectInventorySlot(i, e);
 
-        const item = inventory ? inventory[i] : null;
-        // Проверяем, что предмет существует и не является пустым
-        if (item && item.id && item.id.trim() !== '' && item.quantity > 0) {
+        const item = bunkerInventory ? bunkerInventory[i] : null;
+        // Проверяем, что предмет существует и не является пустым или ресурсом
+        if (item && item.id && item.id.trim() !== '' && item.quantity > 0 &&
+            !['food', 'water', 'money', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(item.id)) {
           slot.classList.add('occupied');
 
           // Проверяем формат данных: новый (с id) или старый (с icon)
@@ -2191,38 +2223,129 @@
             const itemData = window.getItemById(item.id);
             if (itemData) {
               itemDisplay = `<img src="${itemData.spritePath}" alt="${itemData.name}" style="width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated;">`;
+
+              // Подсвечиваем слот в зависимости от категории предмета
+              if (itemData.category === 'quest') {
+                // Желтый/золотой цвет для квестовых предметов
+                slot.classList.add('quest-item');
+
+              } else if (itemData.category === 'sidequest') {
+                // Синий/фиолетовый цвет для побочных предметов
+                slot.classList.add('sidequest-item');
+
+              } else {
+                // Серый цвет для обычных предметов
+                slot.classList.add('regular-item');
+              }
             } else {
               itemDisplay = `❓`; // Неизвестный предмет
+              // Серый цвет для неизвестных предметов
+              slot.classList.add('regular-item');
             }
           } else if (item.icon) {
             // Старый формат: используем иконку
             itemDisplay = item.icon;
+            // Серый цвет для старого формата
+            slot.classList.add('regular-item');
           } else {
             // Fallback
             itemDisplay = '📦';
+            // Серый цвет для fallback
+            slot.classList.add('regular-item');
           }
 
           slot.innerHTML = `
             <div class="item">${itemDisplay}</div>
             <div class="quantity">${itemQuantity}</div>
           `;
+
+          // Делаем слот перетаскиваемым с динамическим получением данных
+          slot.draggable = true;
+          slot.ondragstart = (e) => {
+            console.log(`[ondragstart] Начало перетаскивания из слота ${i}`);
+
+            // Получаем АКТУАЛЬНЫЕ данные о предмете из GameScene
+            let actualItem = null;
+            let actualSlot = i;
+            let actualQuantity = 1;
+
+            if (window.game && window.game.scene) {
+              const gameScene = window.game.scene.getScene('Game');
+              if (gameScene && gameScene.bunkerInventory) {
+                // Сначала проверяем, есть ли предмет в указанном слоте
+                if (gameScene.bunkerInventory[i] && gameScene.bunkerInventory[i].id === item.id) {
+                  actualItem = gameScene.bunkerInventory[i];
+                  actualQuantity = actualItem.quantity || 1;
+                  console.log(`[ondragstart] Предмет найден в слоте ${i}:`, actualItem);
+                } else {
+                  // Если предмета нет в указанном слоте, ищем его в других слотах
+                  console.log(`[ondragstart] Предмет ${item.id} не найден в слоте ${i}, ищем в других слотах`);
+                  const foundIndex = gameScene.bunkerInventory.findIndex(invItem =>
+                    invItem && invItem.id === item.id
+                  );
+
+                  if (foundIndex !== -1) {
+                    actualItem = gameScene.bunkerInventory[foundIndex];
+                    actualSlot = foundIndex;
+                    actualQuantity = actualItem.quantity || 1;
+                    console.log(`[ondragstart] Предмет найден в слоте ${foundIndex}:`, actualItem);
+                  } else {
+                    console.log(`[ondragstart] Предмет ${item.id} больше не существует в инвентаре, пропускаем перетаскивание`);
+                    // Предотвращаем перетаскивание
+                    e.preventDefault();
+                    return;
+                  }
+                }
+              }
+            }
+
+            // Используем актуальные данные или fallback на старые
+            const dragItem = actualItem || item;
+            const dragQuantity = actualQuantity || item.quantity;
+
+            console.log(`[ondragstart] Перетаскиваем: ${dragItem.id} x${dragQuantity} из актуального слота ${actualSlot}`);
+
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+              id: dragItem.id,
+              quantity: dragQuantity,
+              fromSlot: actualSlot, // Актуальный индекс в bunkerInventory
+              fromInventory: true
+            }));
+            e.dataTransfer.effectAllowed = 'move';
+          };
         } else {
-          // Пустой слот - очищаем содержимое
+          // Пустой слот - очищаем содержимое и сбрасываем цвета
           slot.classList.remove('occupied');
+          slot.classList.add('empty-slot');
           slot.innerHTML = '';
+          slot.draggable = false;
+          slot.ondragstart = null;
         }
 
         grid.appendChild(slot);
       }
 
-      console.log(`[populateInventoryModal] Successfully created ${totalSlots} inventory slots`);
+
 
       // Initialize drag and drop after creating slots
       setTimeout(() => {
         if (window.initializeInventoryDragAndDrop) {
           window.initializeInventoryDragAndDrop();
         }
+
+        // Инициализируем слот активного квестового предмета
+        if (window.game && window.game.scene) {
+          const gameScene = window.game.scene.getScene('Game');
+          if (gameScene && typeof gameScene.getActiveQuestItem === 'function') {
+            const activeQuestItem = gameScene.getActiveQuestItem();
+            if (window.updateActiveQuestSlot) {
+              window.updateActiveQuestSlot(activeQuestItem);
+            }
+          }
+        }
       }, 100);
+
+      console.log(`[populateInventoryModal] КОНЕЦ: инвентарь успешно обновлен`);
     };
 
     // Показ краткой информации о предмете при клике по слоту
@@ -2395,13 +2518,52 @@
 
     // Initialize drag and drop for inventory slots
     window.initializeInventoryDragAndDrop = function() {
+      // Инициализируем обычные слоты инвентаря
       const slots = document.querySelectorAll('.inventory-slot');
+
+      // Инициализируем слот квестового предмета
+      const questSlot = document.getElementById('active-quest-slot');
+      if (questSlot) {
+        questSlot.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          questSlot.classList.add('drag-over');
+        });
+
+        questSlot.addEventListener('dragleave', function(e) {
+          questSlot.classList.remove('drag-over');
+        });
+
+        questSlot.addEventListener('drop', function(e) {
+          e.preventDefault();
+          questSlot.classList.remove('drag-over');
+          handleQuestSlotDrop(e);
+        });
+      }
       slots.forEach((slot, index) => {
         // Make slots draggable
         slot.draggable = true;
 
         // Drag start event
         slot.addEventListener('dragstart', function(e) {
+          // Получаем данные о предмете в слоте
+          if (window.game && window.game.scene) {
+            const gameScene = window.game.scene.getScene('Game');
+            if (gameScene && typeof gameScene.getInventoryItem === 'function') {
+              const itemData = gameScene.getInventoryItem(index);
+              if (itemData) {
+                // Устанавливаем данные для перетаскивания
+                e.dataTransfer.setData('text/plain', JSON.stringify({
+                  id: itemData.id,
+                  quantity: itemData.quantity,
+                  fromSlot: index,
+                  fromInventory: true
+                }));
+
+              }
+            }
+          }
+
           e.dataTransfer.effectAllowed = 'move';
           draggedItemIndex = index;
           draggedItem = slot.cloneNode(true);
@@ -2433,8 +2595,6 @@
             }
             document.removeEventListener('drag', updateGhost);
           }, { once: true });
-
-          console.log(`[Inventory] Started dragging item from slot ${index}`);
         });
 
         // Drag over event
@@ -2462,8 +2622,64 @@
 
           const targetIndex = index;
 
-          if (draggedItemIndex !== -1 && draggedItemIndex !== targetIndex) {
-            console.log(`[Inventory] Dropped item from slot ${draggedItemIndex} to slot ${targetIndex}`);
+          // Получаем данные о перетаскиваемом предмете
+          let draggedData = null;
+          try {
+            const dataString = e.dataTransfer.getData('text/plain');
+            if (!dataString || dataString.trim() === '') {
+              console.warn('[Inventory] Empty drag data');
+              return;
+            }
+
+            // Проверяем, является ли строка JSON или URL изображения
+            if (dataString.startsWith('{') && dataString.endsWith('}')) {
+              // Это JSON данные
+              draggedData = JSON.parse(dataString);
+            } else {
+              console.warn('[Inventory] Unknown drag data format:', dataString);
+              return;
+            }
+          } catch (error) {
+            console.warn('[Inventory] Failed to parse drag data:', error);
+            return;
+          }
+
+          
+
+          // Если предмет из слота источника
+          if (draggedData && draggedData.fromQuestSlot) {
+
+
+            // Очищаем слот источника
+            if (window.game && window.game.scene) {
+              const gameScene = window.game.scene.getScene('Game');
+              if (gameScene && typeof gameScene.clearActiveQuestItem === 'function') {
+                gameScene.clearActiveQuestItem();
+              }
+            }
+
+            // Добавляем предмет в целевой слот инвентаря
+            if (window.game && window.game.scene) {
+              const gameScene = window.game.scene.getScene('Game');
+              if (gameScene && typeof gameScene.setInventoryItem === 'function') {
+                const itemData = { id: draggedData.id, quantity: draggedData.quantity || 1 };
+                const success = gameScene.setInventoryItem(targetIndex, itemData);
+                if (!success) {
+                  // Если не удалось добавить в конкретный слот, предмет уже очищен из слота источника
+                  // В этом случае предмет будет потерян, но это крайний случай
+                }
+              }
+            }
+
+            // UI обновится автоматически через setInventoryItem
+
+            if (window.showToast) {
+              window.showToast(`Предмет перемещен обратно в инвентарь`);
+            }
+          }
+          // Обычное перемещение между слотами инвентаря
+          else if (draggedItemIndex !== -1 && draggedItemIndex !== targetIndex) {
+
             swapInventoryItems(draggedItemIndex, targetIndex);
           }
 
@@ -2472,7 +2688,7 @@
         });
       });
 
-      console.log('[Inventory] Drag and drop initialized for all slots');
+
     };
 
     // Swap items between inventory slots
@@ -2481,18 +2697,37 @@
 
       if (window.game && window.game.scene) {
         const gameScene = window.game.scene.getScene('Game');
-        if (gameScene && gameScene.swapInventoryItems) {
-          const success = gameScene.swapInventoryItems(fromSlot, toSlot);
-          if (success) {
-            // Refresh inventory display
-            refreshInventoryDisplay();
-            console.log(`[Inventory] Successfully swapped items between slots ${fromSlot} and ${toSlot}`);
-            return true;
+        if (gameScene &&
+            typeof gameScene.getInventoryItem === 'function') {
+
+          // Простая замена предметов между слотами
+          const fromItem = gameScene.getInventoryItem(fromSlot);
+          const toItem = gameScene.getInventoryItem(toSlot);
+
+          if (fromItem && fromItem.id) {
+            // Прямой swap: предмет из fromSlot в toSlot, предмет из toSlot в fromSlot
+            if (gameScene.bunkerInventory) {
+              console.log(`[swapInventoryItems] Меняем местами: слот ${fromSlot} (${fromItem.id}) ↔ слот ${toSlot} (${toItem ? toItem.id : 'пустой'})`);
+
+              // Убеждаемся, что массивы достаточно большие
+              while (gameScene.bunkerInventory.length <= Math.max(fromSlot, toSlot)) {
+                gameScene.bunkerInventory.push(undefined);
+              }
+
+              // Простая замена
+              gameScene.bunkerInventory[fromSlot] = toItem && toItem.id ? toItem : undefined;
+              gameScene.bunkerInventory[toSlot] = fromItem;
+
+              // Обновляем отображение инвентаря
+              refreshInventoryDisplay();
+
+              console.log(`[swapInventoryItems] Замена завершена успешно`);
+              return true;
+            }
           }
         }
       }
 
-      console.warn(`[Inventory] Failed to swap items between slots ${fromSlot} and ${toSlot}`);
       return false;
     };
 
@@ -2502,18 +2737,37 @@
 
       if (window.game && window.game.scene) {
         const gameScene = window.game.scene.getScene('Game');
-        if (gameScene && gameScene.moveInventoryItem) {
-          const success = gameScene.moveInventoryItem(fromSlot, toSlot);
-          if (success) {
-            // Refresh inventory display
-            refreshInventoryDisplay();
-            console.log(`[Inventory] Successfully moved item from slot ${fromSlot} to slot ${toSlot}`);
-            return true;
+        if (gameScene &&
+            typeof gameScene.getInventoryItem === 'function') {
+
+          // Простая замена предметов между слотами
+          const fromItem = gameScene.getInventoryItem(fromSlot);
+          const toItem = gameScene.getInventoryItem(toSlot);
+
+          if (fromItem && fromItem.id) {
+            // Прямой swap: предмет из fromSlot в toSlot, предмет из toSlot в fromSlot
+            if (gameScene.bunkerInventory) {
+              console.log(`[moveInventoryItem] Меняем местами: слот ${fromSlot} (${fromItem.id}) ↔ слот ${toSlot} (${toItem ? toItem.id : 'пустой'})`);
+
+              // Убеждаемся, что массивы достаточно большие
+              while (gameScene.bunkerInventory.length <= Math.max(fromSlot, toSlot)) {
+                gameScene.bunkerInventory.push(undefined);
+              }
+
+              // Простая замена
+              gameScene.bunkerInventory[fromSlot] = toItem && toItem.id ? toItem : undefined;
+              gameScene.bunkerInventory[toSlot] = fromItem;
+
+              // Обновляем отображение инвентаря
+              refreshInventoryDisplay();
+
+              console.log(`[moveInventoryItem] Замена завершена успешно`);
+              return true;
+            }
           }
         }
       }
 
-      console.warn(`[Inventory] Failed to move item from slot ${fromSlot} to slot ${toSlot}`);
       return false;
     };
 
@@ -2528,6 +2782,401 @@
         }
       }
     }
+
+    // Вспомогательная функция для очистки всех классов подсветки
+    function clearInventorySlotClasses(slot) {
+      slot.classList.remove('quest-item', 'sidequest-item', 'regular-item', 'empty-slot');
+    }
+
+    // Глобальная переменная для активного квестового предмета
+    window.activeQuestItem = null;
+
+    // Флаг блокировки повторных вызовов
+    let updateActiveQuestSlotLocked = false;
+
+    // Функция для обновления слота активного квестового предмета
+    window.updateActiveQuestSlot = function(questItem) {
+      // Защита от бесконечных вызовов
+      if (updateActiveQuestSlotLocked) {
+        return;
+      }
+
+      updateActiveQuestSlotLocked = true;
+
+      // Разблокировать через короткое время
+      setTimeout(() => {
+        updateActiveQuestSlotLocked = false;
+      }, 100);
+
+      const questSlot = document.getElementById('active-quest-slot');
+      const questContent = document.getElementById('active-quest-content');
+      const questInfoContent = document.getElementById('quest-info-content');
+
+      if (!questSlot || !questContent || !questInfoContent) {
+        updateActiveQuestSlotLocked = false;
+        return;
+      }
+
+      window.activeQuestItem = questItem;
+
+      if (questItem) {
+        // Показываем активный предмет
+        questSlot.classList.add('active');
+        questContent.innerHTML = `
+          <div class="quest-item-display" draggable="true" ondragstart="handleQuestItemDrag(event, '${questItem.id}')">
+            <img src="${questItem.spritePath}" alt="${questItem.name}" class="quest-item-icon">
+            <div class="quest-item-name">${questItem.name}</div>
+          </div>
+        `;
+
+        questInfoContent.textContent = questItem.infoSource;
+        questInfoContent.classList.add('active');
+
+
+      } else {
+        // Показываем placeholder
+        questSlot.classList.remove('active');
+        questContent.innerHTML = `
+          <div class="quest-placeholder">
+            <div class="quest-placeholder-icon">📡</div>
+            <div class="quest-placeholder-text">Перетащите квестовый предмет сюда</div>
+          </div>
+        `;
+
+        questInfoContent.textContent = 'Нет активного источника информации';
+        questInfoContent.classList.remove('active');
+
+
+      }
+    };
+
+    // Функция для обработки клика по слоту квестового предмета (очистка)
+    window.handleQuestSlotClick = function() {
+      console.log(`[handleQuestSlotClick] НАЧАЛО: клик по слоту источника для очистки`);
+      console.log(`[handleQuestSlotClick] Текущий активный предмет:`, window.activeQuestItem);
+
+      if (window.activeQuestItem) {
+        // Возвращаем предмет в свободный слот инвентаря перед очисткой
+        if (window.game && window.game.scene) {
+          const gameScene = window.game.scene.getScene('Game');
+
+          if (gameScene) {
+            console.log(`[handleQuestSlotClick] Ищем свободный слот для возврата предмета ${window.activeQuestItem.id}`);
+
+            // Находим свободный слот в инвентаре (используем bunkerInventory вместо getDefaultInventory)
+            const bunkerInventory = gameScene.bunkerInventory || [];
+            const totalSlots = 6 * gameScene.inventoryRows;
+            let freeSlotIndex = -1;
+
+            // Ищем свободный слот среди видимых
+            for (let i = 0; i < totalSlots && freeSlotIndex === -1; i++) {
+              if (!bunkerInventory[i] || !bunkerInventory[i].id || bunkerInventory[i].id === '') {
+                freeSlotIndex = i;
+              }
+            }
+
+            console.log(`[handleQuestSlotClick] Найден свободный слот: ${freeSlotIndex}`);
+
+            // Если нашли свободный слот, помещаем туда предмет
+            if (freeSlotIndex !== -1 && typeof gameScene.setInventoryItem === 'function') {
+              gameScene.setInventoryItem(freeSlotIndex, {
+                id: window.activeQuestItem.id,
+                quantity: window.activeQuestItem.quantity || 1
+              });
+            } else {
+              // Если нет свободного слота, добавляем предмет в конец массива
+              if (typeof gameScene.addItemToBunkerInventory === 'function') {
+                gameScene.addItemToBunkerInventory(window.activeQuestItem.id, window.activeQuestItem.quantity || 1);
+              }
+            }
+
+            // Очищаем активный предмет в GameScene
+            if (typeof gameScene.clearActiveQuestItem === 'function') {
+              gameScene.clearActiveQuestItem();
+            }
+          }
+        }
+
+        // Обновляем отображение инвентаря
+        setTimeout(() => {
+          if (window.game && window.game.scene) {
+            const gameScene = window.game.scene.getScene('Game');
+            if (gameScene && typeof window.populateInventoryModal === 'function') {
+              const inventory = gameScene.getDefaultInventory();
+              const inventoryRows = gameScene.inventoryRows || 1;
+              window.populateInventoryModal(inventory, inventoryRows);
+            }
+          }
+        }, 50);
+
+        // Показываем уведомление
+        if (window.showToast) {
+          window.showToast(`Источник информации отключен: ${window.activeQuestItem.name}`);
+        }
+        console.log(`[handleQuestSlotClick] КОНЕЦ: слот источника очищен`);
+      } else {
+        console.log(`[handleQuestSlotClick] Пропущено: слот источника уже пустой`);
+      }
+    };
+
+    // Функция для обработки перетаскивания активного предмета из слота
+    window.handleQuestItemDrag = function(event, itemId) {
+
+
+      // Устанавливаем данные для перетаскивания
+      event.dataTransfer.setData('text/plain', JSON.stringify({
+        id: itemId,
+        quantity: window.activeQuestItem ? (window.activeQuestItem.quantity || 1) : 1,
+        fromQuestSlot: true, // Флаг, что предмет из слота источника
+        fromInventory: false
+      }));
+
+      event.dataTransfer.effectAllowed = 'move';
+
+      // Создаем drag ghost с улучшенными стилями
+      const dragGhost = event.target.cloneNode(true);
+      dragGhost.className = 'quest-drag-ghost';
+      document.body.appendChild(dragGhost);
+
+      // Update ghost position
+      function updateGhost(e) {
+        if (dragGhost) {
+          dragGhost.style.left = (e.clientX - 30) + 'px';
+          dragGhost.style.top = (e.clientY - 30) + 'px';
+        }
+      }
+
+      document.addEventListener('drag', updateGhost);
+
+      // Clean up ghost after drag ends
+      event.target.addEventListener('dragend', function() {
+        if (dragGhost) {
+          document.body.removeChild(dragGhost);
+        }
+        document.removeEventListener('drag', updateGhost);
+      }, { once: true });
+    };
+
+    // Функция для обработки перетаскивания квестового предмета в слот
+    window.handleQuestSlotDrop = function(event) {
+      console.log(`[handleQuestSlotDrop] НАЧАЛО: сброс предмета в слот источника`);
+
+      // Защита от повторных вызовов
+      if (handleQuestSlotDropLocked) {
+        console.log(`[handleQuestSlotDrop] Пропущено: функция заблокирована`);
+        return;
+      }
+
+      handleQuestSlotDropLocked = true;
+
+      // Разблокировать через короткое время
+      setTimeout(() => {
+        handleQuestSlotDropLocked = false;
+      }, 200); // Увеличенное время блокировки для предотвращения повторных вызовов
+
+      event.preventDefault();
+
+      const questSlot = document.getElementById('active-quest-slot');
+      if (questSlot) {
+        questSlot.classList.remove('drag-over');
+      }
+
+      // Получаем данные о перетаскиваемом предмете
+      let draggedData = null;
+      let itemId = null;
+      let actualSlotIndex = -1;
+
+      try {
+        const dataString = event.dataTransfer.getData('text/plain');
+        if (!dataString || dataString.trim() === '') {
+          console.warn('[handleQuestSlotDrop] Empty drag data');
+          return;
+        }
+
+        // Проверяем, является ли строка JSON или URL изображения
+        if (dataString.startsWith('{') && dataString.endsWith('}')) {
+          // Это JSON данные
+          draggedData = JSON.parse(dataString);
+          itemId = draggedData.id;
+          actualSlotIndex = draggedData.fromSlot;
+        } else if (dataString.includes('/src/sprites/items/quest/')) {
+          // Это URL изображения квестового предмета
+          const pathParts = dataString.split('/');
+          const filename = pathParts[pathParts.length - 1];
+          itemId = filename.split('.')[0]; // Убираем расширение файла
+        } else {
+          console.warn('[handleQuestSlotDrop] Unknown drag data format:', dataString);
+          return;
+        }
+      } catch (error) {
+        console.error('[handleQuestSlotDrop] Failed to parse drag data:', error, 'Raw data:', event.dataTransfer.getData('text/plain'));
+        return;
+      }
+
+      if (!itemId) {
+        console.warn('[handleQuestSlotDrop] Could not determine item ID');
+        return;
+      }
+
+      // Получаем АКТУАЛЬНЫЕ данные о предмете из GameScene
+      let actualItemData = null;
+      let actualItemSlot = -1;
+
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && typeof gameScene.getItemById === 'function') {
+          actualItemData = gameScene.getItemById(itemId);
+
+          // Ищем предмет в актуальном инвентаре
+          const inventory = gameScene.bunkerInventory || [];
+          for (let i = 0; i < inventory.length; i++) {
+            if (inventory[i] && inventory[i].id === itemId) {
+              actualItemSlot = i;
+              break;
+            }
+          }
+        }
+      }
+
+      console.log(`[handleQuestSlotDrop] Обнаружен предмет для сброса: ${itemId}`);
+      console.log(`[handleQuestSlotDrop] UI данные:`, draggedData);
+      console.log(`[handleQuestSlotDrop] Актуальный слот в GameScene: ${actualItemSlot}`);
+
+      // Покажем, что действительно находится в этом слоте
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.bunkerInventory) {
+          const slotItem = gameScene.bunkerInventory[actualSlotIndex];
+          console.log(`[handleQuestSlotDrop] Предмет в актуальном слоте ${actualSlotIndex}:`, slotItem);
+          if (slotItem && slotItem.id !== itemId) {
+            console.log(`[handleQuestSlotDrop] Предмет в слоте ${actualSlotIndex} изменился: был ${itemId}, теперь ${slotItem.id}`);
+
+            // Исправляем: используем актуальные данные из слота вместо устаревших из UI
+            if (slotItem && slotItem.id && slotItem.quantity > 0) {
+              console.log(`[handleQuestSlotDrop] Используем актуальные данные из слота:`, slotItem);
+              draggedData.id = slotItem.id;
+              draggedData.quantity = slotItem.quantity;
+              draggedData.fromSlot = actualSlotIndex;
+              itemId = slotItem.id;
+              // Обновляем itemData для корректной валидации
+              itemData = window.getItemById ? window.getItemById(itemId) : null;
+            }
+          }
+        }
+      }
+
+      console.log(`[handleQuestSlotDrop] Финальные данные для обработки:`, draggedData);
+      console.log(`[handleQuestSlotDrop] Актуальные данные предмета:`, actualItemData);
+
+      // Используем актуальные данные вместо данных из UI
+      // Всегда проверяем наличие предмета в инвентаре с актуальным itemId
+      let itemFoundInInventory = false;
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && gameScene.bunkerInventory) {
+          const foundIndex = gameScene.bunkerInventory.findIndex(item => item && item.id === itemId);
+          if (foundIndex !== -1) {
+            console.log(`[handleQuestSlotDrop] Предмет ${itemId} найден в слоте ${foundIndex}`);
+            actualSlotIndex = foundIndex;
+            itemFoundInInventory = true;
+          } else {
+            console.log(`[handleQuestSlotDrop] Предмет ${itemId} не найден в актуальном инвентаре GameScene`);
+            if (window.showToast) {
+              window.showToast(`Ошибка: предмет ${itemData?.name || itemId} не найден в инвентаре!`);
+            }
+            return; // Прекращаем обработку
+          }
+        }
+      }
+
+      if (!itemFoundInInventory) {
+        console.log(`[handleQuestSlotDrop] Предмет ${itemId} больше не существует в инвентаре, пропускаем операцию`);
+        if (window.showToast) {
+          window.showToast('Предмет больше не доступен');
+        }
+        return; // Прекращаем обработку
+      }
+
+      // Проверяем, что это основной квестовый предмет (не побочный)
+      const itemData = window.getItemById ? window.getItemById(itemId) : null;
+      if (!itemData || itemData.category !== 'quest') {
+        console.log(`[handleQuestSlotDrop] Отклонено: предмет ${itemId} не является основным квестовым (category: ${itemData?.category})`);
+        if (window.showToast) {
+          window.showToast('Только основные квестовые предметы можно поместить в этот слот!');
+        }
+        return;
+      }
+
+      console.log(`[handleQuestSlotDrop] Предмет ${itemId} прошел валидацию, устанавливаем в слот источника`);
+
+      // Устанавливаем активный квестовый предмет в GameScene
+      if (window.game && window.game.scene) {
+        const gameScene = window.game.scene.getScene('Game');
+        if (gameScene && typeof gameScene.setActiveQuestItem === 'function' && typeof gameScene.getActiveQuestItem === 'function') {
+          // Сохраняем текущий активный предмет, чтобы вернуть его в инвентарь
+          const currentActiveItem = gameScene.getActiveQuestItem();
+          console.log(`[handleQuestSlotDrop] Текущий активный предмет:`, currentActiveItem);
+
+          // Проверяем, не пытаемся ли мы экипировать уже экипированный предмет
+          if (currentActiveItem && currentActiveItem.id === itemId) {
+            console.log(`[handleQuestSlotDrop] Предмет ${itemId} уже экипирован, пропускаем операцию`);
+            if (window.showToast) {
+              window.showToast(`${itemData.name} уже экипирован в слот источника!`);
+            }
+            return;
+          }
+
+          // Предмет уже проверен выше, actualSlotIndex установлен корректно
+
+          const success = gameScene.setActiveQuestItem(itemId);
+          if (success) {
+            // Если был активный предмет, добавляем его обратно в инвентарь с сохраненным количеством
+            // Поскольку массив теперь плотный, предмет будет добавлен в конец или в первый свободный слот
+            if (currentActiveItem) {
+              console.log(`[handleQuestSlotDrop] Возвращаем ${currentActiveItem.id} x${currentActiveItem.quantity} обратно в инвентарь`);
+
+              if (typeof gameScene.addItemToBunkerInventory === 'function') {
+                gameScene.addItemToBunkerInventory(currentActiveItem.id, currentActiveItem.quantity);
+                console.log(`[handleQuestSlotDrop] Предмет ${currentActiveItem.id} x${currentActiveItem.quantity} добавлен обратно в инвентарь`);
+              }
+            }
+
+            // Удаляем новый предмет из инвентаря (используем актуальный индекс слота)
+            if (actualSlotIndex !== -1) {
+              console.log(`[handleQuestSlotDrop] Удаляем предмет ${itemId} из актуального слота ${actualSlotIndex}`);
+              if (typeof gameScene.removeInventoryItem === 'function') {
+                const removedItem = gameScene.removeInventoryItem(actualSlotIndex);
+                console.log(`[handleQuestSlotDrop] Удален предмет:`, removedItem);
+              }
+            } else {
+              console.log(`[handleQuestSlotDrop] Не удалось определить актуальный слот для предмета ${itemId}`);
+            }
+
+            // UI обновится автоматически через setInventoryItem или clearActiveQuestItem
+
+            if (window.showToast) {
+              const actionText = currentActiveItem ? 'Заменен' : 'Активирован';
+              window.showToast(`${actionText} источник информации: ${itemData.name}`);
+            }
+            console.log(`[handleQuestSlotDrop] КОНЕЦ: предмет ${itemId} успешно помещен в слот источника`);
+
+            // Обновляем UI инвентаря сразу после экипировки
+            setTimeout(() => {
+              if (typeof window.populateInventoryModal === 'function' && window.game && window.game.scene) {
+                const gameScene = window.game.scene.getScene('Game');
+                if (gameScene) {
+                  const inventory = gameScene.getDefaultInventory();
+                  const inventoryRows = gameScene.inventoryRows || 1;
+                  window.populateInventoryModal(inventory, inventoryRows);
+                }
+              }
+            }, 100);
+          } else {
+            console.log(`[handleQuestSlotDrop] ОШИБКА: не удалось установить предмет ${itemId} в слот источника`);
+          }
+        }
+      }
+    };
 
     // Get item from inventory slot
     window.getInventoryItem = function(slot) {
@@ -3266,17 +3915,13 @@
       ];
 
       // Filter rooms based on learned abilities
-      console.log('=== ROOM FILTERING DEBUG ===');
-      console.log('Total rooms available:', availableRooms.length);
-      console.log('Abilities data:', JSON.stringify(abilitiesData, null, 2));
 
       const filteredRooms = availableRooms.filter(room => {
-        console.log(`--- Checking room: ${room.name} ---`);
-        console.log(`Required ability: ${room.requiredAbility}`);
+
 
         // Если комната не требует способности, она всегда доступна
         if (!room.requiredAbility) {
-          console.log(`✅ Room ${room.name} is basic, showing`);
+
           return true;
         }
 
@@ -3301,28 +3946,19 @@
             }
           }
 
-          console.log(`Looking for ability: ${room.requiredAbility}`);
-          console.log(`Is learned: ${isLearned}`);
 
-          if (isLearned) {
-            console.log(`✅ Room ${room.name} - ability found and learned`);
-          } else {
-            console.log(`❌ Room ${room.name} - ability not learned or not found`);
-          }
 
           return isLearned;
         }
 
         // Если нет данных о способностях, показываем все комнаты
-        console.log(`⚠️ No abilities data, showing room ${room.name}`);
+
         return true;
       });
 
-      console.log('=== FILTERING COMPLETE ===');
-      console.log(`Filtered rooms: ${filteredRooms.length}/${availableRooms.length}`);
-      filteredRooms.forEach(room => console.log(`- ${room.name}`));
+
       
-      console.log('[HTML] Available rooms:', availableRooms.length, 'Filtered rooms:', filteredRooms.length);
+
       
       // Helper function to get ability name by ID
       function getAbilityName(abilityId) {
@@ -3384,8 +4020,7 @@
           }
         }
 
-        // Отладочный лог закомментирован для продакшена
-        // console.log(`[HTML] Room ${room.name}, required: ${room.requiredAbility}, isLocked: ${isLocked}`);
+
 
         if (isLocked) {
           roomOption.classList.add('locked-room');
@@ -3435,11 +4070,11 @@
           event.stopPropagation();
           event.stopImmediatePropagation();
           
-          console.log('[HTML] Room selected:', room.id, room.name);
+
 
           // Проверяем, заблокирована ли комната
           if (roomOption.classList.contains('locked-room')) {
-            console.log('[HTML] Room is locked, cannot select');
+
             // Показываем уведомление пользователю
             alert(`Комната "${room.name}" заблокирована. Требуется способность: ${getAbilityName(room.requiredAbility)}`);
             return;
@@ -3447,7 +4082,7 @@
 
           // Проверяем, разблокирована ли комната
           if (!roomOption.classList.contains('unlocked-room') && room.requiredAbility) {
-            console.log('[HTML] Room is not unlocked, cannot select');
+
             alert(`Комната "${room.name}" недоступна. Требуется способность: ${getAbilityName(room.requiredAbility)}`);
             return;
           }
@@ -3460,31 +4095,28 @@
           
           // Call game scene to handle room placement
           const gameScene = window.currentGameScene;
-          console.log('[HTML] Attempting to use gameScene:', !!gameScene);
-          console.log('[HTML] window.currentGameScene exists:', !!window.currentGameScene);
+
           
           if (gameScene) {
-            console.log('[HTML] GameScene found:', !!gameScene);
-            console.log('[HTML] simpleBunker exists:', !!gameScene.simpleBunker);
+
             
             // Передаем выбранный тип комнаты в bunkerView
             if (gameScene.simpleBunker && typeof gameScene.simpleBunker.setSelectedRoomType === 'function') {
-              console.log('[HTML] Calling setSelectedRoomType with:', room.id);
+
               gameScene.simpleBunker.setSelectedRoomType(room.id);
             } else {
-              console.warn('[HTML] simpleBunker or setSelectedRoomType not available');
+
             }
             
             // Также вызываем оригинальный метод для совместимости
             if (typeof gameScene.selectRoomTypeForPlacement === 'function') {
-              console.log('[HTML] Calling selectRoomTypeForPlacement with:', room.id);
+  
               gameScene.selectRoomTypeForPlacement(room.id);
             } else {
               console.warn('[HTML] selectRoomTypeForPlacement not available');
             }
           } else {
-            console.error('[HTML] GameScene not available in currentGameScene');
-            console.log('[HTML] Available window properties:', Object.keys(window).filter(k => k.includes('game')));
+            console.error('GameScene not available in currentGameScene');
           }
           
           // Close the modal
@@ -3549,7 +4181,7 @@
 
       // Обновляем модальное окно выбора комнат после изменения способностей
       if (typeof window.updateRoomSelectionModal === 'function') {
-        console.log('[HTML] Updating room selection modal after ability tree render');
+
         setTimeout(() => window.updateRoomSelectionModal(), 100);
       }
 
@@ -3557,7 +4189,7 @@
       if (window.game && window.game.scene) {
         const gameScene = window.game.scene.getScene('Game');
         if (gameScene && gameScene.simpleBunker && typeof gameScene.simpleBunker.updateRemoveButtonVisibility === 'function') {
-          console.log('[HTML] Updating remove button visibility after ability change');
+
           setTimeout(() => gameScene.simpleBunker.updateRemoveButtonVisibility(), 200);
         }
       }
@@ -3903,12 +4535,12 @@
     window.updateAbilityPointsFromGame = function(points) {
       currentAbilityPoints = points;
       updateAbilityPoints();
-      console.log(`[index.html] Очки способностей обновлены: ${points}`);
+
     };
 
     // Universal resource click handler
     window.handleResourceClick = function(resourceType) {
-      console.log('Resource clicked:', resourceType);
+
 
       // Add visual feedback
       const clickedElement = event?.target;
@@ -3930,17 +4562,17 @@
 
     // Debug functions for testing
     window.debugOpenPopulation = function() {
-      console.log('Debug: Opening population modal');
+
       window.openResidents();
     };
 
     window.debugOpenHappiness = function() {
-      console.log('Debug: Opening happiness modal');
+
       window.openResource('happiness');
     };
 
     window.debugOpenInventory = function() {
-      console.log('Debug: Opening inventory modal');
+
       window.openInventory();
     };
 
@@ -4008,7 +4640,7 @@
       }
       
       const skill = resident.skills[skillIndex];
-      console.log(`[revealHiddenSkill] Skill data:`, skill);
+
       
       // Раскрываем навык - показываем название и окрашиваем по контексту
       element.classList.remove('hidden-skill');
@@ -4029,7 +4661,7 @@
       // Убираем обработчик клика, так как навык уже раскрыт
       element.onclick = null;
       
-      console.log(`[revealHiddenSkill] Skill "${skill.text}" revealed successfully`);
+
     };
   </script>
 
