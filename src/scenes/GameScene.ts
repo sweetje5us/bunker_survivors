@@ -8,6 +8,8 @@ import { SimpleBunkerView, RoomState } from '../core/bunkerView'
 import { createCharacterSprite, pickSkinForGender, ensureCharacterAnimations, pickClothingSetForGender, pickHairForGender, ensureSpecialistAnimations, getSpecialistSpriteKey, isSpecialistSprite } from '../core/characters'
 import { ITEMS_DATABASE, Item } from '../core/items'
 import { ConfigManager } from '../config/config-manager'
+import { getSidequestItemManager, SidequestItem } from '../core/sidequest-items'
+import { FactionManager, FactionId } from '../core/factions'
 
 type Phase = 'day' | 'night'
 
@@ -90,6 +92,10 @@ export class GameScene extends Phaser.Scene {
   private lastHourTick: number = -1
   private sessionSeed: number = 0
   private personCache: Map<number, { name: string; gender: string; age: number; profession: string; openSkill: { text: string; positive: boolean }; allSkills: Array<{ text: string; positive: boolean }>; itemsText: string; inventory: Array<{ id: string; quantity: number }> }> = new Map()
+  
+  // Системы фракций и побочных предметов
+  private factionManager?: FactionManager
+  private truthfulFaction?: FactionId
   // Инвентарь бункера - хранит все предметы, добавленные жителями
   private bunkerInventory: Array<{ id: string; quantity: number } | undefined> = []
 
@@ -2145,6 +2151,10 @@ export class GameScene extends Phaser.Scene {
     this.sessionSeed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0
     console.log('[GameScene] sessionSeed:', this.sessionSeed, 'difficulty:', this.difficulty)
     
+    // Инициализация системы фракций и побочных предметов
+    this.initializeFactionSystem()
+    this.initializeSidequestSystem()
+    
     // Демонстрация системы электростанций (можно удалить после тестирования)
     this.time.delayedCall(5000, () => {
       console.log('=== Демонстрация системы электростанций ===')
@@ -2314,6 +2324,51 @@ export class GameScene extends Phaser.Scene {
       console.log('[GameScene] Initializing modals after bunker setup');
       this.initializeModals();
     });
+  }
+
+  /**
+   * Инициализация системы фракций
+   */
+  private initializeFactionSystem(): void {
+    try {
+      // Создаем менеджер фракций
+      this.factionManager = FactionManager.getInstance()
+      
+      // Выбираем случайную правдивую фракцию (исключая Mystery)
+      const availableFactions: FactionId[] = ['hq', 'rebels', 'marauders', 'free']
+      const randomIndex = Math.floor(Math.random() * availableFactions.length)
+      this.truthfulFaction = availableFactions[randomIndex]
+      
+      // Устанавливаем правдивую фракцию в менеджере
+      this.factionManager.setTruthfulFaction(this.truthfulFaction)
+      
+      console.log(`[GameScene] 🎯 Система фракций инициализирована. Правдивая фракция: ${this.truthfulFaction}`)
+      console.log(`[GameScene] 📋 Доступные фракции:`, this.factionManager.getAllFactions().map(f => f.id))
+    } catch (error) {
+      console.error('[GameScene] Ошибка инициализации системы фракций:', error)
+    }
+  }
+
+  /**
+   * Инициализация системы побочных предметов
+   */
+  private initializeSidequestSystem(): void {
+    try {
+      // Инициализируем менеджер побочных предметов с сидом
+      const sidequestManager = getSidequestItemManager(this.sessionSeed)
+      
+      console.log(`[GameScene] 📦 Система побочных предметов инициализирована`)
+      console.log(`[GameScene] 📊 Загружено предметов: ${sidequestManager.getAllItems().length}`)
+      
+      // Логируем количество предметов по темам
+      const themes = ['faction_lies', 'faction_truth', 'faction_neutral', 'world_history', 'enemy_origins']
+      themes.forEach(theme => {
+        const count = sidequestManager.getItemsByTheme(theme as any).length
+        console.log(`[GameScene] - ${theme}: ${count} предметов`)
+      })
+    } catch (error) {
+      console.error('[GameScene] Ошибка инициализации системы побочных предметов:', error)
+    }
   }
 
   private initResourcesBasedOnDifficulty(): void {
@@ -3261,10 +3316,10 @@ export class GameScene extends Phaser.Scene {
       const showNoSpace = !isNight && !hasEnemies && hasVisitors && !hasCapacity
       this.noSpaceLabel.setVisible(showNoSpace)
       if (showNoSpace) {
-        const msg = (t('noSpace') ?? 'НЕТ МЕСТ') + ` (${this.bunkerResidents.length}/${capacity})`
+        const msg = (t('НЕТ МЕСТ') ?? 'НЕТ МЕСТ') + ` (${this.bunkerResidents.length}/${capacity})`
         this.noSpaceLabel.setText(msg)
         const y = topH - pad - parseInt(btnFont, 10) / 2
-        this.noSpaceLabel.setPosition(rect.width / 2, y)
+        this.noSpaceLabel.setPosition(rect.width / 2, y-20)
       }
     }
 
@@ -5281,19 +5336,41 @@ export class GameScene extends Phaser.Scene {
       'food', 'water', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass', 'money',
       // Оборудование (только 1 шт)
       'backpack', 'compass', 'map', 'flashlight', 'bottle', 'lighter', 'matches',
-      'multi_tool', 'laptop', 'phone', 'radio', 'gps', 'transmitter',
+      'multi_tool', 'laptop', 'radio', 'gps',
       // Одежда (только 1 шт)
       'shirt', 'shirt2', 'pants', 'pants3', 'jacket1', 'jacket2', 'boots', 'hat', 'cap',
       // Медицина (только 1 шт)
       'medicine', 'medicine2', 'med_backpack'
     ]
 
+    // Квестовые предметы - только 1 в инвентаре жителя
+    const questItems = ['laptop', 'radio', 'gps']
+    let questItemAdded = false
+
     // Бездомные получают на 50% больше предметов
     const isHomeless = profession === 'бездомный'
     const bonusMultiplier = isHomeless ? 1.5 : 1
 
     for (let i = 0; i < itemCount; i++) {
-      const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)]
+      let randomItem: string
+
+      // Если уже добавлен квестовый предмет, не добавляем больше
+      if (questItemAdded) {
+        // Фильтруем список, исключая квестовые предметы
+        const nonQuestItems = availableItems.filter(item => !questItems.includes(item))
+        randomItem = nonQuestItems[Math.floor(Math.random() * nonQuestItems.length)]
+      } else {
+        // С шансом 15% выбираем квестовый предмет вместо обычного
+        const isQuestRoll = Math.random() < 0.15
+        if (isQuestRoll) {
+          randomItem = questItems[Math.floor(Math.random() * questItems.length)]
+          questItemAdded = true
+        } else {
+          const nonQuestItems = availableItems.filter(item => !questItems.includes(item))
+          randomItem = nonQuestItems[Math.floor(Math.random() * nonQuestItems.length)]
+        }
+      }
+
       const itemData = this.getItemById(randomItem)
 
       if (itemData) {
@@ -5312,7 +5389,88 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // Добавляем побочные квестовые предметы
+    this.addSidequestItemsToInventory(inventory, profession)
+
     return inventory
+  }
+
+  /**
+   * Добавляет побочные квестовые предметы в инвентарь персонажа
+   */
+  private addSidequestItemsToInventory(inventory: Array<{ id: string; quantity: number }>, profession: string): void {
+    if (!this.truthfulFaction) {
+      console.warn('[addSidequestItemsToInventory] Правдивая фракция не установлена')
+      return
+    }
+
+    try {
+      // Проверяем, есть ли уже квестовый предмет в инвентаре
+      const hasQuestItem = inventory.some(item => {
+        const itemData = this.getItemById(item.id)
+        return itemData?.category === 'quest' || itemData?.category === 'sidequest'
+      })
+
+      // Если уже есть квестовый предмет, не добавляем побочный
+      if (hasQuestItem) {
+        console.log(`[addSidequestItemsToInventory] ${profession} уже имеет квестовый предмет, пропускаем побочный`)
+        return
+      }
+
+      const sidequestManager = getSidequestItemManager(this.sessionSeed)
+
+      // Определяем фракцию персонажа на основе профессии (опционально)
+      const characterFaction = this.getCharacterFactionByProfession(profession)
+
+      // Шанс получить побочный предмет (снижен до 15% для всех персонажей)
+      const sidequestChance = 0.15
+
+      if (Math.random() < sidequestChance) {
+        // Получаем случайный побочный предмет
+        const sidequestItem = sidequestManager.getRandomItemForInventory(
+          this.truthfulFaction,
+          characterFaction
+        )
+
+        if (sidequestItem) {
+          // Добавляем побочный предмет как обычный предмет с количеством 1
+          inventory.push({ id: sidequestItem.id, quantity: 1 })
+
+          console.log(`[addSidequestItemsToInventory] 📜 ${profession} принес побочный предмет: ${sidequestItem.name} (тема: ${sidequestItem.theme}, фракция: ${sidequestItem.targetFaction || 'нейтральный'})`)
+        }
+      }
+    } catch (error) {
+      console.error('[addSidequestItemsToInventory] Ошибка добавления побочных предметов:', error)
+    }
+  }
+
+  /**
+   * Определяет фракцию персонажа на основе его профессии
+   */
+  private getCharacterFactionByProfession(profession: string): FactionId | undefined {
+    // Простая логика связи профессий с фракциями
+    // Можно расширить в будущем для более сложной системы
+    
+    switch (profession) {
+      case 'солдат':
+      case 'разведчик':
+        return 'hq' // Штаб
+        
+      case 'охотник':
+      case 'химик':
+        return 'rebels' // Повстанцы (могут быть связаны с природой и химией)
+        
+      case 'бездомный':
+        return 'marauders' // Мародеры (маргинальные элементы)
+        
+      case 'ученый':
+      case 'инженер':
+      case 'доктор':
+        return 'free' // Свободные (интеллектуалы, ценящие знания)
+        
+      default:
+        return undefined // Нейтральные персонажи
+    }
   }
 
   private generateInventoryText(inventory: Array<{ id: string; quantity: number }>): string {
@@ -8066,7 +8224,39 @@ export class GameScene extends Phaser.Scene {
     if (typeof ITEMS_DATABASE !== 'undefined') {
       console.log(`[getItemById] ITEMS_DATABASE содержит ${ITEMS_DATABASE.length} предметов`)
     }
-    const result = ITEMS_DATABASE.find(item => item.id === id);
+    
+    // Сначала ищем в основной базе предметов
+    let result = ITEMS_DATABASE.find(item => item.id === id);
+    
+    // Если не найден, ищем в побочных предметах
+    if (!result) {
+      try {
+        const sidequestManager = getSidequestItemManager(this.sessionSeed)
+        const sidequestItem = sidequestManager.getItemById(id)
+        
+        if (sidequestItem) {
+          // Преобразуем SidequestItem в Item для совместимости
+          result = {
+            id: sidequestItem.id,
+            name: sidequestItem.name,
+            spritePath: sidequestItem.spritePath,
+            description: sidequestItem.description,
+            price: sidequestItem.price,
+            category: 'sidequest' as any,
+            // Дополнительные поля для UI
+            shortDescription: sidequestItem.description,
+            fullDescription: sidequestItem.fullDescription,
+            typeDisplay: 'информационный',
+            iconPath: sidequestItem.spritePath,
+            stackable: false
+          }
+          console.log(`[getItemById] Найден побочный предмет: ${sidequestItem.name} (тема: ${sidequestItem.theme})`)
+        }
+      } catch (error) {
+        console.error('[getItemById] Ошибка поиска в побочных предметах:', error)
+      }
+    }
+    
     console.log(`[getItemById] Результат поиска для ${id}:`, result)
     return result;
   }

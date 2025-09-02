@@ -8,7 +8,7 @@ export interface Item {
     spritePath: string;
     description: string;
     price: number;
-    category?: 'consumable' | 'equipment' | 'weapon' | 'resource' | 'tool';
+    category?: 'consumable' | 'equipment' | 'weapon' | 'resource' | 'tool' | 'quest' | 'sidequest';
     // Дополнительные поля для UI/инвентаря
     shortDescription?: string;
     fullDescription?: string;
@@ -56,18 +56,18 @@ export interface Item {
     {
       id: 'book1',
       name: 'Книга',
-      spritePath: 'src/sprites/items/book1.png',
+      spritePath: 'src/sprites/items/sidequest/book1.png',
       description: 'Полезная информация для выживания',
       price: 25,
-      category: 'tool'
+      category: 'sidequest'
     },
     {
       id: 'book2',
       name: 'Техническая книга',
-      spritePath: 'src/sprites/items/book2.png',
+      spritePath: 'src/sprites/items/sidequest/book2.png',
       description: 'Руководство по ремонту и крафту',
       price: 35,
-      category: 'tool'
+      category: 'sidequest'
     },
     {
       id: 'boots',
@@ -120,10 +120,10 @@ export interface Item {
     {
       id: 'compass',
       name: 'Компас',
-      spritePath: 'src/sprites/items/compass.png',
+      spritePath: 'src/sprites/items/sidequest/compass.png',
       description: 'Помогает ориентироваться на местности',
       price: 45,
-      category: 'tool'
+      category: 'sidequest'
     },
     {
       id: 'cup',
@@ -144,10 +144,10 @@ export interface Item {
     {
       id: 'floppy_disk',
       name: 'Дискета',
-      spritePath: 'src/sprites/items/floppy_disk.png',
+      spritePath: 'src/sprites/items/sidequest/floppy_disk.png',
       description: 'Хранит важную информацию',
       price: 60,
-      category: 'tool'
+      category: 'sidequest'
     },
     {
       id: 'food',
@@ -176,10 +176,10 @@ export interface Item {
     {
       id: 'gps',
       name: 'GPS-навигатор',
-      spritePath: 'src/sprites/items/gps.png',
-      description: 'Точное определение местоположения',
+      spritePath: 'src/sprites/items/quest/gps.png',
+      description: 'Координаты повстанцев',
       price: 150,
-      category: 'tool'
+      category: 'quest'
     },
     {
       id: 'hat',
@@ -216,10 +216,10 @@ export interface Item {
     {
       id: 'laptop',
       name: 'Ноутбук',
-      spritePath: 'src/sprites/items/laptop.png',
-      description: 'Мощное вычислительное устройство',
+      spritePath: 'src/sprites/items/quest/laptop.png',
+      description: 'Ноутбук с выходом в свободный интернет',
       price: 300,
-      category: 'tool'
+      category: 'quest'
     },
     {
       id: 'light_bulb',
@@ -240,10 +240,10 @@ export interface Item {
     {
       id: 'map',
       name: 'Карта',
-      spritePath: 'src/sprites/items/map.png',
+      spritePath: 'src/sprites/items/sidequest/compass.png',
       description: 'Помогает ориентироваться в местности',
       price: 30,
-      category: 'tool'
+      category: 'quest'
     },
     {
       id: 'matches',
@@ -320,10 +320,10 @@ export interface Item {
     {
       id: 'newspaper',
       name: 'Газета',
-      spritePath: 'src/sprites/items/newspaper.png',
+      spritePath: 'src/sprites/items/sidequest/newspaper.png',
       description: 'Содержит полезную информацию',
       price: 8,
-      category: 'tool'
+      category: 'sidequest'
     },
     {
       id: 'oil_canister',
@@ -368,18 +368,18 @@ export interface Item {
     {
       id: 'phone',
       name: 'Телефон',
-      spritePath: 'src/sprites/items/phone.png',
-      description: 'Мобильный телефон для связи',
+      spritePath: 'src/sprites/items/quest/phone.png',
+      description: 'Телефон одного из мародеров',
       price: 100,
-      category: 'tool'
+      category: 'quest'
     },
     {
       id: 'radio',
       name: 'Рация',
-      spritePath: 'src/sprites/items/radio.png',
-      description: 'Устройство для дальней связи',
+      spritePath: 'src/sprites/items/quest/radio.png',
+      description: 'Радио с частотой Штаба',
       price: 85,
-      category: 'tool'
+      category: 'quest'
     },
     {
       id: 'raw_meat',
@@ -472,10 +472,10 @@ export interface Item {
     {
       id: 'transmitter',
       name: 'Передатчик',
-      spritePath: 'src/sprites/items/transmitter.png',
-      description: 'Устройство для передачи сигналов',
+      spritePath: 'src/sprites/items/quest/transmitter.png',
+      description: 'Трансмиттер на таинственной частоте',
       price: 90,
-      category: 'tool'
+      category: 'quest'
     },
     {
       id: 'waffles',
@@ -523,6 +523,8 @@ export interface Item {
     else if (category === 'consumable') typeDisplay = 'используемый'
     else if (category === 'weapon') typeDisplay = 'предмет'
     else if (category === 'equipment') typeDisplay = 'предмет'
+    else if (category === 'quest') typeDisplay = 'квестовый'
+    else if (category === 'sidequest') typeDisplay = 'информационный'
 
     // Определяем стакаемость по категории, если не задано явно
     const stackable = typeof base.stackable === 'boolean'
@@ -570,4 +572,88 @@ export interface Item {
    */
   export function getItemDetails(id: string): Item | undefined {
     return getItemById(id)
+  }
+
+  /**
+   * Интерфейс для квестовых предметов с функционалом
+   */
+  export interface QuestItem extends Item {
+    questType: 'main' | 'side';
+    functionality?: {
+      type: 'internet' | 'coordinates' | 'communication' | 'radio' | 'transmitter';
+      description: string;
+      action?: () => void;
+    };
+  }
+
+  /**
+   * Заготовки для квестовых предметов с уникальным функционалом
+   */
+  export const QUEST_ITEMS_FUNCTIONALITY: Record<string, QuestItem['functionality']> = {
+    'laptop': {
+      type: 'internet',
+      description: 'Открывает доступ к свободному интернету. Позволяет получать информацию о мире и событиях.',
+      action: () => {
+        console.log('[Quest] Laptop: Opening internet access...');
+        // TODO: Реализовать интерфейс интернета
+      }
+    },
+    'gps': {
+      type: 'coordinates',
+      description: 'Показывает координаты повстанцев. Открывает новые локации для исследования.',
+      action: () => {
+        console.log('[Quest] GPS: Showing rebel coordinates...');
+        // TODO: Показать карту с координатами повстанцев
+      }
+    },
+    'phone': {
+      type: 'communication',
+      description: 'Телефон мародера. Позволяет прослушивать переговоры и получать информацию.',
+      action: () => {
+        console.log('[Quest] Phone: Listening to marauder communications...');
+        // TODO: Показать интерфейс прослушивания
+      }
+    },
+    'radio': {
+      type: 'radio',
+      description: 'Радио с частотой Штаба. Позволяет получать официальные сообщения.',
+      action: () => {
+        console.log('[Quest] Radio: Tuning to HQ frequency...');
+        // TODO: Показать радиопередачи Штаба
+      }
+    },
+    'transmitter': {
+      type: 'transmitter',
+      description: 'Трансмиттер на таинственной частоте. Открывает доступ к скрытым каналам связи.',
+      action: () => {
+        console.log('[Quest] Transmitter: Accessing mysterious frequency...');
+        // TODO: Показать таинственные передачи
+      }
+    }
+  };
+
+  /**
+   * Проверить, является ли предмет квестовым с функционалом
+   */
+  export function isQuestItemWithFunctionality(itemId: string): boolean {
+    return itemId in QUEST_ITEMS_FUNCTIONALITY;
+  }
+
+  /**
+   * Получить функционал квестового предмета
+   */
+  export function getQuestItemFunctionality(itemId: string): QuestItem['functionality'] | undefined {
+    return QUEST_ITEMS_FUNCTIONALITY[itemId];
+  }
+
+  /**
+   * Выполнить действие квестового предмета
+   */
+  export function executeQuestItemAction(itemId: string): boolean {
+    const functionality = getQuestItemFunctionality(itemId);
+    if (functionality && functionality.action) {
+      functionality.action();
+      return true;
+    }
+    return false;
   }
