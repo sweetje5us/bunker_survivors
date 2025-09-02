@@ -9,6 +9,15 @@ export interface Item {
     description: string;
     price: number;
     category?: 'consumable' | 'equipment' | 'weapon' | 'resource' | 'tool';
+    // Дополнительные поля для UI/инвентаря
+    shortDescription?: string;
+    fullDescription?: string;
+    // Человекочитаемый тип для UI (ресурс, предмет, квестовый, используемый)
+    typeDisplay?: string;
+    // Путь к иконке (дубль spritePath для совместимости UI)
+    iconPath?: string;
+    // Флаг: стакается ли предмет в инвентаре
+    stackable?: boolean;
   }
   
   export const ITEMS_DATABASE: Item[] = [
@@ -503,17 +512,46 @@ export interface Item {
   ];
   
   /**
+   * Преобразует базовую запись предмета в нормализованный объект с заполненными
+   * полями для UI (краткое/полное описание, человекочитаемый тип, стакаемость).
+   */
+  function normalizeItem(base: Item): Item {
+    // Определяем человекочитаемый тип
+    const category = base.category || 'tool'
+    let typeDisplay = 'предмет'
+    if (category === 'resource') typeDisplay = 'ресурс'
+    else if (category === 'consumable') typeDisplay = 'используемый'
+    else if (category === 'weapon') typeDisplay = 'предмет'
+    else if (category === 'equipment') typeDisplay = 'предмет'
+
+    // Определяем стакаемость по категории, если не задано явно
+    const stackable = typeof base.stackable === 'boolean'
+      ? base.stackable
+      : (category === 'resource' || category === 'consumable')
+
+    return {
+      ...base,
+      shortDescription: base.shortDescription || base.description,
+      fullDescription: base.fullDescription || base.description,
+      typeDisplay,
+      iconPath: base.iconPath || base.spritePath,
+      stackable
+    }
+  }
+
+  /**
    * Получить предмет по ID
    */
   export function getItemById(id: string): Item | undefined {
-    return ITEMS_DATABASE.find(item => item.id === id);
+    const item = ITEMS_DATABASE.find(item => item.id === id);
+    return item ? normalizeItem(item) : undefined;
   }
   
   /**
    * Получить предметы по категории
    */
   export function getItemsByCategory(category: Item['category']): Item[] {
-    return ITEMS_DATABASE.filter(item => item.category === category);
+    return ITEMS_DATABASE.filter(item => item.category === category).map(normalizeItem);
   }
   
   /**
@@ -524,5 +562,12 @@ export interface Item {
     return ITEMS_DATABASE.filter(item =>
       item.name.toLowerCase().includes(lowerQuery) ||
       item.description.toLowerCase().includes(lowerQuery)
-    );
+    ).map(normalizeItem);
+  }
+
+  /**
+   * Получить нормализованные данные предмета для UI (алиас к getItemById)
+   */
+  export function getItemDetails(id: string): Item | undefined {
+    return getItemById(id)
   }

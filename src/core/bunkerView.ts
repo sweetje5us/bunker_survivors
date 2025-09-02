@@ -2821,6 +2821,39 @@ export class SimpleBunkerView {
     this.showAvailablePositions(availablePositions, roomType)
   }
 
+  /**
+   * Проверяет, можно ли добавить комнату на указанный этаж, не превышая лимит
+   */
+  private canAddRoomToRow(y: number, maxRoomsPerRow: number): boolean {
+    const tolerance = 5 // Допуск для определения этажа
+    
+    // Считаем количество комнат на этом этаже
+    let roomsOnThisRow = 0
+    
+    // Считаем обычные комнаты
+    for (let i = 0; i < this.roomRects.length; i++) {
+      const room = this.roomRects[i]
+      if (Math.abs(room.y - y) <= tolerance) {
+        roomsOnThisRow++
+      }
+    }
+    
+    // Считаем основной лифт
+    if (Math.abs(this.elevatorRect.y - y) <= tolerance) {
+      roomsOnThisRow++
+    }
+    
+    // Считаем дополнительные лифты
+    for (const lift of this.extraElevators) {
+      if (Math.abs(lift.y - y) <= tolerance) {
+        roomsOnThisRow++
+      }
+    }
+    
+    console.log(`[canAddRoomToRow] Этаж Y=${y}: ${roomsOnThisRow} комнат, лимит: ${maxRoomsPerRow}`)
+    return roomsOnThisRow < maxRoomsPerRow
+  }
+
   private findAvailablePositions(roomType: string): Array<{x: number, y: number, roomWidth: number, roomHeight: number}> {
     const positions: Array<{x: number, y: number, roomWidth: number, roomHeight: number}> = []
     const gap = 4
@@ -2852,33 +2885,48 @@ export class SimpleBunkerView {
       }
     } else {
       // Обычные комнаты: примыкание только справа к комнатам и к лифту (1/2 этаж)
+      // ОГРАНИЧЕНИЕ: Максимум 7 комнат в ряду (включая лифт)
+      const maxRoomsPerRow = 7
+      
       for (let i = 0; i < this.roomRects.length; i++) {
         const room = this.roomRects[i]
         const rightPos = { x: room.x + room.width + gap, y: room.y, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
-        if (this.isPositionValid(rightPos)) positions.push(rightPos)
+        
+        // Проверяем, не превысит ли добавление комнаты лимит в 7 комнат на этаже
+        if (this.isPositionValid(rightPos) && this.canAddRoomToRow(rightPos.y, maxRoomsPerRow)) {
+          positions.push(rightPos)
+        }
       }
       // Справа от основного лифта
       const elevatorRightPos = { x: this.elevatorRect.x + this.elevatorRect.width + gap, y: this.elevatorRect.y, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
-      if (this.isPositionValid(elevatorRightPos)) positions.push(elevatorRightPos)
+      if (this.isPositionValid(elevatorRightPos) && this.canAddRoomToRow(elevatorRightPos.y, maxRoomsPerRow)) {
+        positions.push(elevatorRightPos)
+      }
       // Справа от лифта на втором этаже
       const elevatorRightPos2 = { x: this.elevatorRect.x + this.elevatorRect.width + gap, y: this.elevatorRect.y + newRoomHeight + gap, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
-      if (this.isPositionValid(elevatorRightPos2)) positions.push(elevatorRightPos2)
+      if (this.isPositionValid(elevatorRightPos2) && this.canAddRoomToRow(elevatorRightPos2.y, maxRoomsPerRow)) {
+        positions.push(elevatorRightPos2)
+      }
       // Слева от основного лифта (комната может примыкать к лифту слева)
       const elevatorLeftPos = { x: this.elevatorRect.x - gap - newRoomWidth, y: this.elevatorRect.y, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
-      if (this.isPositionValid(elevatorLeftPos)) positions.push(elevatorLeftPos)
+      if (this.isPositionValid(elevatorLeftPos) && this.canAddRoomToRow(elevatorLeftPos.y, maxRoomsPerRow)) {
+        positions.push(elevatorLeftPos)
+      }
       const elevatorLeftPos2 = { x: this.elevatorRect.x - gap - newRoomWidth, y: this.elevatorRect.y + newRoomHeight + gap, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
-      if (this.isPositionValid(elevatorLeftPos2)) positions.push(elevatorLeftPos2)
+      if (this.isPositionValid(elevatorLeftPos2) && this.canAddRoomToRow(elevatorLeftPos2.y, maxRoomsPerRow)) {
+        positions.push(elevatorLeftPos2)
+      }
       // Справа от дополнительных лифтов (оба этажа)
       for (const lift of this.extraElevators) {
         const r1 = { x: lift.x + lift.width + gap, y: lift.y, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
         const r2 = { x: lift.x + lift.width + gap, y: lift.y + newRoomHeight + gap, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
-        if (this.isPositionValid(r1)) positions.push(r1)
-        if (this.isPositionValid(r2)) positions.push(r2)
+        if (this.isPositionValid(r1) && this.canAddRoomToRow(r1.y, maxRoomsPerRow)) positions.push(r1)
+        if (this.isPositionValid(r2) && this.canAddRoomToRow(r2.y, maxRoomsPerRow)) positions.push(r2)
         // Слева от дополнительного лифта (оба этажа)
         const l1 = { x: lift.x - gap - newRoomWidth, y: lift.y, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
         const l2 = { x: lift.x - gap - newRoomWidth, y: lift.y + newRoomHeight + gap, roomWidth: newRoomWidth, roomHeight: newRoomHeight }
-        if (this.isPositionValid(l1)) positions.push(l1)
-        if (this.isPositionValid(l2)) positions.push(l2)
+        if (this.isPositionValid(l1) && this.canAddRoomToRow(l1.y, maxRoomsPerRow)) positions.push(l1)
+        if (this.isPositionValid(l2) && this.canAddRoomToRow(l2.y, maxRoomsPerRow)) positions.push(l2)
       }
     }
     
@@ -5781,6 +5829,12 @@ export class SimpleBunkerView {
                             
                             // Воспроизводим dead анимацию перед уничтожением
                             this.setDeadAnimation(target)
+                            
+                            // Уведомляем GameScene о смерти жителя
+                            if (target.id !== undefined) {
+                              this.notifyResidentDeath(target.id)
+                            }
+                            
                             // Сбрасываем цель врага, чтобы он нашел новую жертву
                             agent.enemyTargetId = undefined
                             agent.target = undefined
@@ -6603,8 +6657,8 @@ export class SimpleBunkerView {
   // Функция для уведомления GameScene о смерти жителя
   private notifyResidentDeath(residentId: number): void {
     const game: any = this.scene
-    if (game && typeof game.removeResidentFromBunker === 'function') {
-      game.removeResidentFromBunker(residentId, 'убит в драке между жителями')
+    if (game && typeof game.removeDeadResident === 'function') {
+      game.removeDeadResident(residentId, 'убит врагом в бункере')
     }
   }
 

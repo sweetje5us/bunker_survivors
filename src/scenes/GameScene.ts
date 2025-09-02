@@ -4675,8 +4675,8 @@ export class GameScene extends Phaser.Scene {
   private showItemTooltip(slotIndex: number): void {
     console.log(`[showItemTooltip] Вызван для слота ${slotIndex}`)
 
-    if (!this.personPreviewInventory || !this.itemTooltipText) {
-      console.log(`[showItemTooltip] Отсутствует personPreviewInventory или itemTooltipText`)
+    if (!this.personPreviewInventory) {
+      console.log(`[showItemTooltip] Отсутствует personPreviewInventory`)
       return
     }
 
@@ -4687,74 +4687,87 @@ export class GameScene extends Phaser.Scene {
       return
     }
 
-    console.log(`[showItemTooltip] Текущий персонаж ID: ${currentPerson.id}`)
-
     // Получаем данные персонажа
     const personData = this.getPersonData(currentPerson.id)
-    if (!personData.inventory || slotIndex >= personData.inventory.length) {
-      console.log(`[showItemTooltip] Нет инвентаря или слот ${slotIndex} пустой`)
-      return
-    }
+    if (!personData.inventory || slotIndex >= personData.inventory.length) return
 
-    const item = personData.inventory[slotIndex]
-    if (!item) {
-      console.log(`[showItemTooltip] Предмет в слоте ${slotIndex} не найден`)
-      return
-    }
+    const invItem = personData.inventory[slotIndex]
+    if (!invItem) return
 
-    console.log(`[showItemTooltip] Найден предмет: ${item.id}, количество: ${item.quantity}`)
+    const data = this.getItemById(invItem.id)
+    if (!data) return
 
-    // Получаем название предмета
-    const itemData = this.getItemById(item.id)
-    console.log(`[showItemTooltip] getItemById('${item.id}') вернул:`, itemData)
-    const itemName = itemData ? itemData.name : item.id
-
-    console.log(`[showItemTooltip] Название предмета: ${itemName}`)
-
-    // Устанавливаем текст подсказки
-    this.itemTooltipText.setText(itemName)
-
-    // Позиционируем подсказку под слотом
+    // Вычисляем экранные координаты под выбранным слотом
     const inventorySlots = this.personPreviewInventory.list as Phaser.GameObjects.Container[]
-    if (inventorySlots[slotIndex]) {
-      const slot = inventorySlots[slotIndex]
+    const slot = inventorySlots[slotIndex]
+    if (!slot) return
 
-      // Получаем позицию инвентаря относительно personBottom
-      const inventoryX = this.personPreviewInventory.x
-      const inventoryY = this.personPreviewInventory.y
+    // Мировые координаты слота (используем его границы)
+    const bounds = slot.getBounds()
+    const worldX = bounds.centerX
+    const worldY = bounds.bottom + 8
 
-      // Получаем позицию слота внутри инвентаря
-      const slotX = slot.x
-      const slotY = slot.y
+    // Мировые -> экранные (учитываем зум камеры и CSS-скейл канваса)
+    const cam = this.cameras.main
+    const rect = this.game.canvas.getBoundingClientRect()
+    const internalW = this.scale.width
+    const internalH = this.scale.height
+    const ratioX = rect.width / internalW
+    const ratioY = rect.height / internalH
+    const screenX = ((worldX - cam.scrollX) * cam.zoom) * ratioX + rect.left
+    const screenY = ((worldY - cam.scrollY) * cam.zoom) * ratioY + rect.top
 
-      // Размер слота
-      const slotSize = 56
-
-      // Рассчитываем позицию подсказки под слотом
-      const tooltipX = inventoryX + slotX + slotSize / 8 // Центр слота
-      const tooltipY = inventoryY + slotY + slotSize + 8 // Под слотом с отступом
-
-      console.log(`[showItemTooltip] Позиция инвентаря: x=${inventoryX}, y=${inventoryY}`)
-      console.log(`[showItemTooltip] Позиция слота: x=${slotX}, y=${slotY}`)
-      console.log(`[showItemTooltip] Размер слота: ${slotSize}`)
-      console.log(`[showItemTooltip] Позиция подсказки: x=${tooltipX}, y=${tooltipY}`)
-
-      // Устанавливаем позицию относительно personBottom
-      this.itemTooltipText.setPosition(tooltipX, tooltipY)
-      this.itemTooltipText.setVisible(true)
-
-      console.log(`[showItemTooltip] Финальная позиция подсказки: x=${this.itemTooltipText.x}, y=${this.itemTooltipText.y}`)
-      console.log(`[showItemTooltip] Подсказка видима: ${this.itemTooltipText.visible}`)
-
-      // Скрываем подсказку через 2 секунды
-      this.time.delayedCall(2000, () => {
-        if (this.itemTooltipText) {
-          this.itemTooltipText.setVisible(false)
-        }
-      })
-    } else {
-      console.log(`[showItemTooltip] Слот ${slotIndex} не найден в inventorySlots`)
+    // Создаем/обновляем DOM tooltip
+    let tooltip = document.getElementById('resident-inventory-tooltip') as HTMLDivElement | null
+    if (!tooltip) {
+      tooltip = document.createElement('div')
+      tooltip.id = 'resident-inventory-tooltip'
+      tooltip.style.position = 'fixed'
+      tooltip.style.zIndex = '10000'
+      tooltip.style.maxWidth = '260px'
+      tooltip.style.background = 'rgba(20,20,20,0.95)'
+      tooltip.style.color = '#fff'
+      tooltip.style.border = '1px solid #555'
+      tooltip.style.borderRadius = '6px'
+      tooltip.style.padding = '10px'
+      tooltip.style.fontSize = '12px'
+      tooltip.style.boxShadow = '0 2px 10px rgba(0,0,0,0.6)'
+      document.body.appendChild(tooltip)
     }
+
+    const typeText = (data as any).typeDisplay || (data.category || 'tool')
+    const priceText = typeof data.price === 'number' ? data.price : 0
+    const shortText = (data as any).shortDescription || data.description || ''
+
+    tooltip.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:center;">
+        <img src="${data.spritePath}" alt="${data.name}" style="width:32px;height:32px;object-fit:contain;image-rendering:pixelated;"/>
+        <div>
+          <div style="font-weight:600; margin-bottom:2px;">${data.name}</div>
+          <div style="opacity:0.8;">${shortText}</div>
+        </div>
+      </div>
+      <div style="margin-top:6px; display:flex; justify-content:space-between;">
+        <span>Тип: <b>${typeText}</b></span>
+        <span>Цена: <b>${priceText}</b></span>
+      </div>
+    `
+
+    // Позиция на экране с учётом границ окна
+    const width = 260
+    const height = 110
+    let left = screenX
+    let top = screenY
+    if (left + width > window.innerWidth) left = Math.max(10, window.innerWidth - width - 10)
+    if (top + height > window.innerHeight) top = Math.max(10, window.innerHeight - height - 10)
+    tooltip.style.left = `${left}px`
+    tooltip.style.top = `${top}px`
+
+    // Автоскрытие
+    window.clearTimeout((tooltip as any)._hideTimer)
+    ;(tooltip as any)._hideTimer = window.setTimeout(() => {
+      if (tooltip && tooltip.parentElement) tooltip.parentElement.removeChild(tooltip)
+    }, 2500)
   }
 
   private hideCitizenPreview(): void {
@@ -5235,13 +5248,37 @@ export class GameScene extends Phaser.Scene {
   private generatePersonInventory(profession: string): Array<{ id: string; quantity: number }> {
     const inventory: Array<{ id: string; quantity: number }> = []
 
-    // Определяем количество предметов (0-3)
+    // Добавляем обязательные ресурсы для определенных профессий
+    if (profession === 'бездомный') {
+      // Бездомные всегда приносят критически важные ресурсы: вода или еда (10-25)
+      const criticalResources = ['water', 'food']
+      const randomResource = criticalResources[Math.floor(Math.random() * criticalResources.length)]
+      const quantity = Math.floor(Math.random() * 16) + 10 // 10-25
+      inventory.push({ id: randomResource, quantity })
+      console.log(`[generatePersonInventory] 🏠 Бездомный принес ${randomResource}: ${quantity} ед.`)
+    }
+    
+    if (profession === 'безработный') {
+      // Безработные всегда приносят деньги (1-20)
+      const moneyQuantity = Math.floor(Math.random() * 20) + 1 // 1-20
+      inventory.push({ id: 'money', quantity: moneyQuantity })
+      console.log(`[generatePersonInventory] 💼 Безработный принес деньги: ${moneyQuantity} ед.`)
+    }
+    
+    if (['солдат', 'охотник', 'разведчик'].includes(profession)) {
+      // Солдаты, охотники, разведчики всегда приносят патроны (1-50)
+      const ammoQuantity = Math.floor(Math.random() * 50) + 1 // 1-50
+      inventory.push({ id: 'ammo', quantity: ammoQuantity })
+      console.log(`[generatePersonInventory] 🎯 ${profession} принес патроны: ${ammoQuantity} ед.`)
+    }
+
+    // Определяем количество дополнительных предметов (0-3)
     const itemCount = Math.floor(Math.random() * 4) // 0-3 предмета
 
     // Список доступных предметов для генерации
     const availableItems = [
       // Ресурсы (могут быть в количестве 1-25)
-      'food', 'water', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass',
+      'food', 'water', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass', 'money',
       // Оборудование (только 1 шт)
       'backpack', 'compass', 'map', 'flashlight', 'bottle', 'lighter', 'matches',
       'multi_tool', 'laptop', 'phone', 'radio', 'gps', 'transmitter',
@@ -5260,7 +5297,7 @@ export class GameScene extends Phaser.Scene {
       const itemData = this.getItemById(randomItem)
 
       if (itemData) {
-        const isStackable = ['food', 'water', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass'].includes(randomItem)
+        const isStackable = ['food', 'water', 'ammo', 'wood', 'metal', 'coal', 'nails', 'paper', 'glass', 'money'].includes(randomItem)
         const quantity = isStackable
           ? Math.floor(Math.random() * 25) + 1 * bonusMultiplier // 1-25 * bonusMultiplier
           : Math.floor(1 * bonusMultiplier) // 1 * bonusMultiplier

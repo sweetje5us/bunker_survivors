@@ -61,8 +61,8 @@ export class ConfigManager {
       },
       experience: {
         baseLevelExperience: 100,
-        enemyKillRewards: { 'МАРОДЕР': 1, 'ЗОМБИ': 3, 'МУТАНТ': 6, 'СОЛДАТ': 10 },
-        dailyReward: 25,
+        enemyKillRewards: { 'МАРОДЕР': 10, 'ЗОМБИ': 15, 'МУТАНТ': 30, 'СОЛДАТ': 50 },
+        dailyReward: 50,
         abilityPointsPerLevel: 3
       },
       resourceConsumption: {

@@ -2175,7 +2175,7 @@
       for (let i = 0; i < totalSlots; i++) {
         const slot = document.createElement('div');
         slot.className = 'inventory-slot';
-        slot.onclick = () => selectInventorySlot(i);
+        slot.onclick = (e) => selectInventorySlot(i, e);
 
         const item = inventory ? inventory[i] : null;
         // Проверяем, что предмет существует и не является пустым
@@ -2225,9 +2225,166 @@
       }, 100);
     };
 
-    window.selectInventorySlot = function(index) {
-      console.log('Selected inventory slot:', index);
-      // This will be implemented for item interactions
+    // Показ краткой информации о предмете при клике по слоту
+    window.selectInventorySlot = function(index, event) {
+      try {
+        const item = typeof window.getInventoryItem === 'function' ? window.getInventoryItem(index) : null;
+        if (!item || !item.id) return;
+        const data = typeof window.getItemById === 'function' ? window.getItemById(item.id) : null;
+        if (!data) return;
+
+        // Создаем/переиспользуем tooltip
+        let tooltip = document.getElementById('inventory-item-tooltip');
+        if (!tooltip) {
+          tooltip = document.createElement('div');
+          tooltip.id = 'inventory-item-tooltip';
+          tooltip.style.cssText = 'position:fixed; z-index:10000; max-width:260px; background: rgba(20,20,20,0.95); color:#fff; border:1px solid #555; border-radius:6px; padding:10px; font-size:12px; box-shadow:0 2px 10px rgba(0,0,0,0.6)';
+          document.body.appendChild(tooltip);
+        }
+
+        const typeText = data.typeDisplay || (data.category || 'tool');
+        const priceText = (typeof data.price === 'number') ? data.price : 0;
+        const shortText = data.shortDescription || data.description || '';
+
+        tooltip.innerHTML = `
+          <div style="display:flex; gap:8px; align-items:center;">
+            <img src="${data.spritePath}" alt="${data.name}" style="width:32px;height:32px;object-fit:contain;image-rendering:pixelated;"/>
+            <div>
+              <div style="font-weight:600; margin-bottom:2px;">${data.name}</div>
+              <div style="opacity:0.8;">${shortText}</div>
+            </div>
+          </div>
+          <div style="margin-top:6px; display:flex; justify-content:space-between;">
+            <span>Тип: <b>${typeText}</b></span>
+            <span>Цена: <b>${priceText}</b></span>
+          </div>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            ${data.category === 'consumable' ? '<button id="btn-item-use" style="padding:4px 8px; cursor:pointer;">Использовать</button>' : ''}
+          </div>
+        `;
+
+        // Позиционирование рядом со слотом
+        const target = event?.currentTarget || event?.target;
+        if (target && target.getBoundingClientRect) {
+          const r = target.getBoundingClientRect();
+          let left = r.right + 10;
+          let top = r.top;
+          const width = 260;
+          const height = 120;
+          if (left + width > window.innerWidth) left = r.left - width - 10;
+          if (top + height > window.innerHeight) top = Math.max(10, window.innerHeight - height - 10);
+          tooltip.style.left = left + 'px';
+          tooltip.style.top = top + 'px';
+        }
+
+        // Кнопки
+        const useBtn = document.getElementById('btn-item-use');
+        if (useBtn) {
+          useBtn.onclick = () => useInventoryItem(index);
+        }
+
+        // Скрытие при клике вне
+        setTimeout(() => {
+          const hide = (e) => {
+            if (!tooltip.contains(e.target)) {
+              tooltip.remove();
+              document.removeEventListener('mousedown', hide);
+            }
+          };
+          document.addEventListener('mousedown', hide);
+        }, 0);
+      } catch (e) {
+        console.warn('[Inventory] selectInventorySlot error', e);
+      }
+    };
+
+    // Окно деталей предмета
+    function getOrCreateItemDetailModal() {
+      let modal = document.getElementById('item-detail-modal');
+      if (modal) return modal;
+      modal = document.createElement('div');
+      modal.id = 'item-detail-modal';
+      modal.style.cssText = 'position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:10001;';
+      modal.innerHTML = `
+        <div id="item-detail-backdrop" style="position:absolute; inset:0; background: rgba(0,0,0,0.6);"></div>
+        <div style="position:relative; width:420px; max-width:90vw; background:#1e1e1e; color:#fff; border:1px solid #555; border-radius:8px; padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h3 id="item-detail-title" style="margin:0; font-size:16px;">Предмет</h3>
+            <button id="item-detail-close" style="padding:4px 8px; cursor:pointer;">✕</button>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <img id="item-detail-icon" src="" alt="" style="width:64px;height:64px;object-fit:contain;image-rendering:pixelated;border:1px solid #444;border-radius:6px;"/>
+            <div style="flex:1;">
+              <div id="item-detail-short" style="opacity:0.9; margin-bottom:6px;"></div>
+              <div id="item-detail-type-price" style="display:flex; gap:12px; margin-bottom:8px;"></div>
+            </div>
+          </div>
+          <div id="item-detail-full" style="margin-top:10px; white-space:pre-wrap; opacity:0.95;"></div>
+          <div id="item-detail-actions" style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end;"></div>
+        </div>`;
+      document.body.appendChild(modal);
+      // Закрытие
+      modal.querySelector('#item-detail-backdrop').addEventListener('click', closeItemDetailModal);
+      modal.querySelector('#item-detail-close').addEventListener('click', closeItemDetailModal);
+      return modal;
+    }
+
+    window.openItemDetailModal = function(slotIndex) {
+      const item = typeof window.getInventoryItem === 'function' ? window.getInventoryItem(slotIndex) : null;
+      if (!item || !item.id) return;
+      const data = typeof window.getItemById === 'function' ? window.getItemById(item.id) : null;
+      if (!data) return;
+      const modal = getOrCreateItemDetailModal();
+      modal.style.display = 'flex';
+      modal.querySelector('#item-detail-title').textContent = data.name;
+      modal.querySelector('#item-detail-icon').src = data.spritePath;
+      modal.querySelector('#item-detail-icon').alt = data.name;
+      modal.querySelector('#item-detail-short').textContent = data.shortDescription || data.description || '';
+      modal.querySelector('#item-detail-type-price').innerHTML = `Тип: <b>${data.typeDisplay || data.category}</b> · Цена: <b>${typeof data.price === 'number' ? data.price : 0}</b>`;
+      modal.querySelector('#item-detail-full').textContent = data.fullDescription || data.description || '';
+      const actions = modal.querySelector('#item-detail-actions');
+      actions.innerHTML = '';
+      if (data.category === 'consumable') {
+        const useBtn = document.createElement('button');
+        useBtn.textContent = 'Использовать';
+        useBtn.style.cssText = 'padding:6px 10px; cursor:pointer;';
+        useBtn.onclick = function() { useInventoryItem(slotIndex); };
+        actions.appendChild(useBtn);
+      }
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = 'Закрыть';
+      closeBtn.style.cssText = 'padding:6px 10px; cursor:pointer;';
+      closeBtn.onclick = closeItemDetailModal;
+      actions.appendChild(closeBtn);
+    };
+
+    window.closeItemDetailModal = function() {
+      const modal = document.getElementById('item-detail-modal');
+      if (modal) modal.style.display = 'none';
+    };
+
+    // Использовать предмет: уменьшить количество, удалить если 0
+    window.useInventoryItem = function(slotIndex) {
+      try {
+        if (!window.getInventoryItem || !window.setInventoryItem || !window.removeInventoryItem) return;
+        const item = window.getInventoryItem(slotIndex);
+        if (!item || !item.id) return;
+        const data = typeof window.getItemById === 'function' ? window.getItemById(item.id) : null;
+        if (!data || data.category !== 'consumable') return;
+
+        const newQty = Math.max(0, (item.quantity || 1) - 1);
+        if (newQty === 0) {
+          window.removeInventoryItem(slotIndex);
+        } else {
+          window.setInventoryItem(slotIndex, { id: item.id, quantity: newQty });
+        }
+        // Обновляем отображение
+        if (typeof window.openItemDetailModal === 'function') {
+          closeItemDetailModal();
+        }
+      } catch (e) {
+        console.warn('[Inventory] useInventoryItem error', e);
+      }
     };
 
     // Drag and Drop functionality for inventory

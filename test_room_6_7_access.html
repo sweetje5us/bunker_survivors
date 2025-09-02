@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Исправление проблемы доступа к комнатам 6-7</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #f44336;
+            text-align: center;
+        }
+        .problem-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #f44336;
+        }
+        .solution-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #4CAF50;
+        }
+        .test-item {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #333;
+            border-radius: 4px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.problem {
+            background-color: #f44336;
+            color: #fff;
+        }
+        .status.fixed {
+            background-color: #4CAF50;
+            color: #000;
+        }
+        .description {
+            margin: 10px 0;
+            color: #ccc;
+        }
+        .code-block {
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .highlight {
+            background-color: #f44336;
+            color: #fff;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        .fix-highlight {
+            background-color: #4CAF50;
+            color: #000;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+        .bunker-layout {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .room {
+            display: inline-block;
+            border: 1px solid #666;
+            padding: 5px 10px;
+            margin: 2px;
+            background-color: #333;
+        }
+        .room.accessible {
+            background-color: #4CAF50;
+            color: #000;
+        }
+        .room.problem {
+            background-color: #f44336;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚫 Критическая проблема: Недоступность комнат 6-7 в бункере</h1>
+        
+        <div class="problem-section">
+            <h2>🐛 Описание проблемы</h2>
+            
+            <div class="test-item">
+                <h3>📊 Структура бункера с проблемой</h3>
+                <div class="description">
+                    Пример бункера на 1 ряду:
+                </div>
+                <div class="bunker-layout">
+                    <div class="room accessible">Вход</div>
+                    <div class="room accessible">Лифт</div>
+                    <div class="room accessible">Комната 1</div>
+                    <div class="room accessible">Комната 2</div>
+                    <div class="room accessible">Комната 3</div>
+                    <div class="room accessible">Комната 4</div>
+                    <div class="room accessible">Комната 5</div>
+                    <div class="room problem">Комната 6</div>
+                    <div class="room problem">Комната 7</div>
+                </div>
+                <div class="status problem">ПРОБЛЕМЫ ОБНАРУЖЕНЫ</div>
+            </div>
+
+            <div class="test-item">
+                <h3>🚫 Проблема 1: Застревание при переходе 5 → 6</h3>
+                <div class="description">
+                    <strong>Симптом:</strong> Жители застревают при попытке выйти из комнаты 5 в комнату 6.
+                </div>
+                <div class="description">
+                    <strong>Последствие:</strong> Комнаты 6 и 7 становятся недоступными для достижения жителями.
+                </div>
+                <div class="status problem">КРИТИЧЕСКАЯ ПРОБЛЕМА</div>
+            </div>
+
+            <div class="test-item">
+                <h3>📡 Проблема 2: Телепортация из дальних комнат</h3>
+                <div class="description">
+                    <strong>Симптом:</strong> Если переместить жителя в комнату 7 с помощью drag & drop, он телепортируется в другую комнату в следующий игровой час.
+                </div>
+                <div class="description">
+                    <strong>Причина:</strong> Система считает жителей в дальних комнатах "застрявшими".
+                </div>
+                <div class="status problem">КРИТИЧЕСКАЯ ПРОБЛЕМА</div>
+            </div>
+        </div>
+
+        <div class="solution-section">
+            <h2>🔧 Найденные и исправленные причины</h2>
+            
+            <div class="test-item">
+                <h3>🎯 Причина 1: Принудительная релокация "застрявших" жителей</h3>
+                <div class="description">
+                    <strong>Проблема:</strong> Функция <code>checkStuckAgents</code> считала жителей в дальних комнатах "застрявшими" и принудительно перемещала их.
+                </div>
+                <div class="description">
+                    <strong>Решение:</strong> Добавлена проверка, которая предотвращает принудительное перемещение жителей, находящихся в любой комнате.
+                </div>
+                <div class="code-block">
+// ИСПРАВЛЕНИЕ: Предотвращение принудительной релокации
+// ВАЖНАЯ ПРОВЕРКА: Если агент находится в комнате (любой), он НЕ считается застрявшим
+// Это предотвращает принудительное перемещение жителей из дальних комнат
+const isInAnyRoom = currentRoomIndex !== null
+const shouldNotRelocate = isInAnyRoom && !wasRecentlyDragged
+
+if (((isStuck && hasNoTarget && !wasRecentlyDragged) || isStuckInTransition) && !shouldNotRelocate) {
+  // Только теперь считаем агента застрявшим
+}
+                </div>
+                <div class="status fixed">ИСПРАВЛЕНО</div>
+            </div>
+
+            <div class="test-item">
+                <h3>🛣️ Причина 2: Проблемы с построением пути к дальним комнатам</h3>
+                <div class="description">
+                    <strong>Проблема:</strong> Система построения пути не могла правильно создать маршруты к комнатам после 5-й.
+                </div>
+                <div class="description">
+                    <strong>Решение:</strong> Добавлены отладочные сообщения и улучшена логика <code>buildHorizontalChain</code>.
+                </div>
+                <div class="code-block">
+// ИСПРАВЛЕНИЕ: Улучшенная система построения пути
+const buildHorizontalChain = (fromIdx: number, toIdx: number): number[] | null => {
+  // Находим все комнаты на том же этаже
+  const roomsOnSameFloor = []
+  for (let i = 0; i < this.roomRects.length; i++) {
+    if (Math.abs(this.roomRects[i].y - sameY) < 1e-3) {
+      roomsOnSameFloor.push(i)
+    }
+  }
+  
+  // Сортируем комнаты по X координате
+  roomsOnSameFloor.sort((a, b) => this.roomRects[a].x - this.roomRects[b].x)
+  
+  // Создаем путь через все комнаты между fromIdx и toIdx
+  const path: number[] = []
+  const start = Math.min(fromPos, toPos)
+  const end = Math.max(fromPos, toPos)
+  
+  for (let i = start; i <= end; i++) {
+    path.push(roomsOnSameFloor[i])
+  }
+  
+  return path
+}
+                </div>
+                <div class="status fixed">ИСПРАВЛЕНО</div>
+            </div>
+
+            <div class="test-item">
+                <h3>🔍 Добавлена отладочная информация</h3>
+                <div class="description">
+                    <strong>Улучшение:</strong> Добавлены подробные консольные сообщения для отслеживания построения путей.
+                </div>
+                <div class="code-block">
+console.log(`[buildPathTo] Построен горизонтальный путь от комнаты ${curIndex} к комнате ${destIndex}, длина цепи: ${chain.length}`)
+console.log(`[buildHorizontalChain] Комнаты на этаже ${sameY}: ${roomsOnSameFloor.join(', ')}`)
+console.log(`[buildHorizontalChain] Построен путь: ${path.join(' -> ')}`)
+                </div>
+                <div class="status fixed">ДОБАВЛЕНО</div>
+            </div>
+        </div>
+
+        <div class="solution-section">
+            <h2>✅ Ожидаемые результаты</h2>
+            
+            <div class="test-item">
+                <h3>🎯 Исправленная структура бункера</h3>
+                <div class="description">
+                    Теперь все комнаты должны быть доступны:
+                </div>
+                <div class="bunker-layout">
+                    <div class="room accessible">Вход</div>
+                    <div class="room accessible">Лифт</div>
+                    <div class="room accessible">Комната 1</div>
+                    <div class="room accessible">Комната 2</div>
+                    <div class="room accessible">Комната 3</div>
+                    <div class="room accessible">Комната 4</div>
+                    <div class="room accessible">Комната 5</div>
+                    <div class="room accessible">Комната 6</div>
+                    <div class="room accessible">Комната 7</div>
+                </div>
+                <div class="status fixed">ДОЛЖНО РАБОТАТЬ</div>
+            </div>
+
+            <div class="test-item">
+                <h3>🚶 Ожидаемое поведение жителей</h3>
+                <ul>
+                    <li>✅ Жители могут свободно переходить из комнаты 5 в комнату 6</li>
+                    <li>✅ Жители могут достигать комнаты 6 и 7 обычным способом</li>
+                    <li>✅ Жители, помещенные в комнаты 6-7 через drag & drop, остаются там</li>
+                    <li>✅ Отсутствие принудительной телепортации из дальних комнат</li>
+                    <li>✅ Система построения путей работает для любого количества комнат в ряду</li>
+                </ul>
+                <div class="status fixed">ОЖИДАЕТСЯ</div>
+            </div>
+        </div>
+
+        <div class="solution-section">
+            <h2>🧪 Рекомендации по тестированию</h2>
+            
+            <div class="test-item">
+                <h3>📋 Сценарии для проверки</h3>
+                <ol>
+                    <li><strong>Тест перехода 5 → 6:</strong> Разместите жителя в комнате 5 и наблюдайте, может ли он перейти в комнату 6</li>
+                    <li><strong>Тест достижимости:</strong> Разместите жителя в комнате 1 и дайте ему цель в комнате 7</li>
+                    <li><strong>Тест drag & drop:</strong> Перетащите жителя в комнату 7 и проверьте, остается ли он там в следующий игровой час</li>
+                    <li><strong>Тест блуждания:</strong> Дайте жителю возможность свободно блуждать и проверьте, посещает ли он дальние комнаты</li>
+                    <li><strong>Тест консоли:</strong> Откройте консоль браузера и следите за отладочными сообщениями построения путей</li>
+                </ol>
+                <div class="status fixed">К ВЫПОЛНЕНИЮ</div>
+            </div>
+
+            <div class="test-item">
+                <h3>🔍 Что искать в консоли</h3>
+                <div class="description">
+                    При попытке перехода в дальние комнаты должны появляться сообщения:
+                </div>
+                <div class="code-block">
+[buildPathTo] Построен горизонтальный путь от комнаты 4 к комнате 6, длина цепи: 3
+[buildHorizontalChain] Комнаты на этаже 0: 0, 1, 2, 3, 4, 5, 6, 7
+[buildHorizontalChain] Построен путь: 4 -> 5 -> 6
+                </div>
+                <div class="status fixed">ОЖИДАЕТСЯ</div>
+            </div>
+        </div>
+
+        <div class="solution-section">
+            <h2>📊 Технические детали</h2>
+            
+            <div class="test-item">
+                <h3>🔧 Измененные функции</h3>
+                <ul>
+                    <li><code>checkStuckAgents</code> - добавлена защита от принудительной релокации жителей в комнатах</li>
+                    <li><code>buildHorizontalChain</code> - добавлены отладочные сообщения и улучшена логика</li>
+                    <li><code>buildPathTo</code> - добавлены отладочные сообщения для диагностики</li>
+                </ul>
+            </div>
+
+            <div class="test-item">
+                <h3>🎯 Корневая причина</h3>
+                <div class="description">
+                    Проблема была не в ограничении количества комнат, а в том, что система считала жителей в дальних комнатах "застрявшими" и принудительно перемещала их. Это создавало иллюзию недоступности комнат 6-7.
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
