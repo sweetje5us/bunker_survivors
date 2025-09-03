@@ -86,6 +86,7 @@
     <div id="game-ui-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: auto; z-index: 10000; pointer-events: none;"></div>
 
     <script type="module" src="/src/ui/ui-manager.js"></script>
+    <script src="/src/core/quests-data.js"></script>
     <script type="module" src="/src/main.ts"></script>
     
     <!-- Условная инициализация GameUIManager только в игре -->
@@ -3147,46 +3148,96 @@
           const success = gameScene.setActiveQuestItem(itemId);
           if (success) {
             // Если был активный предмет, добавляем его обратно в инвентарь с сохраненным количеством
-            // Поскольку массив теперь плотный, предмет будет добавлен в конец или в первый свободный слот
+            // Используем setInventoryItem для помещения в конкретный слот вместо addItemToBunkerInventory
             if (currentActiveItem) {
               console.log(`[handleQuestSlotDrop] Возвращаем ${currentActiveItem.id} x${currentActiveItem.quantity} обратно в инвентарь`);
 
-              if (typeof gameScene.addItemToBunkerInventory === 'function') {
-                gameScene.addItemToBunkerInventory(currentActiveItem.id, currentActiveItem.quantity);
-                console.log(`[handleQuestSlotDrop] Предмет ${currentActiveItem.id} x${currentActiveItem.quantity} добавлен обратно в инвентарь`);
+              // Находим первый свободный слот для возврата предмета
+              const totalSlots = 6 * (gameScene.inventoryRows || 1);
+              let freeSlotIndex = -1;
+
+              for (let i = 0; i < totalSlots && freeSlotIndex === -1; i++) {
+                if (!gameScene.bunkerInventory[i] || !gameScene.bunkerInventory[i].id || gameScene.bunkerInventory[i].id === '') {
+                  freeSlotIndex = i;
+                }
+              }
+
+              if (freeSlotIndex !== -1) {
+                // Используем setInventoryItem для помещения в конкретный слот
+                gameScene.setInventoryItem(freeSlotIndex, currentActiveItem);
+                console.log(`[handleQuestSlotDrop] Предмет ${currentActiveItem.id} x${currentActiveItem.quantity} возвращен в слот ${freeSlotIndex}`);
+              } else {
+                console.warn(`[handleQuestSlotDrop] Нет свободного слота для возврата предмета ${currentActiveItem.id}`);
               }
             }
 
             // Удаляем новый предмет из инвентаря (используем актуальный индекс слота)
             if (actualSlotIndex !== -1) {
               console.log(`[handleQuestSlotDrop] Удаляем предмет ${itemId} из актуального слота ${actualSlotIndex}`);
-              if (typeof gameScene.removeInventoryItem === 'function') {
-                const removedItem = gameScene.removeInventoryItem(actualSlotIndex);
-                console.log(`[handleQuestSlotDrop] Удален предмет:`, removedItem);
+
+              // Проверяем, что предмет действительно находится в указанном слоте
+              if (gameScene.bunkerInventory && gameScene.bunkerInventory[actualSlotIndex] &&
+                  gameScene.bunkerInventory[actualSlotIndex].id === itemId) {
+
+                console.log(`[handleQuestSlotDrop] Предмет подтвержден в слоте ${actualSlotIndex}, удаляем...`);
+
+                // Устанавливаем слот как пустой
+                gameScene.bunkerInventory[actualSlotIndex] = undefined;
+                console.log(`[handleQuestSlotDrop] Слот ${actualSlotIndex} очищен`);
+
+                // Сжимаем инвентарь - перемещаем все предметы в начало массива
+                if (gameScene.bunkerInventory) {
+                  const validItems = [];
+                  const totalSlots = 6 * (gameScene.inventoryRows || 1);
+
+                  // Собираем все валидные предметы
+                  for (let i = 0; i < gameScene.bunkerInventory.length; i++) {
+                    const item = gameScene.bunkerInventory[i];
+                    if (item && item.id && item.quantity > 0) {
+                      validItems.push(item);
+                    }
+                  }
+
+                  console.log(`[handleQuestSlotDrop] Найдено ${validItems.length} валидных предметов`);
+
+                  // Очищаем массив и заполняем его заново
+                  gameScene.bunkerInventory.length = 0;
+
+                  // Добавляем валидные предметы
+                  for (let i = 0; i < validItems.length; i++) {
+                    gameScene.bunkerInventory[i] = validItems[i];
+                  }
+
+                  // Заполняем оставшиеся слоты undefined
+                  while (gameScene.bunkerInventory.length < totalSlots) {
+                    gameScene.bunkerInventory.push(undefined);
+                  }
+
+                  console.log(`[handleQuestSlotDrop] Инвентарь сжат: ${gameScene.bunkerInventory.length} слотов, валидных предметов: ${validItems.length}`);
+                }
+              } else {
+                console.warn(`[handleQuestSlotDrop] Предмет ${itemId} не найден в слоте ${actualSlotIndex}`);
               }
             } else {
               console.log(`[handleQuestSlotDrop] Не удалось определить актуальный слот для предмета ${itemId}`);
             }
 
-            // UI обновится автоматически через setInventoryItem или clearActiveQuestItem
+            // Принудительно обновляем UI инвентаря
+            if (window.game && window.game.scene) {
+              const gameScene = window.game.scene.getScene('Game');
+              if (gameScene && typeof window.populateInventoryModal === 'function') {
+                console.log(`[handleQuestSlotDrop] Обновляем UI инвентаря после удаления предмета`);
+                const inventory = gameScene.bunkerInventory || [];
+                const inventoryRows = gameScene.inventoryRows || 1;
+                window.populateInventoryModal(inventory, inventoryRows);
+              }
+            }
 
             if (window.showToast) {
               const actionText = currentActiveItem ? 'Заменен' : 'Активирован';
               window.showToast(`${actionText} источник информации: ${itemData.name}`);
             }
             console.log(`[handleQuestSlotDrop] КОНЕЦ: предмет ${itemId} успешно помещен в слот источника`);
-
-            // Обновляем UI инвентаря сразу после экипировки
-            setTimeout(() => {
-              if (typeof window.populateInventoryModal === 'function' && window.game && window.game.scene) {
-                const gameScene = window.game.scene.getScene('Game');
-                if (gameScene) {
-                  const inventory = gameScene.getDefaultInventory();
-                  const inventoryRows = gameScene.inventoryRows || 1;
-                  window.populateInventoryModal(inventory, inventoryRows);
-                }
-              }
-            }, 100);
           } else {
             console.log(`[handleQuestSlotDrop] ОШИБКА: не удалось установить предмет ${itemId} в слот источника`);
           }

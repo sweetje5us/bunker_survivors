@@ -10,6 +10,7 @@ import { ITEMS_DATABASE, Item } from '../core/items'
 import { ConfigManager } from '../config/config-manager'
 import { getSidequestItemManager, SidequestItem } from '../core/sidequest-items'
 import { FactionManager, FactionId } from '../core/factions'
+import { QuestManager, QuestUtils } from '../core/quests'
 
 type Phase = 'day' | 'night'
 
@@ -26,6 +27,7 @@ export class GameScene extends Phaser.Scene {
   private readonly DAY_DURATION_MS = 3 * 60 * 1000
   private readonly NIGHT_DURATION_MS = 2 * 60 * 1000
   private configManager: ConfigManager = ConfigManager.getInstance()
+  private questManager: QuestManager = QuestManager.getInstance()
   private dayCycleStartAt = 0
   private phaseEndsAt = 0
   private clockEvent?: Phaser.Time.TimerEvent
@@ -5338,7 +5340,7 @@ export class GameScene extends Phaser.Scene {
     ]
 
     // Квестовые предметы - только 1 в инвентаре жителя
-    const questItems = ['laptop', 'radio', 'gps']
+    const questItems = ['laptop', 'radio', 'gps', 'phone', 'transmitter', 'map']
     let questItemAdded = false
 
     // Бездомные получают на 50% больше предметов
@@ -5587,9 +5589,32 @@ export class GameScene extends Phaser.Scene {
       insaneSince: undefined,
       intent: 'peaceful' // Мирное поведение по умолчанию
     })
-    
+
     console.log(`[addResidentToBunker] Житель ${personData.name} добавлен с ID ${id}, здоровье: 100%`)
-    
+
+    // Проверяем предметы жителя и разблокируем фракции
+    if (personData.inventory && personData.inventory.length > 0) {
+      personData.inventory.forEach(item => {
+        if (this.factionManager?.unlockFactionByItem(item.id)) {
+          console.log(`[addResidentToBunker] Разблокирована фракция для предмета ${item.id} от жителя ${personData.name}`)
+        }
+      });
+    }
+
+    // Обновляем прогресс заданий фракций
+    this.updateFactionQuestProgress('recruit');
+    this.updateFactionQuestProgress('accept_profession', personData.profession);
+    this.updateFactionQuestProgress('accept_gender', personData.gender);
+
+    // Проверяем навыки жителя
+    if (personData.allSkills && personData.allSkills.length > 0) {
+      personData.allSkills.forEach((skill: any) => {
+        if (skill.positive) {
+          this.updateFactionQuestProgress('accept_skill', skill.text);
+        }
+      });
+    }
+
     // Специальное логирование для докторов
     if (personData.profession === 'доктор' || personData.profession === 'врач') {
       console.log(`[addResidentToBunker] 🏥 Доктор ${personData.name} добавлен в бункер! Теперь может лечить жителей каждый час во время работы`)
@@ -6487,6 +6512,11 @@ export class GameScene extends Phaser.Scene {
     // Устанавливаем новый предмет в указанный слот
     this.bunkerInventory[slotIndex] = { id: itemData.id, quantity: itemData.quantity }
 
+    // Проверяем, нужно ли разблокировать фракцию для этого предмета
+    if (this.factionManager?.unlockFactionByItem(itemData.id)) {
+      console.log(`[setInventoryItem] Разблокирована фракция для предмета ${itemData.id}`)
+    }
+
     // Если в слоте был другой предмет, нужно его куда-то переместить
     if (existingItem && existingItem.id && existingItem.id !== itemData.id) {
 
@@ -7018,76 +7048,91 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Методы для вызова из bunkerView (работники)
-  public addFood(amount: number): void { 
-    this.food = Math.max(0, this.food + Math.max(0, Math.floor(amount))); 
-    
+  public addFood(amount: number): void {
+    this.food = Math.max(0, this.food + Math.max(0, Math.floor(amount)));
+
+    // Обновляем прогресс заданий фракций
+    this.updateFactionQuestProgress('collect_resource', 'food', amount);
+
     // Показываем индикатор изменения
     console.log(`[addFood] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
-    
+
     if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
       console.log(`[addFood] 🎯 Показываем индикатор для еды: +${amount} ед`);
       (window as any).forceCheckResourceChange('food', amount, false);
     } else {
       console.warn(`[addFood] ❌ forceCheckResourceChange недоступен`);
     }
-    
-    this.updateAllResources() 
+
+    this.updateAllResources()
   }
   
-  public addWater(amount: number): void { 
-    this.water = Math.max(0, this.water + Math.max(0, Math.floor(amount))); 
-    
+  public addWater(amount: number): void {
+    this.water = Math.max(0, this.water + Math.max(0, Math.floor(amount)));
+
+    // Обновляем прогресс заданий фракций
+    this.updateFactionQuestProgress('collect_resource', 'water', amount);
+
     // Показываем индикатор изменения
     console.log(`[addWater] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
-    
+
     if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
       console.log(`[addWater] 🎯 Показываем индикатор для воды: +${amount} ед`);
       (window as any).forceCheckResourceChange('water', amount, false);
     } else {
       console.warn(`[addWater] ❌ forceCheckResourceChange недоступен`);
     }
-    
-    this.updateAllResources() 
+
+    this.updateAllResources()
   }
   
-  public addWood(amount: number): void { 
-    this.wood = Math.max(0, this.wood + Math.max(0, Math.floor(amount))); 
-    
+  public addWood(amount: number): void {
+    this.wood = Math.max(0, this.wood + Math.max(0, Math.floor(amount)));
+
+    // Обновляем прогресс заданий фракций
+    this.updateFactionQuestProgress('collect_resource', 'wood', amount);
+
     // Показываем индикатор изменения
     console.log(`[addWood] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
-    
+
     if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
       console.log(`[addWood] 🎯 Показываем индикатор для дерева: +${amount} ед`);
       (window as any).forceCheckResourceChange('wood', amount, false);
     } else {
       console.warn(`[addWood] ❌ forceCheckResourceChange недоступен`);
     }
-    
-    this.updateAllResources() 
+
+    this.updateAllResources()
   }
   
-  public addMetal(amount: number): void { 
-    this.metal = Math.max(0, this.metal + Math.max(0, Math.floor(amount))); 
-    
+  public addMetal(amount: number): void {
+    this.metal = Math.max(0, this.metal + Math.max(0, Math.floor(amount)));
+
+    // Обновляем прогресс заданий фракций
+    this.updateFactionQuestProgress('collect_resource', 'metal', amount);
+
     // Показываем индикатор изменения
     console.log(`[addMetal] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
-    
+
     if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
       console.log(`[addMetal] 🎯 Показываем индикатор для металла: +${amount} ед`);
       (window as any).forceCheckResourceChange('metal', amount, false);
     } else {
       console.warn(`[addMetal] ❌ forceCheckResourceChange недоступен`);
     }
-    
-    this.updateAllResources() 
+
+    this.updateAllResources()
   }
   
-  public addCoal(amount: number): void { 
-    this.coal = Math.max(0, this.coal + Math.max(0, Math.floor(amount))); 
-    
+  public addCoal(amount: number): void {
+    this.coal = Math.max(0, this.coal + Math.max(0, Math.floor(amount)));
+
+    // Обновляем прогресс заданий фракций
+    this.updateFactionQuestProgress('collect_resource', 'coal', amount);
+
     // Показываем индикатор изменения
     console.log(`[addCoal] 🔍 Проверяем доступность forceCheckResourceChange:`, typeof window !== 'undefined' && (window as any).forceCheckResourceChange);
-    
+
     if (typeof window !== 'undefined' && (window as any).forceCheckResourceChange) {
       console.log(`[addCoal] 🎯 Показываем индикатор для угля: +${amount} ед`);
       (window as any).forceCheckResourceChange('coal', amount, false);
@@ -7938,17 +7983,34 @@ export class GameScene extends Phaser.Scene {
 
     // Новый день наступает в 00:00 (счётчик дня +1), но фаза остаётся ночной до 06:00
     if (clock === '00:00') {
+      console.log(`[tickClockAndPhase] Час 00:00, midnightHandled: ${this.midnightHandled}`)
       if (!this.midnightHandled) {
+        console.log(`[tickClockAndPhase] Выполняем обработку полночи`)
         // Суточная экономика в полночь
         this.processDailyResources()
+
+        // Генерация заданий для фракций каждый новый день
+        console.log(`[tickClockAndPhase] Вызываем generateDailyFactionQuests`)
+        try {
+          this.generateDailyFactionQuests()
+          console.log(`[tickClockAndPhase] generateDailyFactionQuests выполнен успешно`)
+        } catch (error) {
+          console.error(`[tickClockAndPhase] Ошибка в generateDailyFactionQuests:`, error)
+        }
+
         this.dayNumber += 1
         this.showToast(`Наступил новый день: ${this.dayNumber}`)
         this.midnightHandled = true
         // Ночью при новом дне — враги продолжают стоять, люди не приходят
         if (this.phase === 'night') this.scheduleEnemyArrival()
+      } else {
+        console.log(`[tickClockAndPhase] Полночь уже обработана`)
       }
     } else {
-      this.midnightHandled = false
+      if (this.midnightHandled) {
+        console.log(`[tickClockAndPhase] Сбрасываем midnightHandled для следующего дня`)
+        this.midnightHandled = false
+      }
     }
 
     // Ежечасная обработка работы жителей (06..21 — день, 22..05 — ночь)
@@ -8029,6 +8091,397 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Очистка привязана к событию SHUTDOWN
+
+  /**
+   * Генерация ежедневных заданий для фракций
+   */
+  private generateDailyFactionQuests(): void {
+    console.log(`[generateDailyFactionQuests] ===== НАЧАЛО ГЕНЕРАЦИИ ЗАДАНИЙ =====`)
+    console.log(`[generateDailyFactionQuests] Генерация заданий для дня ${this.dayNumber}`);
+
+    const unlockedFactions = this.factionManager?.getUnlockedFactions() || [];
+    console.log(`[generateDailyFactionQuests] Найдено разблокированных фракций: ${unlockedFactions.length}`, unlockedFactions.map(f => f.name));
+
+    if (unlockedFactions.length === 0) {
+      console.log('[generateDailyFactionQuests] Нет разблокированных фракций');
+      return;
+    }
+
+    // Генерируем 1-2 задания в день
+    const questCount = Math.random() < 0.6 ? 1 : 2; // 60% шанс на 1 задание, 40% на 2
+
+    for (let i = 0; i < questCount; i++) {
+      let factionId: FactionId;
+      let randomFaction;
+
+      // Если есть активный источник информации, приоритетно генерируем задание для его фракции
+      if ((window as any).activeQuestItem && (window as any).activeQuestItem.id) {
+        const activeSourceType = (window as any).activeQuestItem.id;
+        // Конвертируем sourceType в factionId
+        const sourceTypeToFactionId: Record<string, FactionId> = {
+          'radio': 'hq' as FactionId,
+          'gps': 'rebels' as FactionId,
+          'laptop': 'freedom' as FactionId,
+          'phone': 'marauders' as FactionId,
+          'transmitter': 'mystery' as FactionId,
+          'map': 'treasures' as FactionId
+        };
+
+        const activeFactionId = sourceTypeToFactionId[activeSourceType];
+        if (activeFactionId && unlockedFactions.some(f => f.id === activeFactionId)) {
+          // Генерируем задание для фракции активного источника
+          randomFaction = unlockedFactions.find(f => f.id === activeFactionId);
+          factionId = activeFactionId;
+          console.log(`[generateDailyFactionQuests] Приоритет: генерируем задание для активного источника ${activeSourceType} (фракция ${factionId})`);
+        } else {
+          // Выбираем случайную разблокированную фракцию
+          randomFaction = unlockedFactions[Math.floor(Math.random() * unlockedFactions.length)];
+          factionId = randomFaction!.id as FactionId;
+        }
+      } else {
+        // Выбираем случайную разблокированную фракцию
+        randomFaction = unlockedFactions[Math.floor(Math.random() * unlockedFactions.length)];
+        factionId = randomFaction!.id as FactionId;
+      }
+
+      // Получаем случайное задание для фракции
+      const quest = this.questManager.getRandomQuest(factionId);
+
+      if (quest) {
+        // Отправляем задание в UI через sourceQuests
+        if (typeof window !== 'undefined' && (window as any).sourceQuests) {
+          // Создаем объект активного задания
+          const activeQuest = {
+            ...quest,
+            progress: 0,
+            accepted: false,
+            acceptedAt: new Date()
+          };
+
+          // Сохраняем задание в sourceQuests
+          (window as any).sourceQuests.activeQuests[factionId] = activeQuest;
+          console.log(`[generateDailyFactionQuests] Сохранено задание для фракции ${factionId}:`, activeQuest);
+
+          // Обновляем UI для активного источника информации
+          if (typeof window !== 'undefined' && (window as any).updateQuestsDisplay) {
+            console.log(`[generateDailyFactionQuests] Обновляем UI для фракции ${factionId}`);
+
+            // Если есть активный источник информации, обновляем его
+            if ((window as any).activeQuestItem && (window as any).activeQuestItem.id) {
+              const activeSource = (window as any).activeQuestItem.id;
+              console.log(`[generateDailyFactionQuests] Обновляем UI для активного источника: ${activeSource}`);
+              (window as any).updateQuestsDisplay(activeSource);
+
+              // Также обновляем showInfoSourcePanel, чтобы показать новое задание в блоке сообщений
+              console.log(`[generateDailyFactionQuests] Обновляем панель информации для активного источника`);
+              (window as any).showInfoSourcePanel((window as any).activeQuestItem);
+            } else {
+              // Если нет активного источника, обновляем для сгенерированной фракции
+              console.log(`[generateDailyFactionQuests] Нет активного источника, обновляем для ${factionId}`);
+              (window as any).updateQuestsDisplay(factionId);
+            }
+          } else {
+            console.log(`[generateDailyFactionQuests] Функция updateQuestsDisplay не найдена`);
+          }
+
+          console.log(`[generateDailyFactionQuests] Сгенерировано задание для ${randomFaction!.name}: ${quest.title}`);
+          this.showToast(`Новое задание от ${randomFaction!.name}: ${quest.title}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * Обновляет прогресс заданий фракций
+   */
+  private updateFactionQuestProgress(action: string, ...params: any[]): void {
+    if (typeof window === 'undefined' || !(window as any).sourceQuests) return;
+
+    const sourceQuests = (window as any).sourceQuests;
+    const activeQuests = sourceQuests.activeQuests;
+
+    // Проходим по всем активным заданиям
+    for (const [factionType, quest] of Object.entries(activeQuests) as [string, any][]) {
+      if (!quest || !quest.accepted) continue;
+
+      let progressIncrement = 0;
+
+      switch (quest.type) {
+        case 'recruit':
+          if (action === 'recruit') {
+            progressIncrement = 1;
+          }
+          break;
+
+        case 'exile':
+          if (action === 'exile') {
+            progressIncrement = 1;
+          }
+          break;
+
+        case 'kill_enemy':
+          if (action === 'kill_enemy') {
+            const enemyType = params[0];
+            if (quest.target === enemyType || quest.target === 'any') {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'get_item':
+          if (action === 'get_item') {
+            const itemId = params[0];
+            if (quest.target === itemId) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'collect_resource':
+          if (action === 'collect_resource') {
+            const resourceType = params[0];
+            const amount = params[1] || 1;
+            if (quest.target === resourceType) {
+              progressIncrement = amount;
+            }
+          }
+          break;
+
+        case 'build_room':
+          if (action === 'build_room') {
+            const roomType = params[0];
+            if (quest.target === roomType) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'destroy_room':
+          if (action === 'destroy_room') {
+            const roomType = params[0];
+            if (quest.target === roomType) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'sacrifice':
+          if (action === 'sacrifice') {
+            progressIncrement = 1;
+          }
+          break;
+
+        case 'insanity':
+          if (action === 'insanity') {
+            progressIncrement = 1;
+          }
+          break;
+
+        case 'produce_resource':
+          if (action === 'produce_resource') {
+            const resourceType = params[0];
+            const amount = params[1] || 1;
+            if (quest.target === resourceType) {
+              progressIncrement = amount;
+            }
+          }
+          break;
+
+        case 'trade':
+          if (action === 'trade') {
+            progressIncrement = 1;
+          }
+          break;
+
+        case 'refuse_profession':
+          if (action === 'refuse_profession') {
+            const profession = params[0];
+            if (quest.target === profession) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'refuse_gender':
+          if (action === 'refuse_gender') {
+            const gender = params[0];
+            if (quest.target === gender) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'refuse_skill':
+          if (action === 'refuse_skill') {
+            const skill = params[0];
+            if (quest.target === skill) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'accept_profession':
+          if (action === 'accept_profession') {
+            const profession = params[0];
+            if (quest.target === profession) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'accept_gender':
+          if (action === 'accept_gender') {
+            const gender = params[0];
+            if (quest.target === gender) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'accept_skill':
+          if (action === 'accept_skill') {
+            const skill = params[0];
+            if (quest.target === skill) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'find_sidequest':
+          if (action === 'find_sidequest') {
+            const itemId = params[0];
+            if (quest.target === itemId) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'attack_bunker':
+          if (action === 'attack_bunker') {
+            const factionTarget = params[0];
+            if (quest.target === factionTarget) {
+              progressIncrement = 1;
+            }
+          }
+          break;
+
+        case 'let_enemy_in':
+          if (action === 'let_enemy_in') {
+            progressIncrement = 1;
+          }
+          break;
+      }
+
+      if (progressIncrement > 0) {
+        sourceQuests.updateQuestProgress(factionType, progressIncrement);
+
+        // Проверяем, выполнено ли задание
+        if (sourceQuests.isQuestCompleted(factionType)) {
+          this.showToast(`Задание выполнено!`);
+          // Здесь можно добавить награду за выполнение задания
+        }
+      }
+    }
+  }
+
+  /**
+   * Обработка убийства врага для трекинга заданий
+   */
+  public onEnemyKilled(enemyType: string): void {
+    console.log(`[onEnemyKilled] Враг убит: ${enemyType}`);
+    this.updateFactionQuestProgress('kill_enemy', enemyType);
+  }
+
+  /**
+   * Обработка изгнания жителя для трекинга заданий
+   */
+  public onResidentExiled(): void {
+    console.log(`[onResidentExiled] Житель изгнан`);
+    this.updateFactionQuestProgress('exile');
+  }
+
+  /**
+   * Обработка постройки комнаты для трекинга заданий
+   */
+  public onRoomBuilt(roomType: string): void {
+    console.log(`[onRoomBuilt] Построена комната: ${roomType}`);
+    this.updateFactionQuestProgress('build_room', roomType);
+  }
+
+  /**
+   * Обработка разрушения комнаты для трекинга заданий
+   */
+  public onRoomDestroyed(roomType: string): void {
+    console.log(`[onRoomDestroyed] Разрушена комната: ${roomType}`);
+    this.updateFactionQuestProgress('destroy_room', roomType);
+  }
+
+  /**
+   * Обработка получения предмета для трекинга заданий
+   */
+  public onItemObtained(itemId: string): void {
+    console.log(`[onItemObtained] Получен предмет: ${itemId}`);
+    this.updateFactionQuestProgress('get_item', itemId);
+  }
+
+  /**
+   * Обработка жертвы жителя для трекинга заданий
+   */
+  public onResidentSacrificed(): void {
+    console.log(`[onResidentSacrificed] Жертвоприношение`);
+    this.updateFactionQuestProgress('sacrifice');
+  }
+
+  /**
+   * Обработка доведения жителя до безумия для трекинга заданий
+   */
+  public onResidentInsane(): void {
+    console.log(`[onResidentInsane] Житель доведен до безумия`);
+    this.updateFactionQuestProgress('insanity');
+  }
+
+  /**
+   * Обработка торговли для трекинга заданий
+   */
+  public onTradeCompleted(): void {
+    console.log(`[onTradeCompleted] Торговля завершена`);
+    this.updateFactionQuestProgress('trade');
+  }
+
+  /**
+   * Обработка открытия фракции для генерации заданий
+   */
+  public onFactionUnlocked(factionId: string): void {
+    console.log(`[onFactionUnlocked] Разблокирована фракция: ${factionId}`);
+    // Можно добавить специальную логику для новых фракций
+  }
+
+  /**
+   * Отладочная функция для тестирования системы заданий
+   */
+  public debugQuestSystem(): void {
+    console.log('[DEBUG] === СИСТЕМА ЗАДАНИЙ ===');
+    console.log('[DEBUG] Текущий день:', this.dayNumber);
+    console.log('[DEBUG] Разблокированные фракции:', this.factionManager?.getUnlockedFactions().map(f => f.name) || []);
+
+    if (typeof window !== 'undefined' && (window as any).sourceQuests) {
+      const sourceQuests = (window as any).sourceQuests;
+      const activeQuests = sourceQuests.activeQuests;
+      console.log('[DEBUG] Активные задания:', Object.keys(activeQuests).length);
+
+      Object.entries(activeQuests).forEach(([factionType, quest]: [string, any]) => {
+        if (quest && quest.accepted) {
+          console.log(`[DEBUG] ${factionType}: ${quest.title} (${quest.progress}/${quest.target})`);
+        }
+      });
+    }
+
+    // Тестируем генерацию заданий
+    console.log('[DEBUG] Генерация тестового задания...');
+    this.generateDailyFactionQuests();
+
+    this.showToast('Система заданий протестирована (смотри консоль)');
+  }
 
   private showToast(text: string): void {
     // Используем HTML уведомления вместо Phaser

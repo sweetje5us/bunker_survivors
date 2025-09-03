@@ -3428,6 +3428,18 @@
             font-size: 9px;
             font-weight: bold;
             margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .quest-grade {
+            font-size: 7px;
+            font-weight: normal;
+            padding: 1px 4px;
+            border-radius: 3px;
+            background-color: rgba(0, 0, 0, 0.3);
+            margin-left: 6px;
         }
 
         .quest-description {
@@ -3482,6 +3494,66 @@
 
         .no-quests .quest-text {
             color: #cccccc !important;
+        }
+
+        /* Стили для предложений заданий */
+        .quest-pending {
+            border-color: #2196F3;
+            background: rgba(33, 150, 243, 0.1);
+        }
+
+        .quest-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+        }
+
+        .quest-btn {
+            padding: 3px 6px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 6px;
+            font-family: 'Press Start 2P', monospace;
+            transition: all 0.3s ease;
+            min-width: 50px;
+        }
+
+        .quest-btn.accept {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .quest-btn.accept:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .quest-btn.decline {
+            background: #f44336;
+            color: white;
+        }
+
+        .quest-btn.decline:hover {
+            background: #da190b;
+            transform: translateY(-1px);
+        }
+
+        .quest-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Стили для лимита заданий */
+        .quest-limit {
+            border-color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .quest-limit .quest-title {
+            color: #ff6b6b;
         }
 
         /* Адаптивность */
@@ -4218,20 +4290,48 @@
 
         // Получить контент для типа источника
         function getSourceContent(itemId) {
+            console.log('[getSourceContent] Начало для itemId:', itemId);
+
             // Получить фракцию и проверить есть ли активное задание
             const factionData = getFactionData(itemId);
-            const activeQuest = window.sourceQuests.activeQuests[itemId];
+            const factionId = getFactionIdFromSourceType(itemId);
+            console.log('[getSourceContent] factionData:', factionData, 'factionId:', factionId);
 
-            if (activeQuest) {
-                // Показать активное задание
-                return getActiveQuestContent(itemId, activeQuest);
+            // Сначала проверяем есть ли принятое задание для фракции
+            const acceptedQuest = factionId ? window.sourceQuests.activeQuests[factionId] : null;
+            console.log('[getSourceContent] acceptedQuest:', acceptedQuest);
+
+            if (acceptedQuest && acceptedQuest.accepted) {
+                // Есть принятое задание - показать активное задание
+                console.log('[getSourceContent] Путь: принятое задание');
+                return getActiveQuestContent(itemId, acceptedQuest);
             } else {
-                // Показать первое сообщение с предложением принять задание
-                return getInitialMessageContent(itemId, factionData);
+                // Проверяем есть ли любые непринятые задания для любой фракции
+                const allPendingQuests = Object.entries(window.sourceQuests.activeQuests || {})
+                    .filter(([fid, quest]) => quest && quest.accepted === false)
+                    .map(([fid, quest]) => ({ factionId: fid, ...quest }));
+
+                console.log('[getSourceContent] allPendingQuests:', allPendingQuests);
+
+                if (allPendingQuests.length > 0) {
+                    // Есть непринятое задание - показать предложение принять задание
+                    console.log('[getSourceContent] Путь: непринятое задание');
+                    const pendingQuest = allPendingQuests[0];
+                    const questFactionData = getFactionDataByFactionId(pendingQuest.factionId);
+                    return getPendingQuestContent(itemId, pendingQuest, questFactionData);
+                } else if (acceptedQuest && !acceptedQuest.accepted) {
+                    // Есть непринятое задание для текущей фракции
+                    console.log('[getSourceContent] Путь: непринятое задание для текущей фракции');
+                    return getPendingQuestContent(itemId, acceptedQuest, factionData);
+                } else {
+                    // Нет заданий - показать первое сообщение с предложением принять задание
+                    console.log('[getSourceContent] Путь: первое сообщение');
+                    return getInitialMessageContent(itemId, factionData);
+                }
             }
         }
 
-        // Получить данные о фракции
+        // Получить данные о фракции по sourceType
         function getFactionData(itemId) {
             const factionData = {
                 'radio': {
@@ -4268,15 +4368,148 @@
             return factionData[itemId] || { name: 'Неизвестно', greeting: 'Внимание!', style: 'default' };
         }
 
-        // Показать первое сообщение с предложением принять задание
-        function getInitialMessageContent(itemId, factionData) {
-            const randomQuest = window.sourceQuests.getRandomQuest(itemId);
-            if (!randomQuest) return '<div style="color: #fff;">Нет доступных заданий</div>';
+        // Получить данные о фракции по factionId
+        function getFactionDataByFactionId(factionId) {
+            const factionDataMap = {
+                'hq': {
+                    name: 'Штаб',
+                    greeting: 'Внимание! Говорит командование.',
+                    style: 'military'
+                },
+                'rebels': {
+                    name: 'Повстанцы',
+                    greeting: 'Братья и сестры по борьбе!',
+                    style: 'rebel'
+                },
+                'freedom': {
+                    name: 'Свобода',
+                    greeting: 'Друзья свободных людей!',
+                    style: 'freedom'
+                },
+                'marauders': {
+                    name: 'Мародеры',
+                    greeting: 'Эй, приятель!',
+                    style: 'raider'
+                },
+                'mystery': {
+                    name: 'Тайна',
+                    greeting: 'Шепот из тьмы...',
+                    style: 'mystery'
+                },
+                'treasures': {
+                    name: 'Сокровища',
+                    greeting: 'Древние тайны зовут...',
+                    style: 'treasure'
+                }
+            };
+            return factionDataMap[factionId] || { name: 'Неизвестно', greeting: 'Внимание!', style: 'default' };
+        }
+
+        // Показать предложение принять новое задание
+        function getPendingQuestContent(itemId, pendingQuest, factionData) {
+            if (!pendingQuest) return '<div style="color: #fff;">Нет доступных заданий</div>';
+
+            console.log('[getPendingQuestContent] Начало обработки задания:', pendingQuest);
+
+            // Используем данные фракции из задания, если они есть
+            const questFactionData = pendingQuest.factionId ? getFactionDataByFactionId(pendingQuest.factionId) : factionData;
+            console.log('[getPendingQuestContent] Данные фракции:', questFactionData);
+
+            // Добавляем сообщение в историю
+            if (pendingQuest.factionId && window.sourceQuests.addMessageToHistory) {
+                window.sourceQuests.addMessageToHistory(pendingQuest.factionId, 'pending_quest', {
+                    quest: pendingQuest,
+                    factionData: questFactionData
+                });
+            }
+
+            // Получаем цвет и метку грейда
+            const gradeColor = questSystemLoaded && window.QuestUtils ?
+                window.QuestUtils.getGradeColor(pendingQuest.grade) : '#8B8B8B';
+            const gradeLabel = questSystemLoaded && window.QuestUtils ?
+                window.QuestUtils.getGradeLabel(pendingQuest.grade) : 'Обычное';
+
+            // Форматируем награду
+            let rewardText = 'Неизвестная награда';
+            if (pendingQuest.reward) {
+                const reward = pendingQuest.reward;
+                switch (reward.type) {
+                    case 'experience':
+                        rewardText = `Опыт: +${reward.value}`;
+                        break;
+                    case 'reputation':
+                        rewardText = `Репутация: +${reward.value}`;
+                        break;
+                    case 'item':
+                        rewardText = `Предмет: ${reward.value}`;
+                        break;
+                    case 'resource':
+                        rewardText = `Ресурс: ${reward.value}`;
+                        break;
+                    default:
+                        rewardText = `Награда: ${reward.value}`;
+                }
+            }
 
             return `
                 <div class="message-content">
                     <div class="message-header">
-                        <div class="message-sender">${factionData.name}</div>
+                        <div class="message-sender">${questFactionData.name}</div>
+                        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                    <div class="message-text">
+                        ${questFactionData.greeting}<br><br>
+                        У нас есть новое задание для вас!<br><br>
+                        <strong>Задание: ${pendingQuest.title}</strong><br>
+                        <span style="color: ${gradeColor}; font-weight: bold;">[${gradeLabel}]</span><br><br>
+                        ${pendingQuest.description}<br><br>
+                        <em>Награда: ${rewardText}</em>
+                    </div>
+                    <div class="message-actions">
+                        <button class="message-btn decline" onclick="declineQuest('${itemId}')">Отказаться</button>
+                        <button class="message-btn accept" onclick="acceptQuest('${itemId}', '${pendingQuest.id}')">Принять</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Показать первое сообщение с предложением принять задание
+        function getInitialMessageContent(itemId, factionData) {
+            const factionId = getFactionIdFromSourceType(itemId);
+
+            // Ищем любое доступное непринятое задание
+            const allPendingQuests = Object.entries(window.sourceQuests.activeQuests || {})
+                .filter(([fid, quest]) => quest && quest.accepted === false)
+                .map(([fid, quest]) => ({ factionId: fid, ...quest }));
+
+            if (allPendingQuests.length === 0) {
+                // Если нет непринятых заданий, показываем случайное
+                const randomQuest = window.sourceQuests.getRandomQuest(itemId);
+                if (!randomQuest) return '<div style="color: #fff;">Нет доступных заданий</div>';
+
+                // Сохраняем задание в activeQuests для фракции
+                if (factionId && !window.sourceQuests.activeQuests[factionId]) {
+                    window.sourceQuests.activeQuests[factionId] = {
+                        ...randomQuest,
+                        progress: 0,
+                        accepted: false,
+                        acceptedAt: new Date()
+                    };
+                    console.log(`[getInitialMessageContent] Сохранено новое задание для фракции ${factionId}:`, randomQuest);
+                }
+
+                // Добавляем сообщение в историю
+                if (factionId && window.sourceQuests.addMessageToHistory) {
+                    window.sourceQuests.addMessageToHistory(factionId, 'initial', {
+                        quest: randomQuest,
+                        factionData: factionData
+                    });
+                }
+
+                return `
+                    <div class="message-content">
+                        <div class="message-header">
+                            <div class="message-sender">${factionData.name}</div>
                         <div class="message-time">${new Date().toLocaleTimeString()}</div>
                     </div>
                     <div class="message-text">
@@ -4284,24 +4517,55 @@
                         У нас есть задание для вас. Готовы ли вы помочь?<br><br>
                         <strong>Задание: ${randomQuest.title}</strong><br>
                         ${randomQuest.description}<br><br>
-                        <em>Награда: ${randomQuest.reward}</em>
-                    </div>
-                    <div class="message-actions">
+                        <em>Награда: ${(() => {
+                            if (!randomQuest.reward) return 'Неизвестная награда';
+                            const reward = randomQuest.reward;
+                            switch (reward.type) {
+                                case 'experience': return `Опыт: +${reward.value}`;
+                                case 'reputation': return `Репутация: +${reward.value}`;
+                                case 'item': return `Предмет: ${reward.value}`;
+                                case 'resource': return `Ресурс: ${reward.value}`;
+                                default: return `Награда: ${reward.value}`;
+                            }
+                        })()}</em><br><br>
                         <button class="message-btn decline" onclick="declineQuest('${itemId}')">Отказаться</button>
                         <button class="message-btn accept" onclick="acceptQuest('${itemId}', '${randomQuest.id}')">Принять</button>
                     </div>
-                </div>
-            `;
+                `;
+
+            } else {
+                // Есть непринятое задание - показываем его
+                const pendingQuest = allPendingQuests[0];
+                const questFactionData = getFactionDataByFactionId(pendingQuest.factionId);
+
+                // Добавляем сообщение в историю
+                if (pendingQuest.factionId && window.sourceQuests.addMessageToHistory) {
+                    window.sourceQuests.addMessageToHistory(pendingQuest.factionId, 'pending_quest', {
+                        quest: pendingQuest,
+                        factionData: questFactionData
+                    });
+                }
+
+                return getPendingQuestContent(itemId, pendingQuest, questFactionData);
+            }
         }
 
         // Показать активное задание
         function getActiveQuestContent(itemId, activeQuest) {
-            const factionData = getFactionData(itemId);
+            // Используем данные фракции из задания, если они есть
+            const factionData = activeQuest.faction ? getFactionDataByFactionId(activeQuest.faction) : getFactionData(itemId);
             const progressPercent = Math.min(100, (activeQuest.progress / activeQuest.target) * 100);
             const isCompleted = window.sourceQuests.isQuestCompleted(itemId);
 
             let statusClass = '';
             let statusText = '';
+            let gradeColor = '#8B8B8B'; // default common
+            let gradeLabel = 'Обычное';
+
+            if (window.QuestUtils) {
+                gradeColor = window.QuestUtils.getGradeColor(activeQuest.grade);
+                gradeLabel = window.QuestUtils.getGradeLabel(activeQuest.grade);
+            }
 
             if (isCompleted) {
                 statusClass = 'quest-completed';
@@ -4311,20 +4575,37 @@
                 statusText = `📋 ${activeQuest.progress}/${activeQuest.target}`;
             }
 
+            // Получить информацию о награде
+            let rewardText = '';
+            if (activeQuest.reward) {
+                if (activeQuest.reward.type === 'experience') {
+                    rewardText = `Опыт: ${activeQuest.reward.value}`;
+                } else if (activeQuest.reward.type === 'reputation') {
+                    rewardText = `Репутация: +${activeQuest.reward.value}`;
+                } else if (activeQuest.reward.type === 'item') {
+                    rewardText = `Предмет: ${activeQuest.reward.value}`;
+                } else if (activeQuest.reward.type === 'resource') {
+                    rewardText = `Ресурс: ${activeQuest.reward.value}`;
+                }
+            }
+
             return `
                 <div class="message-content">
                     <div class="message-header">
                         <div class="message-sender">${factionData.name}</div>
                         <div class="message-time">${new Date(activeQuest.acceptedAt).toLocaleTimeString()}</div>
+                        <div class="quest-grade" style="color: ${gradeColor}; font-size: 8px; font-weight: bold;">
+                            ${gradeLabel}
+                        </div>
                     </div>
                     <div class="message-text">
                         <strong>Текущее задание: ${activeQuest.title}</strong><br>
                         ${activeQuest.description}<br><br>
-                        <em>Награда: ${activeQuest.reward}</em>
+                        <em>Награда: ${rewardText}</em>
                     </div>
                     <div class="quest-progress" style="margin-top: 10px;">
                         <div class="quest-progress-bar" style="background: rgba(255,255,255,0.2); height: 6px; border-radius: 3px; overflow: hidden;">
-                            <div style="background: ${isCompleted ? '#4CAF50' : '#FFD700'}; height: 100%; width: ${progressPercent}%; transition: width 0.3s ease;"></div>
+                            <div style="background: ${isCompleted ? '#4CAF50' : gradeColor}; height: 100%; width: ${progressPercent}%; transition: width 0.3s ease;"></div>
                         </div>
                         <div style="color: #fff; font-size: 7px; margin-top: 4px; text-align: center;">
                             ${statusText}
@@ -4337,8 +4618,24 @@
         // Функции для работы с заданиями
         window.acceptQuest = function(sourceType, questId) {
             if (window.sourceQuests.acceptQuest(sourceType, questId)) {
+                // Получаем текущий активный предмет источника
+                const currentActiveItem = window.activeQuestItem;
+
+                // Обновляем отображение источника информации
+                if (currentActiveItem && currentActiveItem.id === sourceType) {
+                    window.showInfoSourcePanel(currentActiveItem);
+                }
+
                 // Обновляем отображение заданий
                 updateQuestsDisplay(sourceType);
+
+                // После принятия задания нужно обновить блок сообщений
+                if (window.showInfoSourcePanel) {
+                    const currentItem = window.activeQuestItem;
+                    if (currentItem && currentItem.id === sourceType) {
+                        window.showInfoSourcePanel(currentItem);
+                    }
+                }
 
                 // Показать уведомление
                 if (window.showToast) {
@@ -4349,6 +4646,14 @@
 
         window.declineQuest = function(sourceType) {
             window.sourceQuests.declineQuest(sourceType);
+
+            // Получаем текущий активный предмет источника
+            const currentActiveItem = window.activeQuestItem;
+
+            // Обновляем отображение источника информации
+            if (currentActiveItem && currentActiveItem.id === sourceType) {
+                window.showInfoSourcePanel(currentActiveItem);
+            }
 
             // Обновляем отображение заданий
             updateQuestsDisplay(sourceType);
@@ -4464,278 +4769,371 @@
             }
         };
 
-        // Система заданий для источников информации
+        // Система заданий для источников информации (заглушка до загрузки)
         window.sourceQuests = {
             // Текущие активные задания
             activeQuests: {},
 
-            // Доступные задания по фракциям
-            availableQuests: {
-                'radio': [ // Штаб
-                    {
-                        id: 'headquarters_supply',
-                        title: 'Поставка припасов',
-                        description: 'Собрать и доставить 5 единиц еды в штаб',
-                        type: 'supply',
-                        target: 5,
-                        reward: 'Военная поддержка',
-                        faction: 'headquarters'
-                    },
-                    {
-                        id: 'headquarters_recruit',
-                        title: 'Набор рекрутов',
-                        description: 'Принять 3 новых жителей в бункер',
-                        type: 'recruit',
-                        target: 3,
-                        reward: 'Дополнительные патроны',
-                        faction: 'headquarters'
-                    },
-                    {
-                        id: 'headquarters_defense',
-                        title: 'Укрепление обороны',
-                        description: 'Улучшить защиту бункера до 80%',
-                        type: 'defense',
-                        target: 80,
-                        reward: 'Оружейная поддержка',
-                        faction: 'headquarters'
-                    }
-                ],
-                'gps': [ // Повстанцы
-                    {
-                        id: 'rebels_sabotage',
-                        title: 'Диверсия',
-                        description: 'Ослабить оборону противника',
-                        type: 'sabotage',
-                        target: 1,
-                        reward: 'Информация о слабостях',
-                        faction: 'rebels'
-                    },
-                    {
-                        id: 'rebels_recruit',
-                        title: 'Вербуем союзников',
-                        description: 'Найти и завербовать 2 новых бойцов',
-                        type: 'recruit',
-                        target: 2,
-                        reward: 'Оружие повстанцев',
-                        faction: 'rebels'
-                    },
-                    {
-                        id: 'rebels_intel',
-                        title: 'Сбор разведданных',
-                        description: 'Получить информацию о передвижениях противника',
-                        type: 'intel',
-                        target: 1,
-                        reward: 'Координаты уязвимостей',
-                        faction: 'rebels'
-                    }
-                ],
-                'laptop': [ // Свобода
-                    {
-                        id: 'freedom_trade',
-                        title: 'Свободная торговля',
-                        description: 'Организовать торговый обмен с другими группами',
-                        type: 'trade',
-                        target: 1,
-                        reward: 'Редкие ресурсы',
-                        faction: 'freedom'
-                    },
-                    {
-                        id: 'freedom_explore',
-                        title: 'Исследование',
-                        description: 'Найти 3 новых безопасных маршрута',
-                        type: 'explore',
-                        target: 3,
-                        reward: 'Карта безопасных зон',
-                        faction: 'freedom'
-                    },
-                    {
-                        id: 'freedom_help',
-                        title: 'Гуманитарная помощь',
-                        description: 'Помочь 5 нуждающимся группам',
-                        type: 'help',
-                        target: 5,
-                        reward: 'Доверие и альянсы',
-                        faction: 'freedom'
-                    }
-                ],
-                'phone': [ // Мародеры
-                    {
-                        id: 'raiders_loot',
-                        title: 'Добыча',
-                        description: 'Собрать ценные предметы из 3 разных источников',
-                        type: 'loot',
-                        target: 3,
-                        reward: 'Ценные трофеи',
-                        faction: 'raiders'
-                    },
-                    {
-                        id: 'raiders_ambush',
-                        title: 'Засада',
-                        description: 'Организовать засаду на торговый караван',
-                        type: 'ambush',
-                        target: 1,
-                        reward: 'Богатая добыча',
-                        faction: 'raiders'
-                    },
-                    {
-                        id: 'raiders_expand',
-                        title: 'Расширение территории',
-                        description: 'Занять 2 новых стратегических точки',
-                        type: 'expand',
-                        target: 2,
-                        reward: 'Контроль над маршрутами',
-                        faction: 'raiders'
-                    }
-                ],
-                'transmitter': [ // Тайна
-                    {
-                        id: 'mystery_research',
-                        title: 'Исследование аномалий',
-                        description: 'Изучить 4 странных сигнала',
-                        type: 'research',
-                        target: 4,
-                        reward: 'Знания о мутациях',
-                        faction: 'mystery'
-                    },
-                    {
-                        id: 'mystery_artifact',
-                        title: 'Поиск артефактов',
-                        description: 'Найти и исследовать 2 загадочных объекта',
-                        type: 'artifact',
-                        target: 2,
-                        reward: 'Древние технологии',
-                        faction: 'mystery'
-                    },
-                    {
-                        id: 'mystery_contact',
-                        title: 'Контакт с неизвестным',
-                        description: 'Установить связь с таинственной сущностью',
-                        type: 'contact',
-                        target: 1,
-                        reward: 'Запретные знания',
-                        faction: 'mystery'
-                    }
-                ],
-                'map': [ // Сокровища
-                    {
-                        id: 'treasure_hunt',
-                        title: 'Охота за сокровищами',
-                        description: 'Найти 3 спрятанных тайника',
-                        type: 'treasure',
-                        target: 3,
-                        reward: 'Ценные артефакты',
-                        faction: 'treasure'
-                    },
-                    {
-                        id: 'treasure_explore',
-                        title: 'Исследование руин',
-                        description: 'Обследовать 2 забытых комплекса',
-                        type: 'explore',
-                        target: 2,
-                        reward: 'Древние реликвии',
-                        faction: 'treasure'
-                    },
-                    {
-                        id: 'treasure_secret',
-                        title: 'Разгадка тайн',
-                        description: 'Раскрыть 1 древнюю загадку',
-                        type: 'secret',
-                        target: 1,
-                        reward: 'Запретные знания',
-                        faction: 'treasure'
-                    }
-                ]
-            },
+            // История сообщений фракций
+            messageHistory: {},
 
-            // Получить случайное задание для фракции
-            getRandomQuest: function(sourceType) {
-                const quests = this.availableQuests[sourceType];
-                if (!quests || quests.length === 0) return null;
-                return quests[Math.floor(Math.random() * quests.length)];
-            },
+                // Принять задание
+                acceptQuest: function(sourceType, questId) {
+                    if (!questSystemLoaded || !window.questManager) {
+                        console.warn('[sourceQuests] Quest system not loaded');
+                        return false;
+                    }
 
-            // Принять задание
-            acceptQuest: function(sourceType, questId) {
-                const quest = this.availableQuests[sourceType]?.find(q => q.id === questId);
-                if (!quest) return false;
+                    const factionId = getFactionIdFromSourceType(sourceType);
+                    if (!factionId) {
+                        console.warn(`[sourceQuests] Неизвестный sourceType: ${sourceType}`);
+                        return false;
+                    }
 
-                this.activeQuests[sourceType] = {
-                    ...quest,
-                    progress: 0,
-                    accepted: true,
-                    acceptedAt: new Date()
+                    // Проверяем лимит активных заданий (5 максимум)
+                    const activeCount = Object.values(this.activeQuests).filter(quest => quest && quest.accepted === true).length;
+                    if (activeCount >= 5) {
+                        console.warn('[sourceQuests] Превышен лимит активных заданий (5)');
+                        if (window.showToast) {
+                            window.showToast('Превышен лимит активных заданий (5)! Завершите существующие задания.');
+                        }
+                        return false;
+                    }
+
+                    const quest = window.questManager.getQuestById(questId);
+                    if (!quest) return false;
+
+                    // Сохраняем задание по factionId, а не по sourceType
+                    this.activeQuests[factionId] = {
+                        ...quest,
+                        progress: 0,
+                        accepted: true,
+                        acceptedAt: new Date()
+                    };
+
+                    console.log(`[sourceQuests] Задание принято: ${quest.title} (sourceType: ${sourceType}, factionId: ${factionId})`);
+                    return true;
+                },
+
+                // Отказаться от задания
+                declineQuest: function(sourceType) {
+                    const factionId = getFactionIdFromSourceType(sourceType);
+                    if (factionId && this.activeQuests[factionId]) {
+                        delete this.activeQuests[factionId];
+                        console.log(`[sourceQuests] Задание отклонено: ${sourceType} -> ${factionId}`);
+                    }
+                },
+
+                // Обновить прогресс задания
+                updateQuestProgress: function(sourceType, amount = 1) {
+                    const factionId = getFactionIdFromSourceType(sourceType);
+                    if (factionId && this.activeQuests[factionId]) {
+                        this.activeQuests[factionId].progress += amount;
+                        console.log(`[sourceQuests] Прогресс обновлен: ${sourceType} (${factionId}) - ${this.activeQuests[factionId].progress}/${this.activeQuests[factionId].target}`);
+                    }
+                },
+
+                // Проверить, выполнено ли задание
+                isQuestCompleted: function(sourceType) {
+                    const factionId = getFactionIdFromSourceType(sourceType);
+                    const quest = factionId ? this.activeQuests[factionId] : null;
+                    return quest && quest.progress >= quest.target;
+                },
+
+                // Добавить сообщение в историю фракции
+                addMessageToHistory: function(factionId, messageType, messageData) {
+                    if (!this.messageHistory[factionId]) {
+                        this.messageHistory[factionId] = [];
+                    }
+
+                    const message = {
+                        id: Date.now() + '_' + Math.random(),
+                        type: messageType, // 'initial', 'pending_quest', 'accepted_quest', 'completed_quest'
+                        timestamp: new Date(),
+                        data: messageData
+                    };
+
+                    this.messageHistory[factionId].unshift(message); // Добавляем в начало
+
+                    // Ограничиваем историю до 50 сообщений на фракцию
+                    if (this.messageHistory[factionId].length > 50) {
+                        this.messageHistory[factionId] = this.messageHistory[factionId].slice(0, 50);
+                    }
+
+                    console.log(`[sourceQuests] Сообщение добавлено в историю ${factionId}:`, message);
+                },
+
+                // Получить историю сообщений фракции
+                getMessageHistory: function(factionId) {
+                    return this.messageHistory[factionId] || [];
+                }
+        };
+
+        // Хелпер функция для конвертации sourceType в factionId
+        function getFactionIdFromSourceType(sourceType) {
+            const sourceTypeToFactionId = {
+                'radio': 'hq',
+                'gps': 'rebels',
+                'laptop': 'freedom',
+                'phone': 'marauders',
+                'transmitter': 'mystery',
+                'map': 'treasures'
+            };
+            return sourceTypeToFactionId[sourceType] || null;
+        }
+
+        // Загрузка системы заданий
+        let questSystemLoaded = false;
+
+        // Инициализация системы заданий
+        function initializeQuestSystem() {
+            try {
+                console.log('[Quest System] Checking if quests module is loaded...');
+
+                // Проверяем, загружен ли модуль через quests-data.js
+                if (window.QuestManager && window.QuestUtils && window.QUEST_DATABASE && window.questManager) {
+                    console.log('[Quest System] Quest module loaded successfully');
+
+                    console.log('[Quest System] Available quests:', window.QUEST_DATABASE.length);
+                    questSystemLoaded = true;
+
+                    // Расширяем систему заданий сразу
+                    extendQuestSystem();
+
+                    return true;
+                } else {
+                    console.log('[Quest System] Quest module not loaded yet, waiting...');
+                    // Ждем еще немного и пробуем снова
+                    setTimeout(initializeQuestSystem, 200);
+                    return false;
+                }
+            } catch (error) {
+                console.error('[Quest System] Failed to initialize:', error);
+                questSystemLoaded = false;
+                return false;
+            }
+        }
+
+        // Расширяем систему заданий
+        function extendQuestSystem() {
+            console.log('[Quest System] Extending quest system...');
+
+            // Расширяем систему заданий
+            window.sourceQuests.getRandomQuest = function(factionType) {
+                if (!questSystemLoaded || !window.questManager) {
+                    console.warn('[sourceQuests] Quest system not loaded');
+                    return null;
+                }
+
+                const factionMap = {
+                    'radio': 'hq',
+                    'gps': 'rebels',
+                    'phone': 'marauders',
+                    'laptop': 'free',
+                    'transmitter': 'mystery'
                 };
+
+                const factionId = factionMap[factionType];
+                if (!factionId) return null;
+
+                console.log('[sourceQuests] Getting random quest for faction:', factionId);
+                const quest = window.questManager.getRandomQuest(factionId);
+                console.log('[sourceQuests] Random quest result:', quest);
+                return quest;
+            };
+
+            // Переопределяем acceptQuest для использования реальной системы
+            window.sourceQuests.acceptQuest = function(sourceType, questId) {
+                if (!questSystemLoaded) {
+                    console.warn('[sourceQuests] Quest system not loaded');
+                    return false;
+                }
+
+                console.log('[sourceQuests] Accepting quest:', questId);
+
+                // Получаем factionId для поиска задания
+                const factionId = getFactionIdFromSourceType(sourceType);
+                if (!factionId) {
+                    console.warn(`[sourceQuests] Неизвестный sourceType: ${sourceType}`);
+                    return false;
+                }
+
+                // Ищем задание в sourceQuests.activeQuests по factionId
+                const quest = this.activeQuests[factionId];
+                if (!quest || quest.id !== questId) {
+                    console.warn('[sourceQuests] Quest not found in activeQuests:', questId);
+                    console.log('[sourceQuests] Available active quests:', Object.keys(this.activeQuests));
+                    console.log('[sourceQuests] Current faction quest:', this.activeQuests[factionId]);
+                    return false;
+                }
+
+                // Сохраняем задание по factionId, а не по sourceType
+                if (factionId) {
+                    this.activeQuests[factionId] = {
+                        ...quest,
+                        progress: 0,
+                        accepted: true,
+                        acceptedAt: new Date()
+                    };
+
+                    // Добавляем сообщение о принятии задания в историю
+                    const factionData = getFactionDataByFactionId(factionId);
+                    this.addMessageToHistory(factionId, 'accepted_quest', {
+                        quest: this.activeQuests[factionId],
+                        factionData: factionData
+                    });
+                }
 
                 console.log(`[sourceQuests] Задание принято: ${quest.title}`);
                 return true;
-            },
+            };
 
-            // Отказаться от задания
-            declineQuest: function(sourceType) {
-                if (this.activeQuests[sourceType]) {
-                    delete this.activeQuests[sourceType];
-                    console.log(`[sourceQuests] Задание отклонено для ${sourceType}`);
-                }
-            },
+            console.log('[Quest System] Quest system successfully extended');
+            console.log('[Quest System] updateQuestsDisplay function available:', typeof window.updateQuestsDisplay);
+        }
 
-            // Обновить прогресс задания
-            updateQuestProgress: function(sourceType, amount = 1) {
-                if (this.activeQuests[sourceType]) {
-                    this.activeQuests[sourceType].progress += amount;
-                    console.log(`[sourceQuests] Прогресс обновлен: ${sourceType} - ${this.activeQuests[sourceType].progress}/${this.activeQuests[sourceType].target}`);
-                }
-            },
-
-            // Проверить, выполнено ли задание
-            isQuestCompleted: function(sourceType) {
-                const quest = this.activeQuests[sourceType];
-                return quest && quest.progress >= quest.target;
-            }
-        };
+        // Начинаем инициализацию системы заданий
+        setTimeout(initializeQuestSystem, 100);
 
         // Функция для обновления блока заданий
-        function updateQuestsDisplay(sourceType) {
+        window.updateQuestsDisplay = function(sourceType) {
+            console.log(`[updateQuestsDisplay] ===== НАЧАЛО ОБНОВЛЕНИЯ ЗАДАНИЙ ДЛЯ ${sourceType} =====`);
+
+            // Проверяем существование панели информации
+            const infoPanel = document.getElementById('info-source-panel');
+            if (!infoPanel) {
+                console.log(`[updateQuestsDisplay] ❌ Панель информации не найдена`);
+                return;
+            }
+
             const questsList = document.getElementById('quests-list');
-            if (!questsList) return;
+            if (!questsList) {
+                console.log(`[updateQuestsDisplay] ❌ Элемент quests-list не найден`);
+                return;
+            }
+            console.log(`[updateQuestsDisplay] ✅ Элементы найдены: панель и quests-list`);
 
-            const activeQuest = window.sourceQuests.activeQuests[sourceType];
+            // Очищаем текущий список заданий
+            questsList.innerHTML = '';
 
-            if (activeQuest) {
-                // Показываем активное задание
-                const progressPercent = Math.min(100, (activeQuest.progress / activeQuest.target) * 100);
-                const isCompleted = window.sourceQuests.isQuestCompleted(sourceType);
+            // Получаем factionId для текущего источника
+            const factionId = getFactionIdFromSourceType(sourceType);
 
-                let statusClass = '';
-                let statusText = '';
-                let statusIcon = '';
+            // Получаем все активные задания (принятые)
+            const activeQuests = Object.entries(window.sourceQuests.activeQuests || {})
+                .filter(([fid, quest]) => quest && quest.accepted === true)
+                .map(([fid, quest]) => ({ factionId: fid, ...quest }));
 
-                if (isCompleted) {
-                    statusClass = 'quest-completed';
-                    statusText = 'Выполнено!';
-                    statusIcon = '✅';
-                } else {
-                    statusClass = 'quest-active';
-                    statusText = `${activeQuest.progress}/${activeQuest.target}`;
-                    statusIcon = '📋';
+            // Получаем все непринятые задания (для любой фракции)
+            const allPendingQuests = Object.entries(window.sourceQuests.activeQuests || {})
+                .filter(([fid, quest]) => quest && quest.accepted === false)
+                .map(([fid, quest]) => ({ factionId: fid, ...quest }));
+
+            // Выбираем первое непринятое задание (если есть)
+            const pendingQuest = allPendingQuests.length > 0 ? allPendingQuests[0] : null;
+            const hasPendingQuest = pendingQuest !== null;
+
+            console.log(`[updateQuestsDisplay] sourceType: ${sourceType}, factionId: ${factionId}, pendingQuest:`, pendingQuest);
+            console.log(`[updateQuestsDisplay] Все задания в activeQuests:`, window.sourceQuests.activeQuests);
+
+            console.log(`[updateQuestsDisplay] Найдено ${activeQuests.length} активных заданий и ${hasPendingQuest ? 1 : 0} предложений`);
+
+            if (activeQuests.length > 0 || hasPendingQuest) {
+                let questsHtml = '';
+
+                // Сначала показываем активные задания (максимум 5)
+                const maxActiveQuests = 5;
+                const displayQuests = activeQuests.slice(0, maxActiveQuests);
+
+                // Показываем активные задания
+                displayQuests.forEach(questData => {
+                    const quest = questData;
+                    const factionId = questData.factionId;
+                    const progressPercent = Math.min(100, (quest.progress / quest.target) * 100);
+                    const isCompleted = window.sourceQuests.isQuestCompleted(factionId);
+
+                    // Получаем цвет и метку грейда
+                    const gradeColor = questSystemLoaded && window.QuestUtils ?
+                        window.QuestUtils.getGradeColor(quest.grade) : '#8B8B8B';
+                    const gradeLabel = questSystemLoaded && window.QuestUtils ?
+                        window.QuestUtils.getGradeLabel(quest.grade) : 'Обычное';
+
+                    let statusClass = '';
+                    let statusText = '';
+                    let statusIcon = '';
+
+                    if (isCompleted) {
+                        statusClass = 'quest-completed';
+                        statusText = 'Выполнено!';
+                        statusIcon = '✅';
+                    } else {
+                        statusClass = 'quest-active';
+                        statusText = `${quest.progress}/${quest.target}`;
+                        statusIcon = '📋';
+                    }
+
+                    // Форматируем награду
+                    let rewardText = 'Неизвестная награда';
+                    if (quest.reward) {
+                        const reward = quest.reward;
+                        switch (reward.type) {
+                            case 'experience':
+                                rewardText = `Опыт: +${reward.value}`;
+                                break;
+                            case 'reputation':
+                                rewardText = `Репутация: +${reward.value}`;
+                                break;
+                            case 'item':
+                                rewardText = `Предмет: ${reward.value}`;
+                                break;
+                            case 'resource':
+                                rewardText = `Ресурс: ${reward.value}`;
+                                break;
+                            default:
+                                rewardText = `Награда: ${reward.value}`;
+                        }
+                    }
+
+                    questsHtml += `
+                        <div class="quest-item ${statusClass}">
+                            <div class="quest-info">
+                                <div class="quest-title" style="color: ${gradeColor}; border-left: 3px solid ${gradeColor};">
+                                    ${quest.title} <span class="quest-grade">${gradeLabel}</span>
+                                </div>
+                                <div class="quest-description">${quest.description}</div>
+                                <div class="quest-reward">${rewardText}</div>
+                            </div>
+                            <div class="quest-progress">
+                                <div class="quest-progress-bar">
+                                    <div class="quest-progress-fill" style="width: ${progressPercent}%"></div>
+                                </div>
+                                <div class="quest-status-text">${statusIcon} ${statusText}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // Новые задания теперь отображаются в блоке сообщений, а не здесь
+
+                // Если превышен лимит активных заданий
+                if (displayQuests.length >= maxActiveQuests) {
+                    questsHtml += `
+                        <div class="quest-item quest-limit">
+                            <div class="quest-info">
+                                <div class="quest-title" style="color: #ff6b6b;">
+                                    Достигнут лимит активных заданий (5/5)
+                                </div>
+                                <div class="quest-description">Завершите существующие задания, чтобы принять новые</div>
+                            </div>
+                        </div>
+                    `;
                 }
 
-                questsList.innerHTML = `
-                    <div class="quest-item ${statusClass}">
-                        <div class="quest-info">
-                            <div class="quest-title">${activeQuest.title}</div>
-                            <div class="quest-description">${activeQuest.description}</div>
-                            <div class="quest-reward">Награда: ${activeQuest.reward}</div>
-                        </div>
-                        <div class="quest-progress">
-                            <div class="quest-progress-bar">
-                                <div class="quest-progress-fill" style="width: ${progressPercent}%"></div>
-                            </div>
-                            <div class="quest-status-text">${statusIcon} ${statusText}</div>
-                        </div>
-                    </div>
-                `;
+                questsList.innerHTML = questsHtml;
+                console.log(`[updateQuestsDisplay] ✅ Задания отображены: ${activeQuests.length} активных + ${hasPendingQuest ? 1 : 0} предложений`);
             } else {
                 // Показываем сообщение о том, что заданий нет
+                console.log(`[updateQuestsDisplay] 📭 Задания не найдены, показываем "Нет активных заданий"`);
                 questsList.innerHTML = `
                     <div class="quest-item no-quests">
                         <span class="quest-text">Нет активных заданий</span>
@@ -4743,7 +5141,8 @@
                     </div>
                 `;
             }
-        }
+            console.log(`[updateQuestsDisplay] ===== КОНЕЦ ОБНОВЛЕНИЯ ЗАДАНИЙ ДЛЯ ${sourceType} =====`);
+        };
 
         // Функция для обновления активного источника информации
         window.updateActiveInfoSource = function(questItem) {
@@ -4752,6 +5151,47 @@
             } else {
                 window.hideInfoSourcePanel();
             }
+        };
+
+        // Обновляем функцию showInfoSourcePanel для интеграции с системой заданий
+        const originalShowInfoSourcePanel = window.showInfoSourcePanel;
+        window.showInfoSourcePanel = function(questItem) {
+            // Вызываем оригинальную функцию
+            if (originalShowInfoSourcePanel) {
+                originalShowInfoSourcePanel(questItem);
+            }
+
+            // Обновляем отображение заданий после загрузки системы
+            setTimeout(() => {
+                if (questSystemLoaded && window.questManager) {
+                    updateQuestsDisplay(questItem.id);
+                }
+            }, 100);
+        };
+
+        // Переопределяем getInitialMessageContent для корректной работы с системой заданий
+        const originalGetInitialMessageContent = window.getInitialMessageContent || getInitialMessageContent;
+        window.getInitialMessageContent = function(sourceType) {
+            // Если система заданий загружена, используем её
+            if (questSystemLoaded && window.questManager && window.sourceQuests && window.sourceQuests.getRandomQuest) {
+                try {
+                    const quest = window.sourceQuests.getRandomQuest(sourceType);
+                    if (quest) {
+                        const gradeLabel = window.QuestUtils ? window.QuestUtils.getGradeLabel(quest.grade) : 'Обычное';
+                        return `Новое задание от фракции!\n\n${quest.title}\n${quest.description}\n\nНаграда: ${gradeLabel} (${quest.reward ? quest.reward.value : 'Неизвестно'})`;
+                    }
+                } catch (error) {
+                    console.warn('[getInitialMessageContent] Error getting quest:', error);
+                }
+            }
+
+            // Fallback на оригинальную логику
+            if (originalGetInitialMessageContent) {
+                return originalGetInitialMessageContent(sourceType);
+            }
+
+            // Последний fallback
+            return 'Привет! У меня есть задание для тебя.';
         };
 
     </script>
@@ -4848,6 +5288,6 @@
         </div>
     </div>
 
+    </script>
 </body>
 </html>
-
