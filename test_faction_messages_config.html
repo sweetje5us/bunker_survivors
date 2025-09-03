@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест конфигурации сообщений фракций</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1b1e;
+            color: #ffffff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .info { color: #2196F3; }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #2a2b2e;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест конфигурации сообщений фракций</h1>
+    
+    <div class="test-section">
+        <h2>1. Загрузка конфигурации</h2>
+        <button onclick="loadConfig()">Загрузить конфигурацию</button>
+        <div id="config-status"></div>
+        <pre id="config-content"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Проверка интервалов сообщений</h2>
+        <button onclick="checkFactionIntervals()">Проверить интервалы</button>
+        <div id="intervals-status"></div>
+        <pre id="intervals-content"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Симуляция работы системы</h2>
+        <button onclick="simulateFactionMessages()">Запустить симуляцию</button>
+        <div id="simulation-status"></div>
+        <pre id="simulation-content"></pre>
+    </div>
+
+    <script>
+        let gameConfig = null;
+
+        async function loadConfig() {
+            const statusDiv = document.getElementById('config-status');
+            const contentDiv = document.getElementById('config-content');
+            
+            try {
+                statusDiv.innerHTML = '<span class="info">Загружаем конфигурацию...</span>';
+                
+                const response = await fetch('/src/config/game-config.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                gameConfig = await response.json();
+                
+                statusDiv.innerHTML = '<span class="success">✅ Конфигурация загружена успешно</span>';
+                contentDiv.textContent = JSON.stringify(gameConfig, null, 2);
+                
+                // Устанавливаем в window для тестирования
+                window.gameConfig = gameConfig;
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="error">❌ Ошибка загрузки: ${error.message}</span>`;
+                contentDiv.textContent = '';
+            }
+        }
+
+        function checkFactionIntervals() {
+            const statusDiv = document.getElementById('intervals-status');
+            const contentDiv = document.getElementById('intervals-content');
+            
+            if (!gameConfig) {
+                statusDiv.innerHTML = '<span class="error">❌ Сначала загрузите конфигурацию</span>';
+                return;
+            }
+            
+            if (!gameConfig.factionMessages || !gameConfig.factionMessages.intervals) {
+                statusDiv.innerHTML = '<span class="error">❌ Интервалы сообщений фракций не найдены в конфигурации</span>';
+                return;
+            }
+            
+            const intervals = gameConfig.factionMessages.intervals;
+            let result = 'Интервалы сообщений фракций:\n\n';
+            
+            Object.keys(intervals).forEach(factionId => {
+                const interval = intervals[factionId];
+                const realTimeSeconds = interval.hours * 12.5; // 1 игровой час = 12.5 сек
+                result += `${factionId}:\n`;
+                result += `  - Интервал: ${interval.hours} игровых часов\n`;
+                result += `  - Реальное время: ${realTimeSeconds} секунд\n`;
+                result += `  - Описание: ${interval.description}\n\n`;
+            });
+            
+            statusDiv.innerHTML = '<span class="success">✅ Интервалы найдены и корректны</span>';
+            contentDiv.textContent = result;
+        }
+
+        function simulateFactionMessages() {
+            const statusDiv = document.getElementById('simulation-status');
+            const contentDiv = document.getElementById('simulation-content');
+            
+            if (!gameConfig || !gameConfig.factionMessages || !gameConfig.factionMessages.intervals) {
+                statusDiv.innerHTML = '<span class="error">❌ Сначала загрузите конфигурацию</span>';
+                return;
+            }
+            
+            const intervals = gameConfig.factionMessages.intervals;
+            let result = 'Симуляция работы системы сообщений:\n\n';
+            
+            // Симулируем проверку для каждой фракции
+            Object.keys(intervals).forEach(factionId => {
+                const interval = intervals[factionId];
+                const realTimeMs = interval.hours * 12.5 * 1000;
+                
+                result += `Фракция: ${factionId}\n`;
+                result += `  - Интервал: ${interval.hours} игровых часов (${realTimeMs/1000} сек)\n`;
+                result += `  - Последнее сообщение: 0 мс\n`;
+                result += `  - Текущее время: 50000 мс\n`;
+                result += `  - Прошло времени: 50000 мс\n`;
+                result += `  - Нужно ли генерировать: ${50000 >= realTimeMs ? 'ДА' : 'НЕТ'}\n`;
+                if (50000 >= realTimeMs) {
+                    result += `  - Осталось до следующего: 0 мс\n`;
+                } else {
+                    result += `  - Осталось до следующего: ${Math.floor((realTimeMs - 50000) / 1000)} сек\n`;
+                }
+                result += '\n';
+            });
+            
+            statusDiv.innerHTML = '<span class="success">✅ Симуляция завершена</span>';
+            contentDiv.textContent = result;
+        }
+
+        // Автоматически загружаем конфигурацию при загрузке страницы
+        window.addEventListener('load', () => {
+            loadConfig();
+        });
+    </script>
+</body>
+</html>

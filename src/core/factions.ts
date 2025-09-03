@@ -21,6 +21,24 @@ export interface FactionInfo {
   factionRelations: Record<FactionId, 'hostile' | 'neutral' | 'friendly'>;
 }
 
+export type MessageType = 'useful' | 'useless' | 'warning' | 'propaganda' | 'mysterious';
+
+export interface FactionMessage {
+  id: string;
+  factionId: FactionId;
+  type: MessageType;
+  category: string;
+  text: string;
+  importance: 'low' | 'medium' | 'high';
+  frequency: 'rare' | 'common' | 'frequent';
+  effects?: {
+    moraleChange?: number;
+    reputationChange?: Record<FactionId, number>;
+    resourceHint?: string;
+    enemyWarning?: string;
+  };
+}
+
 /**
  * Базовые данные о фракциях
  */

@@ -2115,6 +2115,12 @@ export class GameScene extends Phaser.Scene {
     await this.configManager.loadConfig()
     this.configManager.setDifficulty(this.difficulty)
     
+    // Устанавливаем конфигурацию в window для доступа из HTML
+    if (typeof window !== 'undefined') {
+      window.gameConfig = this.configManager.getConfig()
+      console.log('[GameScene] window.gameConfig установлен для доступа из HTML')
+    }
+    
     console.log(`[GameScene] Инициализация с сложностью: ${this.difficulty}`)
     
     // Инициализируем ресурсы ИЗ КОНФИГУРАЦИИ сразу после загрузки
@@ -7961,6 +7967,9 @@ export class GameScene extends Phaser.Scene {
     // Смена фазы по времени часов: в 22:00 — ночь, в 06:00 — день
     const clock = this.getClockText()
 
+    // Проверка генерации сообщений фракций
+    this.checkFactionMessages()
+
     // Плавный переход за 30 секунд до смены фазы
     if (clock === '21:30' && this.phase === 'day' && !this.isTransitioning) {
       console.log('🌙 Начинается закат - плавный переход к ночи через 30 секунд')
@@ -8000,6 +8009,10 @@ export class GameScene extends Phaser.Scene {
 
         this.dayNumber += 1
         this.showToast(`Наступил новый день: ${this.dayNumber}`)
+
+        // Очищаем сообщения фракций за предыдущий день
+        this.clearFactionDailyMessages();
+
         this.midnightHandled = true
         // Ночью при новом дне — враги продолжают стоять, люди не приходят
         if (this.phase === 'night') this.scheduleEnemyArrival()
@@ -8834,6 +8847,88 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Public methods for active quest item management
+  // ===== СИСТЕМА СООБЩЕНИЙ ФРАКЦИЙ =====
+
+  /**
+   * Запуск планировщика сообщений фракций для активного источника информации
+   */
+  private startFactionMessageScheduler(itemId: string): void {
+    // Маппинг предметов на фракции
+    const itemToFactionMap: { [key: string]: FactionId } = {
+      'radio': 'hq',
+      'gps': 'rebels',
+      'laptop': 'free',
+      'phone': 'marauders',
+      'transmitter': 'mystery'
+    };
+
+    const factionId = itemToFactionMap[itemId];
+    if (!factionId) {
+      console.log(`[Faction Messages] Предмет ${itemId} не соответствует фракции`);
+      return;
+    }
+
+    // Проверяем, доступна ли фракция
+    if (this.factionManager) {
+      const faction = this.factionManager.getFaction(factionId);
+      if (!faction || !faction.isUnlocked) {
+        console.log(`[Faction Messages] Фракция ${factionId} не разблокирована`);
+        return;
+      }
+    }
+
+    console.log(`[Faction Messages] Запуск планировщика для фракции ${factionId} (предмет: ${itemId})`);
+
+    // Вызываем глобальную функцию для запуска планировщика
+    if (typeof (window as any).sourceQuests?.messageScheduler?.start === 'function') {
+      // Передаем текущее внутриигровое время
+      const gameTime = this.time.now;
+      (window as any).sourceQuests.messageScheduler.start(factionId, gameTime);
+    }
+  }
+
+  /**
+   * Остановка планировщика сообщений фракций
+   */
+  private stopFactionMessageScheduler(): void {
+    console.log(`[Faction Messages] Остановка всех планировщиков сообщений фракций`);
+
+    if (typeof (window as any).stopAllFactionMessageSchedulers === 'function') {
+      (window as any).stopAllFactionMessageSchedulers();
+    }
+  }
+
+  /**
+   * Проверка необходимости генерации сообщений фракций
+   */
+  private checkFactionMessages(): void {
+    // Используем внутриигровое время
+    const gameTimeMs = this.time.now;
+
+    // Получаем текущий игровой час
+    const totalSec = Math.floor((this.time.now - this.dayCycleStartAt) / 1000)
+    const secondsInHour = 60 * 60
+    const gameHour = Math.floor(totalSec / secondsInHour) % 24;
+
+    // Вызываем проверку планировщика сообщений
+    if (typeof (window as any).sourceQuests?.messageScheduler?.checkAndGenerateMessages === 'function') {
+      (window as any).sourceQuests.messageScheduler.checkAndGenerateMessages(gameTimeMs, gameHour);
+    } else {
+      console.log('[Faction Messages] checkAndGenerateMessages не найдена');
+    }
+  }
+
+  /**
+   * Очистка сообщений фракций за текущий день
+   */
+  private clearFactionDailyMessages(): void {
+    console.log(`[Faction Messages] Очистка сообщений фракций за день ${this.dayNumber - 1}`);
+
+    if (typeof (window as any).clearFactionDailyMessages === 'function') {
+      (window as any).clearFactionDailyMessages();
+    }
+  }
+
   public setActiveQuestItem(itemId: string): boolean {
     console.log(`[setActiveQuestItem] НАЧАЛО: установка предмета ${itemId} в слот источника`);
     this.logInventoryState("ДО setActiveQuestItem");
@@ -8849,6 +8944,11 @@ export class GameScene extends Phaser.Scene {
     if (this.activeQuestItem && this.activeQuestItem.id === itemId) {
       console.log(`[setActiveQuestItem] Предмет ${itemId} уже активен, пропускаем`);
       return true; // Уже установлен этот предмет
+    }
+
+    // Останавливаем планировщик предыдущей фракции, если предмет меняется
+    if (this.activeQuestItem && this.activeQuestItem.id !== itemId) {
+      this.stopFactionMessageScheduler();
     }
 
     // Определяем источник информации на основе предмета
@@ -8899,6 +8999,9 @@ export class GameScene extends Phaser.Scene {
     if (typeof (window as any).updateActiveInfoSource === 'function') {
       (window as any).updateActiveInfoSource(this.activeQuestItem);
     }
+
+    // Запускаем планировщик сообщений фракций
+    this.startFactionMessageScheduler(itemId);
 
     console.log(`[setActiveQuestItem] КОНЕЦ: предмет ${itemId} успешно установлен в слот источника`);
     this.logInventoryState("ПОСЛЕ setActiveQuestItem");

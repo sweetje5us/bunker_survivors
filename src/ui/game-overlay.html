@@ -3340,6 +3340,12 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+        .message-content.message-separator {
+            margin-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding-top: 16px;
+        }
+
         .message-header {
             display: flex;
             justify-content: space-between;
@@ -4288,6 +4294,24 @@
             return classes[itemId] || 'info-source-gps';
         }
 
+        // Функция для отображения сообщения фракции
+        function getFactionMessageContent(factionId, messageEntry) {
+            const factionData = getFactionDataByFactionId(factionId);
+            const message = messageEntry.data.message;
+            
+            return `
+                <div class="message-content">
+                    <div class="message-header">
+                        <div class="message-sender">${factionData ? factionData.name : factionId}</div>
+                        <div class="message-time">${new Date(messageEntry.timestamp).toLocaleTimeString()}</div>
+                    </div>
+                    <div class="message-text">
+                        ${message.text}
+                    </div>
+                </div>
+            `;
+        }
+
         // Получить контент для типа источника
         function getSourceContent(itemId) {
             console.log('[getSourceContent] Начало для itemId:', itemId);
@@ -4296,6 +4320,22 @@
             const factionData = getFactionData(itemId);
             const factionId = getFactionIdFromSourceType(itemId);
             console.log('[getSourceContent] factionData:', factionData, 'factionId:', factionId);
+
+            // ПРОВЕРКА НА НОВЫЕ СООБЩЕНИЯ ФРАКЦИИ - имеет наивысший приоритет
+            if (factionId && window.sourceQuests && window.sourceQuests.messageHistory) {
+                const factionMessages = window.sourceQuests.messageHistory[factionId] || [];
+                console.log('[getSourceContent] Сообщения фракции', factionId + ':', factionMessages.length);
+
+                // Ищем последнее сообщение фракции (не задание)
+                const latestFactionMessage = factionMessages
+                    .filter(msg => msg.type === 'faction_message')
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+
+                if (latestFactionMessage) {
+                    console.log('[getSourceContent] Найдено последнее сообщение фракции:', latestFactionMessage.data.message.text);
+                    return getFactionMessageContent(factionId, latestFactionMessage);
+                }
+            }
 
             // Сначала проверяем есть ли принятое задание для фракции
             const acceptedQuest = factionId ? window.sourceQuests.activeQuests[factionId] : null;
@@ -4483,7 +4523,56 @@
                 .map(([fid, quest]) => ({ factionId: fid, ...quest }));
 
             if (allPendingQuests.length === 0) {
-                // Если нет непринятых заданий, показываем случайное
+                // Сначала проверяем, есть ли сообщения фракции в истории
+                const factionMessages = factionId ? window.sourceQuests.getMessageHistory(factionId) : [];
+                const factionMessagesFiltered = factionMessages.filter(msg => msg.type === 'faction_message');
+
+                if (factionMessagesFiltered.length > 0) {
+                    // Показываем все сообщения фракции в хронологическом порядке (старые сверху)
+                    const sortedMessages = factionMessagesFiltered.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                    console.log(`[getInitialMessageContent] Показываем ${sortedMessages.length} сообщений фракции:`, sortedMessages);
+
+                    let messagesHtml = '';
+                    sortedMessages.forEach((messageEntry, index) => {
+                        const message = messageEntry.data?.message;
+                        if (message) {
+                            // Добавляем стилизацию в зависимости от типа сообщения
+                            let prefix = '';
+                            switch (message.type) {
+                                case 'warning':
+                                    prefix = '⚠️ ';
+                                    break;
+                                case 'propaganda':
+                                    prefix = '📣 ';
+                                    break;
+                                case 'mysterious':
+                                    prefix = '🌑 ';
+                                    break;
+                                case 'useless':
+                                    prefix = '💬 ';
+                                    break;
+                                default:
+                                    prefix = '📻 ';
+                            }
+                            
+                            messagesHtml += `
+                                <div class="message-content ${index > 0 ? 'message-separator' : ''}">
+                                    <div class="message-header">
+                                        <div class="message-sender">${factionData.name}</div>
+                                        <div class="message-time">${messageEntry.timestamp ? new Date(messageEntry.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}</div>
+                                    </div>
+                                    <div class="message-text">
+                                        ${prefix + message.text}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    return messagesHtml;
+                }
+
+                // Если нет сообщений фракции, показываем задание
                 const randomQuest = window.sourceQuests.getRandomQuest(itemId);
                 if (!randomQuest) return '<div style="color: #fff;">Нет доступных заданий</div>';
 
@@ -4617,7 +4706,20 @@
 
         // Функции для работы с заданиями
         window.acceptQuest = function(sourceType, questId) {
-            if (window.sourceQuests.acceptQuest(sourceType, questId)) {
+            console.log('[acceptQuest] Вызван с параметрами:', sourceType, questId);
+            
+            if (!window.sourceQuests || !window.sourceQuests.acceptQuest) {
+                console.error('[acceptQuest] sourceQuests.acceptQuest не найден');
+                if (window.showToast) {
+                    window.showToast('Ошибка: система заданий не загружена');
+                }
+                return false;
+            }
+            
+            const result = window.sourceQuests.acceptQuest(sourceType, questId);
+            console.log('[acceptQuest] Результат принятия задания:', result);
+            
+            if (result) {
                 // Получаем текущий активный предмет источника
                 const currentActiveItem = window.activeQuestItem;
 
@@ -4641,7 +4743,14 @@
                 if (window.showToast) {
                     window.showToast('Задание принято!');
                 }
+            } else {
+                console.warn('[acceptQuest] Не удалось принять задание');
+                if (window.showToast) {
+                    window.showToast('Не удалось принять задание');
+                }
             }
+            
+            return result;
         };
 
         window.declineQuest = function(sourceType) {
@@ -4866,6 +4975,244 @@
                 // Получить историю сообщений фракции
                 getMessageHistory: function(factionId) {
                     return this.messageHistory[factionId] || [];
+                },
+
+                // ===== СИСТЕМА СООБЩЕНИЙ ФРАКЦИЙ =====
+
+                // Генерация случайного сообщения фракции
+                generateFactionMessage: function(factionId, type, category) {
+                    if (!window.FactionMessages) {
+                        console.warn('[Faction Messages] Система не загружена');
+                        return null;
+                    }
+
+                    let message = null;
+                    if (category) {
+                        // Получаем сообщения по категории
+                        const categoryMessages = window.FactionMessages.getFactionMessagesByCategory(factionId, category);
+                        if (categoryMessages.length > 0) {
+                            message = categoryMessages[Math.floor(Math.random() * categoryMessages.length)];
+                        }
+                    } else if (type) {
+                        // Получаем сообщения по типу
+                        const typeMessages = window.FactionMessages.getFactionMessagesByType(factionId, type);
+                        if (typeMessages.length > 0) {
+                            message = typeMessages[Math.floor(Math.random() * typeMessages.length)];
+                        }
+                    } else {
+                        // Получаем любое случайное сообщение
+                        message = window.FactionMessages.getRandomFactionMessage(factionId);
+                    }
+
+                    if (message) {
+                        console.log(`[Faction Messages] Сгенерировано сообщение ${factionId}:`, message.text);
+                        return message;
+                    }
+
+                    return null;
+                },
+
+                // Отправка сообщения фракции в UI
+                sendFactionMessage: function(factionId, message, sourceType) {
+                    console.log(`[Faction Messages] sendFactionMessage вызвана для ${factionId} с sourceType ${sourceType}`);
+
+                    if (!message) {
+                        console.log(`[Faction Messages] Сообщение пустое, выходим`);
+                        return;
+                    }
+
+                    // Добавляем сообщение в историю фракции
+                    this.addMessageToHistory(factionId, 'faction_message', {
+                        message: message,
+                        sourceType: sourceType || 'unknown'
+                    });
+                    console.log(`[Faction Messages] Сообщение добавлено в историю фракции ${factionId}`);
+
+                    // Обновляем UI если панель активна
+                    if (sourceType && window.updateActiveInfoSource) {
+                        console.log(`[Faction Messages] Обновляем UI для sourceType ${sourceType}`);
+                        window.updateActiveInfoSource(sourceType);
+                        
+                        // Принудительно обновляем контент панели, если она открыта
+                        setTimeout(() => {
+                            const panel = document.getElementById('info-source-panel');
+                            const contentElement = document.getElementById('info-source-content');
+                            if (panel && contentElement && panel.style.display !== 'none') {
+                                console.log(`[Faction Messages] Принудительно обновляем контент панели для ${sourceType}`);
+                                contentElement.innerHTML = getSourceContent(sourceType);
+                            }
+                        }, 100);
+                    } else {
+                        console.log(`[Faction Messages] UI не обновлено: sourceType=${sourceType}, updateActiveInfoSource=${!!window.updateActiveInfoSource}`);
+                    }
+
+                    console.log(`[Faction Messages] Отправлено сообщение фракции ${factionId}:`, message.text);
+                },
+
+                // Планировщик сообщений фракций
+                messageScheduler: {
+                    activeFactions: new Set(), // Активные фракции
+                    lastMessageTime: {},       // Время последнего сообщения по фракциям
+
+                    // Запуск планировщика для фракции (использует внутриигровое время)
+                    start: function(factionId, gameTime) {
+                        this.activeFactions.add(factionId);
+                        // Используем внутриигровое время
+                        this.lastMessageTime[factionId] = gameTime || 0;
+
+                        console.log(`[Faction Messages] Запущен планировщик для ${factionId} (внутриигровые интервалы)`);
+                    },
+
+                    // Остановка планировщика для фракции
+                    stop: function(factionId) {
+                        this.activeFactions.delete(factionId);
+                        delete this.lastMessageTime[factionId];
+                        console.log(`[Faction Messages] Остановлен планировщик для ${factionId}`);
+                    },
+
+                    // Проверка необходимости генерации сообщений (вызывается из GameScene)
+                    checkAndGenerateMessages: function(gameTime, gameHour) {
+                        console.log(`[Faction Messages] checkAndGenerateMessages вызвана с gameTime=${gameTime}, gameHour=${gameHour}`);
+
+                        if (!window.FactionMessages) {
+                            console.log('[Faction Messages] ❌ FactionMessages не загружен');
+                            return;
+                        }
+
+                        console.log(`[Faction Messages] ✅ FactionMessages загружен`);
+                        console.log(`[Faction Messages] Проверка генерации в час ${gameHour}, активные фракции:`, Array.from(this.activeFactions));
+
+                        this.activeFactions.forEach(factionId => {
+                            console.log(`[Faction Messages] Обработка фракции ${factionId}`);
+
+                            // Получаем интервалы из конфига
+                            let intervalsHours = {};
+                            
+                            if (window.gameConfig && window.gameConfig.factionMessages && window.gameConfig.factionMessages.intervals) {
+                                const configIntervals = window.gameConfig.factionMessages.intervals;
+                                Object.keys(configIntervals).forEach(factionId => {
+                                    // Интервалы в конфиге указаны в игровых часах
+                                    // 1 игровой час = ~12.5 секунд реального времени
+                                    intervalsHours[factionId] = configIntervals[factionId].hours;
+                                });
+                                console.log('[Faction Messages] Используем интервалы из конфига:', intervalsHours);
+                            } else {
+                                // Fallback значения, если конфиг не загружен (в игровых часах)
+                                intervalsHours = {
+                                    'hq': 2.0,       // каждые 2 игровых часа
+                                    'rebels': 4.0,   // каждые 4 игровых часа
+                                    'free': 2.0,     // каждые 2 игровых часа
+                                    'mystery': 6.0,  // каждые 6 игровых часов
+                                    'marauders': 3.0 // каждые 3 игровых часа
+                                };
+                                console.log('[Faction Messages] Используем fallback интервалы:', intervalsHours);
+                            }
+
+                            const intervalGameHours = intervalsHours[factionId] || 1;
+                            // 1 игровой час = 12.5 секунд реального времени (5 минут на 24 часа)
+                            const intervalMs = intervalGameHours * 12.5 * 1000; // перевод в миллисекунды
+
+                            const lastMessage = this.lastMessageTime[factionId] || 0;
+                            const timeSinceLastMessage = gameTime - lastMessage;
+
+                            console.log(`[Faction Messages] ${factionId}: прошло ${Math.floor(timeSinceLastMessage / 1000)}сек, интервал ${intervalMs / 1000}сек`);
+
+                            if (timeSinceLastMessage >= intervalMs) {
+                                console.log(`[Faction Messages] Генерируем сообщение для ${factionId}`);
+                                this.generateMessageForFaction(factionId, gameHour);
+                                this.lastMessageTime[factionId] = gameTime;
+                            } else {
+                                console.log(`[Faction Messages] ${factionId}: еще рано, осталось ${Math.floor((intervalMs - timeSinceLastMessage) / 1000)}сек`);
+                            }
+                        });
+                    },
+
+                    // Генерация сообщения для фракции
+                    generateMessageForFaction: function(factionId, gameHour) {
+                        console.log(`[Faction Messages] Генерируем сообщение для ${factionId} в час ${gameHour}`);
+
+                        if (!window.FactionMessages) {
+                            console.log('[Faction Messages] FactionMessages не загружен');
+                            return;
+                        }
+
+                        // Выбираем тип сообщения в зависимости от фракции и игрового времени
+                        let messageType = null;
+                        let category = null;
+
+                        const random = Math.random();
+                        console.log(`[Faction Messages] Случайное значение: ${random}, час: ${gameHour}`);
+
+                        switch (factionId) {
+                            case 'hq':
+                                // Штаб: днем - приказы и доклады, вечером - пропаганда
+                                if (gameHour >= 6 && gameHour <= 18) {
+                                    category = random < 0.4 ? 'orders' : random < 0.7 ? 'reports' : 'announcements';
+                                } else {
+                                    category = random < 0.6 ? 'propaganda' : 'surveillance';
+                                }
+                                break;
+
+                            case 'rebels':
+                                // Повстанцы: тактическая информация
+                                category = random < 0.3 ? 'coordinates' : random < 0.5 ? 'intelligence' : random < 0.7 ? 'attacks' : 'ideology';
+                                break;
+
+                            case 'free':
+                                // Свободные: информационный контент
+                                category = random < 0.3 ? 'news' : random < 0.5 ? 'advertisements' : random < 0.7 ? 'anecdotes' : 'freedom_calls';
+                                break;
+
+                            case 'mystery':
+                                // Тайна: редкие и таинственные сообщения
+                                if (random < 0.3) category = 'signals';
+                                else if (random < 0.5) category = 'thoughts';
+                                else if (random < 0.7) category = 'warnings';
+                                else category = 'visions';
+                                break;
+
+                            case 'marauders':
+                                // Мародеры: агрессивные сообщения
+                                category = random < 0.3 ? 'trade_offers' : random < 0.5 ? 'boasts' : random < 0.7 ? 'threats' : 'insults';
+                                break;
+                        }
+
+                        console.log(`[Faction Messages] Выбрана категория: ${category} для фракции ${factionId}`);
+
+                        const message = window.sourceQuests.generateFactionMessage(factionId, messageType, category);
+                        if (message) {
+                            console.log(`[Faction Messages] Сгенерировано сообщение:`, message.text);
+                            // Определяем sourceType для UI
+                            const sourceTypeMap = {
+                                'hq': 'radio',
+                                'rebels': 'gps',
+                                'free': 'laptop',        // исправлено с 'freedom' на 'free'
+                                'mystery': 'transmitter',
+                                'marauders': 'phone'
+                            };
+
+                            window.sourceQuests.sendFactionMessage(factionId, message, sourceTypeMap[factionId]);
+                        } else {
+                            console.log(`[Faction Messages] Не удалось сгенерировать сообщение для ${factionId} в категории ${category}`);
+                        }
+                    },
+
+                    // Остановка всех планировщиков
+                    stopAll: function() {
+                        this.activeFactions.clear();
+                        this.lastMessageTime = {};
+                        console.log(`[Faction Messages] Остановлены все планировщики`);
+                    }
+                },
+
+                // Очистка сообщений за текущий день (вызывается в полночь)
+                clearDailyMessages: function() {
+                    console.log('[Faction Messages] Очистка сообщений за текущий день');
+                    // Очищаем только историю сообщений, но НЕ активные задания
+                    this.messageHistory = {};
+                    // НЕ очищаем lastMessageTime, чтобы не сбить интервалы генерации
+                    // this.messageScheduler.lastMessageTime = {};
+                    console.log('[Faction Messages] Сообщения очищены, активные задания сохранены');
                 }
         };
 
@@ -4874,7 +5221,7 @@
             const sourceTypeToFactionId = {
                 'radio': 'hq',
                 'gps': 'rebels',
-                'laptop': 'freedom',
+                'laptop': 'free',        // исправлено с 'freedom' на 'free'
                 'phone': 'marauders',
                 'transmitter': 'mystery',
                 'map': 'treasures'
@@ -4882,7 +5229,356 @@
             return sourceTypeToFactionId[sourceType] || null;
         }
 
-        // Загрузка системы заданий
+        // ===== ГЛОБАЛЬНЫЕ ФУНКЦИИ УПРАВЛЕНИЯ СООБЩЕНИЯМИ ФРАКЦИЙ =====
+
+        // Принять задание (глобальная функция) - удалена дублирующая функция
+        // Основная функция acceptQuest находится выше в коде (строка 4681)
+
+        // Отклонить задание (глобальная функция)
+        window.declineQuest = function(sourceType) {
+            console.log('[window.declineQuest] Вызван с параметром:', sourceType);
+            if (window.sourceQuests && window.sourceQuests.declineQuest) {
+                return window.sourceQuests.declineQuest(sourceType);
+            } else {
+                console.error('[window.declineQuest] sourceQuests.declineQuest не найден');
+                return false;
+            }
+        };
+
+        // Запуск генерации сообщений для фракции
+        window.startFactionMessageScheduler = function(factionId, gameTime) {
+            if (window.sourceQuests && window.sourceQuests.messageScheduler) {
+                window.sourceQuests.messageScheduler.start(factionId, gameTime);
+            }
+        };
+
+        // Остановка генерации сообщений для фракции
+        window.stopFactionMessageScheduler = function(factionId) {
+            if (window.sourceQuests && window.sourceQuests.messageScheduler) {
+                window.sourceQuests.messageScheduler.stop(factionId);
+            }
+        };
+
+        // Остановка всех планировщиков сообщений
+        window.stopAllFactionMessageSchedulers = function() {
+            if (window.sourceQuests && window.sourceQuests.messageScheduler) {
+                window.sourceQuests.messageScheduler.stopAll();
+            }
+        };
+
+        // Очистка сообщений за текущий день
+        window.clearFactionDailyMessages = function() {
+            if (window.sourceQuests) {
+                window.sourceQuests.clearDailyMessages();
+            }
+        };
+
+        // Генерация тестового сообщения для фракции
+        window.generateTestFactionMessage = function(factionId, category) {
+            if (window.sourceQuests) {
+                const message = window.sourceQuests.generateFactionMessage(factionId, null, category);
+                if (message) {
+                    const sourceTypeMap = {
+                        'hq': 'radio',
+                        'rebels': 'gps',
+                        'free': 'laptop',
+                        'mystery': 'transmitter',
+                        'marauders': 'phone'
+                    };
+                    window.sourceQuests.sendFactionMessage(factionId, message, sourceTypeMap[factionId]);
+                }
+            }
+        };
+
+        // Получение статистики активных планировщиков
+        window.getFactionMessageSchedulerStats = function() {
+            if (window.sourceQuests && window.sourceQuests.messageScheduler) {
+                const scheduler = window.sourceQuests.messageScheduler;
+                return {
+                    activeFactions: Array.from(scheduler.activeFactions),
+                    lastMessageTimes: scheduler.lastMessageTime,
+                    factionCount: scheduler.activeFactions.size
+                };
+            }
+            return null;
+        };
+
+        // Тестовая функция для проверки работы системы сообщений фракций
+        window.testFactionMessages = function() {
+            console.log('[TEST] Начинаем тестирование системы сообщений фракций');
+
+            // Проверяем загрузку FactionMessages
+            if (!window.FactionMessages) {
+                console.error('[TEST] ❌ FactionMessages не загружен');
+                return;
+            }
+            console.log('[TEST] ✅ FactionMessages загружен');
+
+            // Проверяем sourceQuests
+            if (!window.sourceQuests) {
+                console.error('[TEST] ❌ sourceQuests не найден');
+                return;
+            }
+            console.log('[TEST] ✅ sourceQuests найден');
+
+            // Проверяем планировщик
+            if (!window.sourceQuests.messageScheduler) {
+                console.error('[TEST] ❌ messageScheduler не найден');
+                return;
+            }
+            console.log('[TEST] ✅ messageScheduler найден');
+
+            // Тестируем генерацию сообщений для каждой фракции
+            const factions = ['hq', 'rebels', 'free', 'mystery', 'marauders'];
+            factions.forEach(factionId => {
+                const message = window.sourceQuests.generateFactionMessage(factionId, null, null);
+                if (message) {
+                    console.log(`[TEST] ✅ Сгенерировано сообщение для ${factionId}:`, message.text);
+                } else {
+                    console.log(`[TEST] ❌ Не удалось сгенерировать сообщение для ${factionId}`);
+                }
+            });
+
+            // Проверяем статистику
+            const stats = window.FactionMessages.getFactionMessageStats();
+            console.log('[TEST] Статистика сообщений фракций:', stats);
+
+            console.log('[TEST] Тестирование завершено');
+        };
+
+        // Ручная генерация сообщения фракции для тестирования
+        window.generateFactionMessageNow = function(factionId) {
+            console.log(`[TEST] Ручная генерация сообщения для фракции ${factionId}`);
+
+            if (!window.sourceQuests || !window.sourceQuests.messageScheduler) {
+                console.error('[TEST] messageScheduler не найден');
+                return;
+            }
+
+            // Генерируем сообщение
+            window.sourceQuests.messageScheduler.generateMessageForFaction(factionId, 12);
+
+            console.log(`[TEST] Сообщение для ${factionId} сгенерировано`);
+        };
+
+        // Проверка статуса планировщика
+        window.checkMessageSchedulerStatus = function() {
+            console.log('[TEST] Проверка статуса планировщика сообщений');
+
+            if (!window.sourceQuests || !window.sourceQuests.messageScheduler) {
+                console.error('[TEST] messageScheduler не найден');
+                return;
+            }
+
+            const scheduler = window.sourceQuests.messageScheduler;
+            console.log('[TEST] Активные фракции:', Array.from(scheduler.activeFactions));
+            console.log('[TEST] Время последнего сообщения:', scheduler.lastMessageTime);
+
+            // Ручной вызов проверки
+            console.log('[TEST] Ручной вызов checkAndGenerateMessages');
+            scheduler.checkAndGenerateMessages(Date.now(), 12);
+        };
+
+        // Тест генерации сообщений для всех фракций
+        window.testAllFactionMessages = function() {
+            console.log('[TEST] Тестирование генерации сообщений для всех фракций');
+            
+            const factions = ['hq', 'rebels', 'free', 'mystery', 'marauders'];
+            factions.forEach(factionId => {
+                console.log(`[TEST] Тестируем фракцию ${factionId}`);
+                
+                // Тестируем генерацию по категориям
+                const categories = window.MESSAGE_CATEGORIES[factionId] || [];
+                categories.forEach(category => {
+                    const message = window.sourceQuests.generateFactionMessage(factionId, null, category);
+                    if (message) {
+                        console.log(`[TEST] ✅ ${factionId}/${category}:`, message.text);
+                    } else {
+                        console.log(`[TEST] ❌ ${factionId}/${category}: не удалось сгенерировать`);
+                    }
+                });
+            });
+            
+            console.log('[TEST] Тестирование завершено');
+        };
+
+        // Быстрый тест для фракции HQ
+        window.testHQMessages = function() {
+            console.log('[TEST] Быстрый тест для фракции HQ');
+            
+            if (!window.sourceQuests || !window.sourceQuests.messageScheduler) {
+                console.error('[TEST] messageScheduler не найден');
+                return;
+            }
+            
+            // Генерируем сообщение для HQ
+            window.sourceQuests.messageScheduler.generateMessageForFaction('hq', 12);
+            
+            console.log('[TEST] Сообщение для HQ сгенерировано');
+        };
+
+        // Тест правильного файла сообщений
+        window.testCorrectMessageFile = function() {
+            console.log('[TEST] Проверка правильного файла сообщений');
+            
+            if (!window.FactionMessages) {
+                console.error('[TEST] FactionMessages не загружен');
+                return;
+            }
+            
+            console.log('[TEST] FactionMessages загружен:', typeof window.FactionMessages);
+            
+            // Проверяем статистику сообщений
+            const stats = window.FactionMessages.getFactionMessageStats();
+            console.log('[TEST] Статистика сообщений:', stats);
+            
+            // Тестируем генерацию сообщений для всех фракций
+            const factions = ['hq', 'rebels', 'free', 'mystery', 'marauders'];
+            factions.forEach(factionId => {
+                const message = window.FactionMessages.getRandomFactionMessage(factionId);
+                if (message) {
+                    console.log(`[TEST] ✅ ${factionId}:`, message.text);
+                } else {
+                    console.log(`[TEST] ❌ ${factionId}: не удалось сгенерировать`);
+                }
+            });
+        };
+
+        // Функция для обновления интервалов сообщений фракций из конфига
+        window.updateFactionMessageIntervals = function() {
+            console.log('[CONFIG] Обновление интервалов сообщений фракций из конфига');
+            
+            if (!window.gameConfig || !window.gameConfig.factionMessages) {
+                console.warn('[CONFIG] Конфиг сообщений фракций не найден');
+                return;
+            }
+            
+            const intervals = window.gameConfig.factionMessages.intervals;
+            console.log('[CONFIG] Текущие интервалы из конфига:', intervals);
+            
+            // Показываем текущие интервалы
+            Object.keys(intervals).forEach(factionId => {
+                const interval = intervals[factionId];
+                console.log(`[CONFIG] ${factionId}: ${interval.hours} часов (${interval.description})`);
+            });
+            
+            return intervals;
+        };
+
+        // Функция для изменения интервала конкретной фракции
+        window.setFactionMessageInterval = function(factionId, hours) {
+            console.log(`[CONFIG] Установка интервала для ${factionId}: ${hours} часов`);
+            
+            if (!window.gameConfig || !window.gameConfig.factionMessages) {
+                console.error('[CONFIG] Конфиг сообщений фракций не найден');
+                return false;
+            }
+            
+            if (!window.gameConfig.factionMessages.intervals[factionId]) {
+                console.error(`[CONFIG] Фракция ${factionId} не найдена в конфиге`);
+                return false;
+            }
+            
+            window.gameConfig.factionMessages.intervals[factionId].hours = hours;
+            console.log(`[CONFIG] Интервал для ${factionId} изменен на ${hours} часов`);
+            
+            return true;
+        };
+
+        // Тест генерации сообщений для всех фракций (старая функция)
+        window.testAllFactionMessagesOld = function() {
+            console.log('[TEST] Тестирование генерации сообщений для всех фракций');
+
+            const factions = ['hq', 'rebels', 'free', 'mystery', 'marauders'];
+
+            factions.forEach(factionId => {
+                console.log(`[TEST] Генерация сообщения для ${factionId}`);
+                try {
+                    window.generateFactionMessageImmediate(factionId);
+                } catch (error) {
+                    console.error(`[TEST] Ошибка при генерации для ${factionId}:`, error);
+                }
+            });
+
+            console.log('[TEST] Тестирование завершено');
+        };
+
+        // Тест исправлений undefined проблемы
+        window.testUndefinedFix = function() {
+            console.log('[TEST] Тестирование исправлений проблемы с undefined');
+
+            // Проверяем статус активного предмета
+            const gameSceneItem = window.game ? window.game.scene.getScene('Game').activeQuestItem : null;
+            const globalItem = window.activeQuestItem;
+
+            console.log('[TEST] Активный предмет в GameScene:', gameSceneItem);
+            console.log('[TEST] Активный предмет в глобальной переменной:', globalItem);
+
+            // Тестируем updateActiveInfoSource с разными типами данных
+            console.log('[TEST] Тестируем updateActiveInfoSource с объектом:');
+            if (gameSceneItem) {
+                window.updateActiveInfoSource(gameSceneItem);
+            } else {
+                console.log('[TEST] Нет активного предмета для тестирования');
+            }
+
+            console.log('[TEST] Тестируем updateActiveInfoSource со строкой "phone":');
+            window.updateActiveInfoSource('phone');
+
+            console.log('[TEST] Тестируем updateActiveInfoSource с undefined:');
+            window.updateActiveInfoSource(undefined);
+
+            console.log('[TEST] Тест завершен');
+        };
+
+        // Ручная генерация сообщения для тестирования
+        window.forceGenerateFactionMessage = function(factionId) {
+            console.log(`[TEST] Принудительная генерация сообщения для ${factionId}`);
+
+            if (!window.sourceQuests || !window.sourceQuests.messageScheduler) {
+                console.error('[TEST] messageScheduler не найден');
+                return;
+            }
+
+            // Обновляем время последнего сообщения, чтобы следующая проверка сработала
+            window.sourceQuests.messageScheduler.lastMessageTime[factionId] = 0;
+
+            console.log(`[TEST] Время последнего сообщения сброшено для ${factionId}, следующая проверка сгенерирует сообщение`);
+        };
+
+        // Немедленная генерация сообщения фракции (обходит планировщик)
+        window.generateFactionMessageImmediate = function(factionId) {
+            console.log(`[TEST] Немедленная генерация сообщения для ${factionId}`);
+
+            if (!window.sourceQuests || !window.sourceQuests.messageScheduler) {
+                console.error('[TEST] messageScheduler не найден');
+                return;
+            }
+
+            // Прямая генерация сообщения
+            window.sourceQuests.messageScheduler.generateMessageForFaction(factionId, 12);
+
+            console.log(`[TEST] Сообщение для ${factionId} сгенерировано немедленно`);
+
+            // Также попробуем принудительно обновить UI
+            setTimeout(() => {
+                const currentActiveItem = window.game ? window.game.scene.getScene('Game').activeQuestItem : null;
+                if (currentActiveItem) {
+                    console.log('[TEST] Обновляем UI для активного предмета:', currentActiveItem);
+                    window.updateActiveInfoSource(currentActiveItem);
+                }
+            }, 100);
+        };
+
+        // Load faction messages system
+        const factionMessagesScript = document.createElement('script');
+        factionMessagesScript.src = 'src/core/faction-messages.js';
+        factionMessagesScript.onload = function() {
+            console.log('[Faction Messages] Faction messages system loaded');
+        };
+        document.head.appendChild(factionMessagesScript);
+
+        // Load quest system
         let questSystemLoaded = false;
 
         // Инициализация системы заданий
@@ -4929,7 +5625,7 @@
                     'radio': 'hq',
                     'gps': 'rebels',
                     'phone': 'marauders',
-                    'laptop': 'free',
+                    'laptop': 'free',        // исправлено с 'freedom' на 'free'
                     'transmitter': 'mystery'
                 };
 
@@ -4951,10 +5647,25 @@
 
                 console.log('[sourceQuests] Accepting quest:', questId);
 
+                // Защита от повторных вызовов
+                const processingKey = `${sourceType}_${questId}`;
+                if (window.sourceQuests._processingQuests && window.sourceQuests._processingQuests.has(processingKey)) {
+                    console.log('[sourceQuests] Quest already being processed:', questId);
+                    return false;
+                }
+
+                // Добавляем в список обрабатываемых заданий
+                if (!window.sourceQuests._processingQuests) {
+                    window.sourceQuests._processingQuests = new Set();
+                }
+                window.sourceQuests._processingQuests.add(processingKey);
+
                 // Получаем factionId для поиска задания
                 const factionId = getFactionIdFromSourceType(sourceType);
                 if (!factionId) {
                     console.warn(`[sourceQuests] Неизвестный sourceType: ${sourceType}`);
+                    // Удаляем из списка обрабатываемых при ошибке
+                    window.sourceQuests._processingQuests.delete(processingKey);
                     return false;
                 }
 
@@ -4964,6 +5675,8 @@
                     console.warn('[sourceQuests] Quest not found in activeQuests:', questId);
                     console.log('[sourceQuests] Available active quests:', Object.keys(this.activeQuests));
                     console.log('[sourceQuests] Current faction quest:', this.activeQuests[factionId]);
+                    // Удаляем из списка обрабатываемых при ошибке
+                    window.sourceQuests._processingQuests.delete(processingKey);
                     return false;
                 }
 
@@ -4985,6 +5698,10 @@
                 }
 
                 console.log(`[sourceQuests] Задание принято: ${quest.title}`);
+
+                // Удаляем из списка обрабатываемых при успешном завершении
+                window.sourceQuests._processingQuests.delete(processingKey);
+
                 return true;
             };
 
@@ -5146,9 +5863,43 @@
 
         // Функция для обновления активного источника информации
         window.updateActiveInfoSource = function(questItem) {
+            console.log('[updateActiveInfoSource] Вызван с questItem:', questItem);
+
             if (questItem) {
-                window.showInfoSourcePanel(questItem);
+                // Если передан объект questItem
+                if (typeof questItem === 'object' && questItem.id) {
+                    console.log('[updateActiveInfoSource] Показываем панель с questItem объектом');
+                    window.showInfoSourcePanel(questItem);
+                }
+                // Если передана строка (sourceType), получаем текущий активный предмет
+                else if (typeof questItem === 'string') {
+                    console.log('[updateActiveInfoSource] Получаем текущий активный предмет для sourceType:', questItem);
+                    // Получаем текущий активный предмет из GameScene
+                    const currentActiveItem = window.game ? window.game.scene.getScene('Game').activeQuestItem : null;
+                    console.log('[updateActiveInfoSource] Текущий активный предмет из GameScene:', currentActiveItem);
+
+                    if (currentActiveItem && currentActiveItem.id === questItem) {
+                        console.log('[updateActiveInfoSource] Показываем панель с текущим активным предметом');
+                        window.showInfoSourcePanel(currentActiveItem);
+                    } else {
+                        console.log('[updateActiveInfoSource] Активный предмет не соответствует sourceType или отсутствует');
+                        console.log('[updateActiveInfoSource] Попытка найти предмет в глобальной переменной window.activeQuestItem');
+                        // Попробуем получить из глобальной переменной
+                        const globalActiveItem = window.activeQuestItem;
+                        if (globalActiveItem && globalActiveItem.id === questItem) {
+                            console.log('[updateActiveInfoSource] Найден активный предмет в глобальной переменной');
+                            window.showInfoSourcePanel(globalActiveItem);
+                        } else {
+                            console.log('[updateActiveInfoSource] Активный предмет не найден, скрываем панель');
+                            window.hideInfoSourcePanel();
+                        }
+                    }
+                } else {
+                    console.log('[updateActiveInfoSource] Скрываем панель (неизвестный тип)');
+                    window.hideInfoSourcePanel();
+                }
             } else {
+                console.log('[updateActiveInfoSource] Скрываем панель (пустой questItem)');
                 window.hideInfoSourcePanel();
             }
         };
@@ -5156,6 +5907,8 @@
         // Обновляем функцию showInfoSourcePanel для интеграции с системой заданий
         const originalShowInfoSourcePanel = window.showInfoSourcePanel;
         window.showInfoSourcePanel = function(questItem) {
+            console.log('[showInfoSourcePanel] Вызван с questItem:', questItem);
+
             // Вызываем оригинальную функцию
             if (originalShowInfoSourcePanel) {
                 originalShowInfoSourcePanel(questItem);
@@ -5163,8 +5916,14 @@
 
             // Обновляем отображение заданий после загрузки системы
             setTimeout(() => {
-                if (questSystemLoaded && window.questManager) {
+                if (questSystemLoaded && window.questManager && questItem && questItem.id) {
+                    console.log('[showInfoSourcePanel] Обновляем задания для', questItem.id);
                     updateQuestsDisplay(questItem.id);
+                } else {
+                    console.log('[showInfoSourcePanel] Система заданий не загружена или questItem пустой/неправильный:', questItem);
+                    if (questItem && !questItem.id) {
+                        console.warn('[showInfoSourcePanel] questItem не имеет id:', questItem);
+                    }
                 }
             }, 100);
         };

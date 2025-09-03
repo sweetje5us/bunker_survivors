@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест сообщений фракций</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .info-panel {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Тест системы сообщений фракций</h1>
+
+    <div class="test-section">
+        <h2>Тестовые кнопки</h2>
+        <button onclick="testFactionMessages()">Тестировать сообщения фракций</button>
+        <button onclick="testQuestAcceptance()">Тестировать принятие заданий</button>
+        <button onclick="clearLogs()">Очистить логи</button>
+        <button onclick="showCurrentState()">Показать текущее состояние</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Информационная панель</h2>
+        <div id="info-panel" class="info-panel">
+            Панель ожидает активации источника информации...
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Логи</h2>
+        <div id="logs" class="log"></div>
+    </div>
+
+    <script>
+        // Мокаем систему заданий для тестирования
+        window.sourceQuests = {
+            activeQuests: {},
+            messageHistory: {},
+            _processingQuests: new Set(),
+
+            // Функции для работы с заданиями
+            acceptQuest: function(sourceType, questId) {
+                log('acceptQuest вызван с параметрами:', sourceType, questId);
+
+                // Защита от повторных вызовов
+                const processingKey = `${sourceType}_${questId}`;
+                if (this._processingQuests.has(processingKey)) {
+                    log('Задание уже обрабатывается:', questId);
+                    return false;
+                }
+
+                this._processingQuests.add(processingKey);
+
+                // Имитация обработки задания
+                setTimeout(() => {
+                    if (this.activeQuests[sourceType]) {
+                        this.activeQuests[sourceType].accepted = true;
+                        log('Задание принято:', questId);
+                        updateInfoPanel();
+                    }
+                    this._processingQuests.delete(processingKey);
+                }, 100);
+
+                return true;
+            },
+
+            // Функции для работы с сообщениями
+            addMessageToHistory: function(factionId, type, data) {
+                if (!this.messageHistory[factionId]) {
+                    this.messageHistory[factionId] = [];
+                }
+                this.messageHistory[factionId].push({
+                    id: Date.now() + '_' + Math.random(),
+                    type: type,
+                    timestamp: new Date(),
+                    data: data
+                });
+                log('Сообщение добавлено в историю:', factionId, type);
+            },
+
+            // Генерация сообщений фракций
+            generateFactionMessage: function(factionId) {
+                const messages = {
+                    'mystery': [
+                        '*зловещий шепот* Они идут... через тени... через сны... проснитесь!',
+                        'Тени шепчут о том, что происходит за пределами нашего мира...',
+                        'Сны мутантов становятся все более реальными... берегитесь!',
+                        'Что-то приближается... что-то древнее и голодное...'
+                    ],
+                    'hq': [
+                        'Внимание! Обнаружены подозрительные передвижения в секторе 7!',
+                        'Командование требует строгого соблюдения протоколов безопасности!',
+                        'Новый приказ: все гражданские должны пройти перерегистрацию.',
+                        'Усилить патрулирование периметра!'
+                    ],
+                    'marauders': [
+                        'Эй, приятель! У меня есть отличные патроны за еду!',
+                        'Ха! Мы только что ограбили караван Штаба!',
+                        'Кто следующий на очереди? Мы ищем новые цели!',
+                        'У меня есть информация о слабых точках в обороне...'
+                    ]
+                };
+
+                const factionMessages = messages[factionId] || ['Новое сообщение от фракции'];
+                const randomMessage = factionMessages[Math.floor(Math.random() * factionMessages.length)];
+
+                return {
+                    text: randomMessage,
+                    type: 'mysterious',
+                    factionId: factionId
+                };
+            },
+
+            // Получить историю сообщений
+            getMessageHistory: function(factionId) {
+                return this.messageHistory[factionId] || [];
+            }
+        };
+
+        // Мокаем функции для работы с фракциями
+        function getFactionData(itemId) {
+            const factions = {
+                'radio': { name: 'Штаб', greeting: 'Внимание! Говорит командование.', style: 'military' },
+                'gps': { name: 'Повстанцы', greeting: 'Братья и сестры по борьбе!', style: 'rebel' },
+                'laptop': { name: 'Свобода', greeting: 'Друзья свободных людей!', style: 'free' },
+                'phone': { name: 'Мародеры', greeting: 'Эй, приятель!', style: 'raider' },
+                'transmitter': { name: 'Тайна', greeting: 'Шепот из тьмы...', style: 'mystery' },
+                'map': { name: 'Сокровища', greeting: 'Карта сокровищ...', style: 'treasure' }
+            };
+            return factions[itemId] || { name: 'Неизвестно', greeting: 'Внимание!', style: 'default' };
+        }
+
+        function getFactionIdFromSourceType(sourceType) {
+            const mapping = {
+                'radio': 'hq',
+                'gps': 'rebels',
+                'laptop': 'free',
+                'phone': 'marauders',
+                'transmitter': 'mystery',
+                'map': 'treasures'
+            };
+            return mapping[sourceType];
+        }
+
+        // Функция логирования
+        function log(...args) {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const message = `[${timestamp}] ${args.join(' ')}`;
+            logsDiv.innerHTML += message + '<br>';
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            console.log(...args);
+        }
+
+        // Функция обновления информационной панели
+        function updateInfoPanel() {
+            const infoPanel = document.getElementById('info-panel');
+            const activeSource = window.currentActiveSource || 'transmitter';
+
+            // Проверяем сообщения фракции
+            const factionId = getFactionIdFromSourceType(activeSource);
+            const factionMessages = window.sourceQuests.getMessageHistory(factionId);
+            const factionMessageEntries = factionMessages.filter(msg => msg.type === 'faction_message');
+
+            if (factionMessageEntries.length > 0) {
+                const latestMessage = factionMessageEntries[factionMessageEntries.length - 1];
+                const factionData = getFactionData(activeSource);
+
+                infoPanel.innerHTML = `
+                    <div style="border: 1px solid #007bff; padding: 10px; border-radius: 5px;">
+                        <div style="font-weight: bold; color: #007bff;">${factionData.name}</div>
+                        <div style="font-size: 12px; color: #666;">${new Date(latestMessage.timestamp).toLocaleTimeString()}</div>
+                        <div style="margin: 10px 0;">${latestMessage.data.message.text}</div>
+                    </div>
+                `;
+                log('Показываем сообщение фракции:', latestMessage.data.message.text);
+            } else {
+                infoPanel.innerHTML = 'Ожидаем сообщений от фракции...';
+            }
+        }
+
+        // Тестовые функции
+        function testFactionMessages() {
+            log('=== ТЕСТИРОВАНИЕ СООБЩЕНИЙ ФРАКЦИЙ ===');
+
+            const factions = ['mystery', 'hq', 'marauders'];
+            window.currentActiveSource = 'transmitter'; // Активный источник - Тайна
+
+            factions.forEach(factionId => {
+                const message = window.sourceQuests.generateFactionMessage(factionId);
+                if (message) {
+                    window.sourceQuests.addMessageToHistory(factionId, 'faction_message', { message: message });
+                    log(`Сгенерировано сообщение для ${factionId}:`, message.text);
+                }
+            });
+
+            updateInfoPanel();
+        }
+
+        function testQuestAcceptance() {
+            log('=== ТЕСТИРОВАНИЕ ПРИНЯТИЯ ЗАДАНИЙ ===');
+
+            // Создаем тестовое задание
+            window.sourceQuests.activeQuests['transmitter'] = {
+                id: 'test_quest_1',
+                title: 'Тестовое задание',
+                description: 'Проверить работу системы принятия заданий',
+                accepted: false
+            };
+
+            // Имитируем нажатие кнопки принятия
+            const acceptButton = document.createElement('button');
+            acceptButton.textContent = 'Принять задание';
+            acceptButton.onclick = function() {
+                acceptButton.disabled = true;
+                acceptButton.textContent = 'Обработка...';
+
+                const result = window.sourceQuests.acceptQuest('transmitter', 'test_quest_1');
+
+                if (result) {
+                    log('Кнопка принятия нажата, ждем обработки...');
+                    setTimeout(() => {
+                        acceptButton.disabled = false;
+                        acceptButton.textContent = 'Принять задание';
+                        log('Кнопка разблокирована');
+                    }, 2000);
+                } else {
+                    acceptButton.disabled = false;
+                    acceptButton.textContent = 'Принять задание';
+                    log('Не удалось принять задание');
+                }
+            };
+
+            document.querySelector('.test-section').appendChild(acceptButton);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        function showCurrentState() {
+            log('=== ТЕКУЩЕЕ СОСТОЯНИЕ ===');
+            log('Активный источник:', window.currentActiveSource);
+            log('Активные задания:', JSON.stringify(window.sourceQuests.activeQuests, null, 2));
+            log('История сообщений:', JSON.stringify(window.sourceQuests.messageHistory, null, 2));
+            log('Обрабатываемые задания:', Array.from(window.sourceQuests._processingQuests));
+        }
+
+        // Инициализация
+        log('Тестовая система загружена');
+        window.currentActiveSource = 'transmitter'; // По умолчанию активен передатчик (Тайна)
+    </script>
+</body>
+</html>

@@ -97,6 +97,9 @@ declare global {
 
     // Game instance for UI bridge
     game?: Phaser.Game;
+
+    // Game configuration
+    gameConfig?: any;
   }
 }
 
