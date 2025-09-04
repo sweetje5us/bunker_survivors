@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест отдельных блоков карты и заданий</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .info { color: #2196F3; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .scenario {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+        
+        /* Стили для блоков (копия из game-overlay.html) */
+        .info-source-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 350px;
+            max-height: 500px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #D4AF37;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+            z-index: 10000;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .map-panel {
+            left: 20px;
+            bottom: 20px;
+            right: auto;
+        }
+
+        .quests-panel {
+            top: 20px;
+            right: 20px;
+            bottom: auto;
+        }
+
+        .info-source-header {
+            background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+            padding: 12px 16px;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .source-icon {
+            font-size: 16px;
+            margin-right: 8px;
+        }
+
+        .source-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #D4AF37;
+            flex: 1;
+        }
+
+        .source-toggle-indicator {
+            font-size: 12px;
+            color: #888;
+            transition: transform 0.3s ease;
+        }
+
+        .info-content {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 16px;
+            color: #ffffff;
+            font-size: 9px;
+            transition: all 0.3s ease;
+        }
+
+        .quests-content {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 16px;
+            color: #ffffff;
+            font-size: 9px;
+            transition: all 0.3s ease;
+        }
+
+        .quests-header {
+            font-size: 12px;
+            font-weight: bold;
+            color: #D4AF37;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #444;
+        }
+
+        .quest-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .quest-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #D4AF37;
+        }
+
+        .quest-item.accepted {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .quest-item.pending {
+            border-color: #FF9800;
+            background: rgba(255, 152, 0, 0.1);
+        }
+
+        .quest-item.no-quests {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+        }
+
+        .quest-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .quest-title {
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .quest-faction {
+            font-size: 8px;
+            color: #D4AF37;
+            background: rgba(212, 175, 55, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .quest-description {
+            color: #ccc;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .quest-status {
+            font-size: 8px;
+            color: #4CAF50;
+        }
+
+        .collapsed .info-content,
+        .collapsed .quests-content {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+            opacity: 0;
+        }
+
+        .collapsed {
+            max-height: 60px;
+            overflow: hidden;
+        }
+
+        /* Стили для карты */
+        .map-container {
+            width: 300px;
+            height: 300px;
+            background: #0a0a0a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+            user-select: none;
+            margin: 0 auto;
+        }
+
+        .map-container:active {
+            cursor: grabbing;
+        }
+
+        .map-canvas {
+            width: 300px;
+            height: 300px;
+            position: relative;
+            transform-origin: 0 0;
+            transition: transform 0.1s ease-out;
+        }
+
+        .map-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 300px;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        .map-grid-line {
+            position: absolute;
+            background: #444;
+        }
+
+        .map-grid-line.vertical {
+            width: 1px;
+            height: 300px;
+        }
+
+        .map-grid-line.horizontal {
+            height: 1px;
+            width: 300px;
+        }
+
+        .map-coordinates {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .map-bunker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #4CAF50;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
+            100% { box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+        }
+
+        .map-zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10;
+        }
+
+        .map-zoom-btn {
+            width: 30px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .map-zoom-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .map-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .map-click-coords {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #4CAF50;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 30;
+            border: 1px solid #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Тест отдельных блоков карты и заданий</h1>
+    
+    <div class="test-section">
+        <h2>📋 Описание изменений</h2>
+        <div class="scenario">
+            <strong>Что сделано:</strong><br>
+            1. Создан отдельный блок карты (левый нижний угол)<br>
+            2. Создан отдельный блок заданий (правый верхний угол)<br>
+            3. Добавлен функционал сворачивания для новых блоков<br>
+            4. Убраны зависимости от источника информации<br>
+            5. Блоки автоматически показываются при загрузке
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тестирование блоков</h2>
+        <button onclick="testMapBlock()">Тестировать блок карты</button>
+        <button onclick="testQuestsBlock()">Тестировать блок заданий</button>
+        <button onclick="testBothBlocks()">Тестировать оба блока</button>
+        <button onclick="hideAllBlocks()">Скрыть все блоки</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Класс карты (копия из game-overlay.html)
+        class GameMap {
+            constructor() {
+                this.mapSize = 300; // Размер карты 300x300
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.isDragging = false;
+                this.lastMouseX = 0;
+                this.lastMouseY = 0;
+                this.bunkerX = 0;
+                this.bunkerY = 0;
+                this.clickCoords = null;
+                this.clickTimeout = null;
+                
+                // Инициализируем случайную позицию бункера
+                this.initializeBunkerPosition();
+                
+                console.log('[GameMap] Карта инициализирована, бункер в позиции:', this.bunkerX, this.bunkerY);
+            }
+            
+            initializeBunkerPosition() {
+                // Случайная позиция бункера на карте
+                this.bunkerX = Math.random() * (this.mapSize - 20) + 10;
+                this.bunkerY = Math.random() * (this.mapSize - 20) + 10;
+            }
+            
+            getMapHTML() {
+                return `
+                    <div class="map-container" id="map-container">
+                        <div class="map-canvas" id="map-canvas">
+                            <div class="map-grid" id="map-grid"></div>
+                            <div class="map-bunker" id="map-bunker" style="left: ${this.bunkerX}px; top: ${this.bunkerY}px;" title="Ваш бункер"></div>
+                        </div>
+                        <!-- Элементы управления поверх карты -->
+                        <div class="map-coordinates" id="map-coordinates">X: 0, Y: 0</div>
+                        <div class="map-zoom-controls">
+                            <button class="map-zoom-btn" id="map-zoom-in">+</button>
+                            <button class="map-zoom-btn" id="map-zoom-out">-</button>
+                            <button class="map-zoom-btn" id="map-reset">⌂</button>
+                        </div>
+                        <div class="map-info">Карта 300x300 | Зум: ${Math.round(this.zoom * 100)}%</div>
+                        <div class="map-click-coords" id="map-click-coords" style="display: none;"></div>
+                    </div>
+                `;
+            }
+            
+            initializeMap() {
+                const container = document.getElementById('map-container');
+                const canvas = document.getElementById('map-canvas');
+                const grid = document.getElementById('map-grid');
+                const coordinates = document.getElementById('map-coordinates');
+                const clickCoords = document.getElementById('map-click-coords');
+                
+                if (!container || !canvas || !grid) {
+                    console.warn('[GameMap] Элементы карты не найдены');
+                    return;
+                }
+                
+                // Создаем сетку координат
+                this.createGrid(grid);
+                
+                // Обработчики событий
+                this.setupEventListeners(container, canvas, coordinates, clickCoords);
+                
+                console.log('[GameMap] Карта инициализирована');
+            }
+            
+            createGrid(gridElement) {
+                // Очищаем существующую сетку
+                gridElement.innerHTML = '';
+                
+                // Создаем вертикальные линии каждые 50 пикселей
+                for (let x = 0; x <= this.mapSize; x += 50) {
+                    const line = document.createElement('div');
+                    line.className = 'map-grid-line vertical';
+                    line.style.left = x + 'px';
+                    gridElement.appendChild(line);
+                }
+                
+                // Создаем горизонтальные линии каждые 50 пикселей
+                for (let y = 0; y <= this.mapSize; y += 50) {
+                    const line = document.createElement('div');
+                    line.className = 'map-grid-line horizontal';
+                    line.style.top = y + 'px';
+                    gridElement.appendChild(line);
+                }
+            }
+            
+            setupEventListeners(container, canvas, coordinates, clickCoords) {
+                // Обработчик движения мыши для обновления координат
+                container.addEventListener('mousemove', (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = Math.round((e.clientX - rect.left) / this.zoom - this.panX);
+                    const y = Math.round((e.clientY - rect.top) / this.zoom - this.panY);
+                    
+                    if (x >= 0 && x <= this.mapSize && y >= 0 && y <= this.mapSize) {
+                        coordinates.textContent = `X: ${x}, Y: ${y}`;
+                    }
+                });
+                
+                // Обработчик клика для отображения координат
+                container.addEventListener('click', (e) => {
+                    // Проверяем, что клик не по элементам управления
+                    if (e.target.closest('.map-zoom-controls') || 
+                        e.target.closest('.map-coordinates') || 
+                        e.target.closest('.map-info')) {
+                        return;
+                    }
+                    
+                    const rect = canvas.getBoundingClientRect();
+                    const x = Math.round((e.clientX - rect.left) / this.zoom - this.panX);
+                    const y = Math.round((e.clientY - rect.top) / this.zoom - this.panY);
+                    
+                    if (x >= 0 && x <= this.mapSize && y >= 0 && y <= this.mapSize) {
+                        this.showClickCoordinates(clickCoords, x, y, e.clientX, e.clientY);
+                    }
+                });
+                
+                // Обработчики перетаскивания
+                canvas.addEventListener('mousedown', (e) => {
+                    // Проверяем, что клик не по бункеру
+                    if (e.target.closest('.map-bunker')) {
+                        return;
+                    }
+                    
+                    this.isDragging = true;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                    canvas.style.cursor = 'grabbing';
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isDragging) {
+                        const deltaX = e.clientX - this.lastMouseX;
+                        const deltaY = e.clientY - this.lastMouseY;
+                        
+                        this.panX += deltaX;
+                        this.panY += deltaY;
+                        
+                        this.updateTransform(canvas);
+                        
+                        this.lastMouseX = e.clientX;
+                        this.lastMouseY = e.clientY;
+                    }
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    this.isDragging = false;
+                    canvas.style.cursor = 'grab';
+                });
+                
+                // Обработчики зума
+                document.getElementById('map-zoom-in').addEventListener('click', () => {
+                    this.zoom = Math.min(this.zoom * 1.2, 3);
+                    this.updateTransform(canvas);
+                });
+                
+                document.getElementById('map-zoom-out').addEventListener('click', () => {
+                    this.zoom = Math.max(this.zoom / 1.2, 0.5);
+                    this.updateTransform(canvas);
+                });
+                
+                document.getElementById('map-reset').addEventListener('click', () => {
+                    this.zoom = 1;
+                    this.panX = 0;
+                    this.panY = 0;
+                    this.updateTransform(canvas);
+                });
+                
+                // Обработчик колесика мыши для зума
+                canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                    this.zoom = Math.max(0.5, Math.min(3, this.zoom * delta));
+                    this.updateTransform(canvas);
+                });
+            }
+            
+            updateTransform(canvas) {
+                canvas.style.transform = `scale(${this.zoom}) translate(${this.panX}px, ${this.panY}px)`;
+                
+                // Обновляем информацию о зуме
+                const mapInfo = document.querySelector('.map-info');
+                if (mapInfo) {
+                    mapInfo.textContent = `Карта 300x300 | Зум: ${Math.round(this.zoom * 100)}%`;
+                }
+            }
+            
+            showClickCoordinates(clickCoords, x, y, clientX, clientY) {
+                // Очищаем предыдущий таймаут
+                if (this.clickTimeout) {
+                    clearTimeout(this.clickTimeout);
+                }
+                
+                // Показываем координаты
+                clickCoords.textContent = `Клик: X:${x}, Y:${y}`;
+                clickCoords.style.left = (clientX - 50) + 'px';
+                clickCoords.style.top = (clientY - 30) + 'px';
+                clickCoords.style.display = 'block';
+                
+                // Скрываем через 2 секунды
+                this.clickTimeout = setTimeout(() => {
+                    clickCoords.style.display = 'none';
+                }, 2000);
+                
+                console.log(`[GameMap] Клик по координатам: X:${x}, Y:${y}`);
+            }
+        }
+
+        // Инициализируем систему заданий
+        window.sourceQuests = {
+            activeQuests: {},
+            messageHistory: {}
+        };
+
+        // Функции для управления блоками
+        function testMapBlock() {
+            log('=== ТЕСТ БЛОКА КАРТЫ ===');
+            
+            // Создаем блок карты
+            const mapPanel = document.createElement('div');
+            mapPanel.id = 'map-panel';
+            mapPanel.className = 'info-source-panel map-panel';
+            mapPanel.style.display = 'block';
+            
+            mapPanel.innerHTML = `
+                <div class="info-source-header" onclick="toggleMapPanel()">
+                    <div class="source-icon">🗺️</div>
+                    <div class="source-name">Карта</div>
+                    <div class="source-toggle-indicator">▼</div>
+                </div>
+                <div class="info-content" id="map-content">
+                    <!-- Карта будет загружена динамически -->
+                </div>
+            `;
+            
+            document.body.appendChild(mapPanel);
+            
+            // Инициализируем карту
+            if (!window.gameMap) {
+                window.gameMap = new GameMap();
+            }
+            
+            const mapContent = document.getElementById('map-content');
+            mapContent.innerHTML = window.gameMap.getMapHTML();
+            
+            // Инициализируем карту
+            setTimeout(() => {
+                window.gameMap.initializeMap();
+                log('✅ Блок карты создан и инициализирован');
+            }, 100);
+        }
+
+        function testQuestsBlock() {
+            log('=== ТЕСТ БЛОКА ЗАДАНИЙ ===');
+            
+            // Создаем тестовые задания
+            window.sourceQuests.activeQuests = {
+                'hq': {
+                    id: 'hq_test_1',
+                    title: 'Тестовое задание штаба',
+                    description: 'Описание тестового задания от штаба',
+                    accepted: false,
+                    progress: 0,
+                    target: 100
+                },
+                'free': {
+                    id: 'free_test_1',
+                    title: 'Тестовое задание свободы',
+                    description: 'Описание тестового задания от свободы',
+                    accepted: true,
+                    progress: 50,
+                    target: 100
+                }
+            };
+            
+            // Создаем блок заданий
+            const questsPanel = document.createElement('div');
+            questsPanel.id = 'quests-panel';
+            questsPanel.className = 'info-source-panel quests-panel';
+            questsPanel.style.display = 'block';
+            
+            questsPanel.innerHTML = `
+                <div class="info-source-header" onclick="toggleQuestsPanel()">
+                    <div class="source-icon">📋</div>
+                    <div class="source-name">Задания</div>
+                    <div class="source-toggle-indicator">▼</div>
+                </div>
+                <div class="quests-content" id="standalone-quests-content">
+                    <div class="quests-header">📋 Активные задания</div>
+                    <div id="standalone-quests-list">
+                        <!-- Задания будут загружены динамически -->
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(questsPanel);
+            
+            // Обновляем отображение заданий
+            updateStandaloneQuestsDisplay();
+            log('✅ Блок заданий создан и заполнен тестовыми данными');
+        }
+
+        function testBothBlocks() {
+            log('=== ТЕСТ ОБОИХ БЛОКОВ ===');
+            testMapBlock();
+            setTimeout(() => {
+                testQuestsBlock();
+                log('✅ Оба блока созданы и работают независимо');
+            }, 500);
+        }
+
+        function hideAllBlocks() {
+            log('=== СКРЫТИЕ ВСЕХ БЛОКОВ ===');
+            const mapPanel = document.getElementById('map-panel');
+            const questsPanel = document.getElementById('quests-panel');
+            
+            if (mapPanel) {
+                mapPanel.style.display = 'none';
+                log('✅ Блок карты скрыт');
+            }
+            
+            if (questsPanel) {
+                questsPanel.style.display = 'none';
+                log('✅ Блок заданий скрыт');
+            }
+        }
+
+        function toggleMapPanel() {
+            const panel = document.getElementById('map-panel');
+            if (!panel) return;
+
+            const isCollapsed = panel.classList.contains('collapsed');
+
+            if (isCollapsed) {
+                panel.classList.remove('collapsed');
+                log('✅ Блок карты развернут');
+            } else {
+                panel.classList.add('collapsed');
+                log('✅ Блок карты свернут');
+            }
+        }
+
+        function toggleQuestsPanel() {
+            const panel = document.getElementById('quests-panel');
+            if (!panel) return;
+
+            const isCollapsed = panel.classList.contains('collapsed');
+
+            if (isCollapsed) {
+                panel.classList.remove('collapsed');
+                log('✅ Блок заданий развернут');
+            } else {
+                panel.classList.add('collapsed');
+                log('✅ Блок заданий свернут');
+            }
+        }
+
+        function updateStandaloneQuestsDisplay() {
+            const questsList = document.getElementById('standalone-quests-list');
+            if (!questsList) {
+                log('❌ Элемент standalone-quests-list не найден');
+                return;
+            }
+
+            const activeQuests = window.sourceQuests?.activeQuests || {};
+            const questEntries = Object.entries(activeQuests).filter(([factionId, quest]) => quest && quest.title);
+
+            if (questEntries.length === 0) {
+                questsList.innerHTML = `
+                    <div class="quest-item no-quests">
+                        <span class="quest-text">Нет активных заданий</span>
+                        <span class="quest-status">📭</span>
+                    </div>
+                `;
+                return;
+            }
+
+            // Отображаем все задания
+            questsList.innerHTML = questEntries.map(([factionId, quest]) => {
+                const factionNames = {
+                    'hq': 'Штаб',
+                    'free': 'Свобода',
+                    'rebels': 'Повстанцы',
+                    'marauders': 'Мародеры',
+                    'mystery': 'Тайна'
+                };
+                const factionName = factionNames[factionId] || factionId;
+                
+                return `
+                    <div class="quest-item ${quest.accepted ? 'accepted' : 'pending'}">
+                        <div class="quest-header">
+                            <span class="quest-title">${quest.title}</span>
+                            <span class="quest-faction">${factionName}</span>
+                        </div>
+                        <div class="quest-description">${quest.description}</div>
+                        <div class="quest-status">
+                            ${quest.accepted ? '✅ Принято' : '⏳ Ожидает принятия'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Автоматически запускаем тест при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест отдельных блоков запущен');
+            log('💡 Используйте кнопки выше для тестирования блоков');
+        });
+    </script>
+</body>
+</html>

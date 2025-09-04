@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест исправленной карты</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .info { color: #2196F3; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .scenario {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+        
+        /* Стили для карты */
+        .map-container {
+            width: 300px;
+            height: 300px;
+            background: #0a0a0a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+            user-select: none;
+            margin: 0 auto;
+        }
+
+        .map-container:active {
+            cursor: grabbing;
+        }
+
+        .map-canvas {
+            width: 300px;
+            height: 300px;
+            position: relative;
+            transform-origin: 0 0;
+            transition: transform 0.1s ease-out;
+        }
+
+        .map-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 300px;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        .map-grid-line {
+            position: absolute;
+            background: #444;
+        }
+
+        .map-grid-line.vertical {
+            width: 1px;
+            height: 300px;
+        }
+
+        .map-grid-line.horizontal {
+            height: 1px;
+            width: 300px;
+        }
+
+        .map-coordinates {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .map-bunker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #4CAF50;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
+            100% { box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+        }
+
+        .map-zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10;
+        }
+
+        .map-zoom-btn {
+            width: 30px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .map-zoom-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .map-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .map-click-coords {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #4CAF50;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 30;
+            border: 1px solid #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <h1>🗺️ Тест исправленной карты</h1>
+    
+    <div class="test-section">
+        <h2>🔧 Проблема и решение</h2>
+        <div class="scenario">
+            <strong>Проблема:</strong> Элементы управления (кнопки +/-, текст зума) зумятся и двигаются вместе с картой<br>
+            <strong>Решение:</strong> Вынести элементы управления из .map-canvas в .map-container, чтобы они оставались зафиксированными поверх карты
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🗺️ Тестовая карта</h2>
+        <div id="map-test"></div>
+        <button onclick="testMap()">Создать тестовую карту</button>
+        <button onclick="testMapInteractions()">Тестировать взаимодействия</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        let gameMap = null;
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Класс карты (копия из game-overlay.html)
+        class GameMap {
+            constructor() {
+                this.mapSize = 300; // Размер карты 300x300
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.isDragging = false;
+                this.lastMouseX = 0;
+                this.lastMouseY = 0;
+                this.bunkerX = 0;
+                this.bunkerY = 0;
+                this.clickCoords = null;
+                this.clickTimeout = null;
+                
+                // Инициализируем случайную позицию бункера
+                this.initializeBunkerPosition();
+                
+                console.log('[GameMap] Карта инициализирована, бункер в позиции:', this.bunkerX, this.bunkerY);
+            }
+            
+            initializeBunkerPosition() {
+                // Случайная позиция бункера на карте
+                this.bunkerX = Math.random() * (this.mapSize - 20) + 10;
+                this.bunkerY = Math.random() * (this.mapSize - 20) + 10;
+            }
+            
+            getMapHTML() {
+                return `
+                    <div class="map-container" id="map-container">
+                        <div class="map-canvas" id="map-canvas">
+                            <div class="map-grid" id="map-grid"></div>
+                            <div class="map-bunker" id="map-bunker" style="left: ${this.bunkerX}px; top: ${this.bunkerY}px;" title="Ваш бункер"></div>
+                        </div>
+                        <!-- Элементы управления поверх карты -->
+                        <div class="map-coordinates" id="map-coordinates">X: 0, Y: 0</div>
+                        <div class="map-zoom-controls">
+                            <button class="map-zoom-btn" id="map-zoom-in">+</button>
+                            <button class="map-zoom-btn" id="map-zoom-out">-</button>
+                            <button class="map-zoom-btn" id="map-reset">⌂</button>
+                        </div>
+                        <div class="map-info">Карта 300x300 | Зум: ${Math.round(this.zoom * 100)}%</div>
+                        <div class="map-click-coords" id="map-click-coords" style="display: none;"></div>
+                    </div>
+                `;
+            }
+            
+            initializeMap() {
+                const container = document.getElementById('map-container');
+                const canvas = document.getElementById('map-canvas');
+                const grid = document.getElementById('map-grid');
+                const coordinates = document.getElementById('map-coordinates');
+                const clickCoords = document.getElementById('map-click-coords');
+                
+                if (!container || !canvas || !grid) {
+                    console.warn('[GameMap] Элементы карты не найдены');
+                    return;
+                }
+                
+                // Создаем сетку координат
+                this.createGrid(grid);
+                
+                // Обработчики событий
+                this.setupEventListeners(container, canvas, coordinates, clickCoords);
+                
+                console.log('[GameMap] Карта инициализирована');
+            }
+            
+            createGrid(gridElement) {
+                // Очищаем существующую сетку
+                gridElement.innerHTML = '';
+                
+                // Создаем вертикальные линии каждые 50 пикселей
+                for (let x = 0; x <= this.mapSize; x += 50) {
+                    const line = document.createElement('div');
+                    line.className = 'map-grid-line vertical';
+                    line.style.left = x + 'px';
+                    gridElement.appendChild(line);
+                }
+                
+                // Создаем горизонтальные линии каждые 50 пикселей
+                for (let y = 0; y <= this.mapSize; y += 50) {
+                    const line = document.createElement('div');
+                    line.className = 'map-grid-line horizontal';
+                    line.style.top = y + 'px';
+                    gridElement.appendChild(line);
+                }
+            }
+            
+            setupEventListeners(container, canvas, coordinates, clickCoords) {
+                // Обработчик движения мыши для обновления координат
+                container.addEventListener('mousemove', (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = Math.round((e.clientX - rect.left) / this.zoom - this.panX);
+                    const y = Math.round((e.clientY - rect.top) / this.zoom - this.panY);
+                    
+                    if (x >= 0 && x <= this.mapSize && y >= 0 && y <= this.mapSize) {
+                        coordinates.textContent = `X: ${x}, Y: ${y}`;
+                    }
+                });
+                
+                // Обработчик клика для отображения координат
+                container.addEventListener('click', (e) => {
+                    // Проверяем, что клик не по элементам управления
+                    if (e.target.closest('.map-zoom-controls') || 
+                        e.target.closest('.map-coordinates') || 
+                        e.target.closest('.map-info')) {
+                        return;
+                    }
+                    
+                    const rect = canvas.getBoundingClientRect();
+                    const x = Math.round((e.clientX - rect.left) / this.zoom - this.panX);
+                    const y = Math.round((e.clientY - rect.top) / this.zoom - this.panY);
+                    
+                    if (x >= 0 && x <= this.mapSize && y >= 0 && y <= this.mapSize) {
+                        this.showClickCoordinates(clickCoords, x, y, e.clientX, e.clientY);
+                    }
+                });
+                
+                // Обработчики перетаскивания
+                canvas.addEventListener('mousedown', (e) => {
+                    // Проверяем, что клик не по бункеру
+                    if (e.target.closest('.map-bunker')) {
+                        return;
+                    }
+                    
+                    this.isDragging = true;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                    canvas.style.cursor = 'grabbing';
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isDragging) {
+                        const deltaX = e.clientX - this.lastMouseX;
+                        const deltaY = e.clientY - this.lastMouseY;
+                        
+                        this.panX += deltaX;
+                        this.panY += deltaY;
+                        
+                        this.updateTransform(canvas);
+                        
+                        this.lastMouseX = e.clientX;
+                        this.lastMouseY = e.clientY;
+                    }
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    this.isDragging = false;
+                    canvas.style.cursor = 'grab';
+                });
+                
+                // Обработчики зума
+                document.getElementById('map-zoom-in').addEventListener('click', () => {
+                    this.zoom = Math.min(this.zoom * 1.2, 3);
+                    this.updateTransform(canvas);
+                });
+                
+                document.getElementById('map-zoom-out').addEventListener('click', () => {
+                    this.zoom = Math.max(this.zoom / 1.2, 0.5);
+                    this.updateTransform(canvas);
+                });
+                
+                document.getElementById('map-reset').addEventListener('click', () => {
+                    this.zoom = 1;
+                    this.panX = 0;
+                    this.panY = 0;
+                    this.updateTransform(canvas);
+                });
+                
+                // Обработчик колесика мыши для зума
+                canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                    this.zoom = Math.max(0.5, Math.min(3, this.zoom * delta));
+                    this.updateTransform(canvas);
+                });
+            }
+            
+            updateTransform(canvas) {
+                canvas.style.transform = `scale(${this.zoom}) translate(${this.panX}px, ${this.panY}px)`;
+                
+                // Обновляем информацию о зуме
+                const mapInfo = document.querySelector('.map-info');
+                if (mapInfo) {
+                    mapInfo.textContent = `Карта 300x300 | Зум: ${Math.round(this.zoom * 100)}%`;
+                }
+            }
+            
+            showClickCoordinates(clickCoords, x, y, clientX, clientY) {
+                // Очищаем предыдущий таймаут
+                if (this.clickTimeout) {
+                    clearTimeout(this.clickTimeout);
+                }
+                
+                // Показываем координаты
+                clickCoords.textContent = `Клик: X:${x}, Y:${y}`;
+                clickCoords.style.left = (clientX - 50) + 'px';
+                clickCoords.style.top = (clientY - 30) + 'px';
+                clickCoords.style.display = 'block';
+                
+                // Скрываем через 2 секунды
+                this.clickTimeout = setTimeout(() => {
+                    clickCoords.style.display = 'none';
+                }, 2000);
+                
+                console.log(`[GameMap] Клик по координатам: X:${x}, Y:${y}`);
+            }
+        }
+
+        function testMap() {
+            log('=== СОЗДАНИЕ ТЕСТОВОЙ КАРТЫ ===');
+            
+            const testDiv = document.getElementById('map-test');
+            testDiv.innerHTML = '';
+            
+            // Создаем карту
+            gameMap = new GameMap();
+            testDiv.innerHTML = gameMap.getMapHTML();
+            
+            // Инициализируем карту
+            setTimeout(() => {
+                gameMap.initializeMap();
+                log('✅ Карта создана и инициализирована');
+                log(`📍 Бункер в позиции: X:${Math.round(gameMap.bunkerX)}, Y:${Math.round(gameMap.bunkerY)}`);
+            }, 100);
+        }
+
+        function testMapInteractions() {
+            log('=== ТЕСТИРОВАНИЕ ВЗАИМОДЕЙСТВИЙ ===');
+            
+            if (!gameMap) {
+                log('❌ Карта не создана. Сначала создайте карту.');
+                return;
+            }
+            
+            log('✅ Тестирование взаимодействий:');
+            log('  - Перетаскивание: зажмите левую кнопку мыши на карте и двигайте');
+            log('  - Зум: используйте кнопки +/- или колесико мыши');
+            log('  - Сброс: нажмите кнопку ⌂ для сброса зума и позиции');
+            log('  - Координаты: наведите мышь на карту для отображения координат');
+            log('  - Клик: кликните по карте для отображения координат клика');
+            log('  - Элементы управления должны оставаться зафиксированными поверх карты');
+        }
+
+        // Автоматически создаем карту при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест исправленной карты запущен');
+            testMap();
+        });
+    </script>
+</body>
+</html>

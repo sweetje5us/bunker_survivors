@@ -3053,8 +3053,7 @@
         }
 
         /* Свернутое состояние блока */
-        .info-source-panel.collapsed .info-content,
-        .info-source-panel.collapsed .quests-content {
+        .info-source-panel.collapsed .info-content {
             max-height: 0;
             padding-top: 0;
             padding-bottom: 0;
@@ -3296,12 +3295,6 @@
             }
         }
 
-        /* Блок заданий */
-        .quests-content {
-            padding: 12px 16px;
-            background: rgba(0, 0, 0, 0.8);
-            border-top: 1px solid var(--bunker-border);
-        }
 
         .quests-header {
             color: var(--bunker-gold);
@@ -3562,12 +3555,208 @@
             color: #ff6b6b;
         }
 
+        /* Стили для карты */
+        .map-container {
+            width: 300px;
+            height: 300px;
+            background: #0a0a0a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+            user-select: none;
+            margin: 0 auto;
+        }
+
+        .map-container:active {
+            cursor: grabbing;
+        }
+
+        .map-canvas {
+            width: 300px;
+            height: 300px;
+            position: relative;
+            transform-origin: 0 0;
+            transition: transform 0.1s ease-out;
+        }
+
+        .map-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 300px;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        .map-grid-line {
+            position: absolute;
+            background: #444;
+        }
+
+        .map-grid-line.vertical {
+            width: 1px;
+            height: 300px;
+        }
+
+        .map-grid-line.horizontal {
+            height: 1px;
+            width: 300px;
+        }
+
+        .map-coordinates {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .map-bunker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #4CAF50;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
+            100% { box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+        }
+
+        .map-zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10;
+        }
+
+        .map-zoom-btn {
+            width: 30px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .map-zoom-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .map-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .map-click-coords {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #4CAF50;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 30;
+            border: 1px solid #4CAF50;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+        }
+
+        /* Контейнер для всех блоков - правый нижний угол */
+        .panels-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            max-width: 90vw;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px; /* space-y-3 эквивалент */
+        }
+
+        /* Стили для новых блоков */
+        .quests-panel {
+            position: static;
+            margin: 0;
+        }
+
+        .map-panel {
+            position: static;
+            margin: 0;
+        }
+
+        /* Стили для основного блока источника */
+        .info-source-panel {
+            position: static;
+            margin: 0;
+            z-index: auto;
+        }
+
+        /* Анимация появления/скрытия блоков */
+        .map-panel, .quests-panel {
+            transition: all 0.3s ease;
+        }
+
+        /* Стили для сворачивания блоков - скрываем контент */
+        .info-source-panel.collapsed .info-content,
+        .map-panel.collapsed .info-content,
+        .quests-panel.collapsed .quests-content {
+            display: none;
+        }
+
+        /* Блоки остаются на своих местах, контент раздвигает их естественным образом */
+
+
         /* Адаптивность */
         @media (max-width: 768px) {
             .info-source-panel {
                 width: 300px;
                 right: 10px;
                 bottom: 10px;
+            }
+            
+            .quests-panel {
+                right: 10px;
+                bottom: 10px;
+            }
+            
+            .map-panel {
+                right: 10px;
+                bottom: 70px; /* Размещаем выше блока заданий на мобильных */
             }
         }
 
@@ -4252,7 +4441,11 @@
 
                 // Добавляем обработчики для специальных элементов
                 if (questItem.id === 'map') {
-                    setTimeout(() => setupMapDragging(), 100);
+                    setTimeout(() => {
+                        if (window.gameMap) {
+                            window.gameMap.initializeMap();
+                        }
+                    }, 100);
                 }
 
                 // Обновляем отображение заданий
@@ -4312,107 +4505,124 @@
             `;
         }
 
-        // Функция для отображения единой ленты сообщений и заданий фракции
+        // Функция для создания тестового задания
+        function createTestQuest(factionId, itemId) {
+            const quests = {
+                'hq': {
+                    id: 'hq_quest_1',
+                    title: 'Защита бункера',
+                    description: 'Укрепите оборону бункера, установив дополнительные ловушки',
+                    target: 5,
+                    reward: { reputation: 50, resources: { food: 10 } },
+                    grade: 'common'
+                },
+                'rebels': {
+                    id: 'rebels_quest_1',
+                    title: 'Разведка территории',
+                    description: 'Исследуйте окрестности и найдите безопасные маршруты',
+                    target: 3,
+                    reward: { reputation: 75, resources: { water: 15 } },
+                    grade: 'uncommon'
+                },
+                'mystery': {
+                    id: 'mystery_quest_1',
+                    title: 'Исследование аномалии',
+                    description: 'Изучите странные сигналы, поступающие из подземелья',
+                    target: 4,
+                    reward: { reputation: 100, resources: { energy: 20 } },
+                    grade: 'rare'
+                },
+                'free': {
+                    id: 'free_quest_1',
+                    title: 'Помощь выжившим',
+                    description: 'Найдите и спасите заблудившихся выживших',
+                    target: 2,
+                    reward: { reputation: 60, resources: { medicine: 5 } },
+                    grade: 'common'
+                },
+                'marauders': {
+                    id: 'marauders_quest_1',
+                    title: 'Захват ресурсов',
+                    description: 'Захватите ценные ресурсы у конкурентов',
+                    target: 6,
+                    reward: { reputation: 80, resources: { ammo: 25 } },
+                    grade: 'uncommon'
+                }
+            };
+            
+            return quests[factionId] || null;
+        }
+
+        // Функция для отображения сообщений и заданий фракции (единая лента)
         function getFactionUnifiedContent(factionId, itemId) {
             const factionData = getFactionDataByFactionId(factionId);
             console.log('[getFactionUnifiedContent] Создаем единую ленту для фракции', factionId);
+            console.log('[getFactionUnifiedContent] sourceQuests:', window.sourceQuests);
+            console.log('[getFactionUnifiedContent] activeQuests:', window.sourceQuests?.activeQuests);
 
             // Получаем сообщения фракции
             const factionMessages = window.sourceQuests.messageHistory[factionId] || [];
             const factionMessageEntries = factionMessages.filter(msg => msg.type === 'faction_message');
+            console.log('[getFactionUnifiedContent] Сообщения фракции', factionId + ':', factionMessageEntries.length);
 
-            // Получаем задания фракции
-            const acceptedQuest = factionId ? window.sourceQuests.activeQuests[factionId] : null;
-            
-            // Получаем все непринятые задания
+            // Получаем принятые задания для фракции
+            const acceptedQuest = window.sourceQuests.activeQuests[factionId];
+            console.log('[getFactionUnifiedContent] Принятые задания для фракции', factionId + ':', acceptedQuest ? 1 : 0);
+
+            // Получаем непринятые задания
             const allPendingQuests = Object.entries(window.sourceQuests.activeQuests || {})
                 .filter(([fid, quest]) => quest && quest.accepted === false)
                 .map(([fid, quest]) => ({ factionId: fid, ...quest }));
+            console.log('[getFactionUnifiedContent] Непринятые задания:', allPendingQuests.length);
 
-            // Создаем единый массив элементов для отображения
-            const unifiedItems = [];
+            // Собираем все элементы для отображения в хронологическом порядке
+            let elements = [];
 
-            // Добавляем сообщения фракции
+            // Создаем массив всех элементов с временными метками
+            let allElements = [];
+
+            // 1. Добавляем принятое задание (если есть)
+            if (acceptedQuest && acceptedQuest.accepted) {
+                console.log('[getFactionUnifiedContent] Добавляем принятое задание:', acceptedQuest);
+                allElements.push({
+                    type: 'accepted_quest',
+                    content: getActiveQuestContent(itemId, acceptedQuest),
+                    timestamp: acceptedQuest.acceptedAt || new Date()
+                });
+            }
+
+            // 2. Добавляем непринятые задания
+            allPendingQuests.forEach(pendingQuest => {
+                console.log('[getFactionUnifiedContent] Добавляем непринятое задание:', pendingQuest);
+                const questFactionData = getFactionDataByFactionId(pendingQuest.factionId);
+                allElements.push({
+                    type: 'pending_quest',
+                    content: getPendingQuestContent(itemId, pendingQuest, questFactionData),
+                    timestamp: pendingQuest.timestamp ? new Date(pendingQuest.timestamp) : new Date()
+                });
+            });
+
+            // 3. Добавляем сообщения фракции
             factionMessageEntries.forEach(messageEntry => {
-                unifiedItems.push({
-                    type: 'message',
-                    data: messageEntry,
+                console.log('[getFactionUnifiedContent] Добавляем сообщение фракции:', messageEntry);
+                allElements.push({
+                    type: 'faction_message',
+                    content: getFactionMessageContent(factionId, messageEntry),
                     timestamp: new Date(messageEntry.timestamp)
                 });
             });
 
-            // Добавляем принятое задание
-            if (acceptedQuest && acceptedQuest.accepted) {
-                console.log('[getFactionUnifiedContent] Найдено принятое задание:', acceptedQuest);
-                unifiedItems.push({
-                    type: 'quest',
-                    data: acceptedQuest,
-                    timestamp: new Date(acceptedQuest.timestamp || Date.now())
-                });
-            } else {
-                console.log('[getFactionUnifiedContent] Нет принятых заданий для фракции', factionId);
-            }
-
-            // Добавляем непринятые задания (если нет принятых заданий)
-            if (!acceptedQuest || !acceptedQuest.accepted) {
-                if (allPendingQuests.length > 0) {
-                    console.log('[getFactionUnifiedContent] Найдены непринятые задания:', allPendingQuests.length);
-                    // Берем первое непринятое задание
-                    const pendingQuest = allPendingQuests[0];
-                    unifiedItems.push({
-                        type: 'pending_quest',
-                        data: pendingQuest,
-                        timestamp: new Date(pendingQuest.timestamp || Date.now())
-                    });
-                } else {
-                    console.log('[getFactionUnifiedContent] Нет непринятых заданий, генерируем первое задание');
-                    // Генерируем первое задание для фракции
-                    if (window.sourceQuests && window.sourceQuests.getRandomQuest) {
-                        try {
-                            const quest = window.sourceQuests.getRandomQuest(itemId);
-                            if (quest) {
-                                // Сохраняем задание в activeQuests
-                                const questData = {
-                                    ...quest,
-                                    factionId: factionId,
-                                    progress: 0,
-                                    accepted: false,
-                                    acceptedAt: new Date(),
-                                    timestamp: new Date().toISOString()
-                                };
-                                window.sourceQuests.activeQuests[factionId] = questData;
-                                console.log('[getFactionUnifiedContent] Сгенерировано первое задание:', questData);
-                                
-                                // Показываем уведомление о новом задании
-                                showQuestNotification(itemId, quest);
-                                
-                                // Добавляем в unifiedItems
-                                unifiedItems.push({
-                                    type: 'pending_quest',
-                                    data: questData,
-                                    timestamp: new Date(questData.timestamp)
-                                });
-                            }
-                        } catch (error) {
-                            console.warn('[getFactionUnifiedContent] Ошибка при генерации задания:', error);
-                        }
-                    }
-                }
-            }
-
-            // Сортируем по времени (новые сверху)
-            unifiedItems.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            // Ограничиваем количество отображаемых элементов (последние 10)
-            const displayItems = unifiedItems.slice(0, 10);
+            // Сортируем все элементы по времени (старые сверху)
+            allElements.sort((a, b) => a.timestamp - b.timestamp);
             
-            console.log('[getFactionUnifiedContent] Всего элементов:', unifiedItems.length);
-            console.log('[getFactionUnifiedContent] Элементы для отображения:', displayItems.length);
-            displayItems.forEach((item, index) => {
-                console.log(`[getFactionUnifiedContent] Элемент ${index + 1}:`, item.type, item.data);
-            });
+            // Извлекаем контент в правильном порядке
+            elements = allElements.map(element => element.content);
 
-            if (displayItems.length === 0) {
+            console.log('[getFactionUnifiedContent] Всего элементов:', elements.length);
+
+            // Если нет элементов, показываем сообщение об ожидании
+            if (elements.length === 0) {
+                console.log('[getFactionUnifiedContent] Нет элементов, показываем сообщение об ожидании');
                 return `
                     <div class="message-content">
                         <div class="message-text">
@@ -4422,41 +4632,20 @@
                 `;
             }
 
-            // Генерируем HTML для всех элементов
-            let content = '';
-            displayItems.forEach((item, index) => {
-                if (item.type === 'message') {
-                    content += getFactionMessageContent(factionId, item.data);
-                } else if (item.type === 'quest') {
-                    // Адаптируем данные задания для getActiveQuestContent
-                    const questData = {
-                        ...item.data,
-                        faction: factionId,
-                        acceptedAt: item.data.timestamp || item.data.acceptedAt || new Date().toISOString(),
-                        progress: item.data.progress || 0,
-                        target: item.data.target || 1,
-                        grade: item.data.grade || 'common',
-                        reward: item.data.reward || { type: 'resource', value: 'unknown' }
-                    };
-                    content += getActiveQuestContent(itemId, questData);
-                } else if (item.type === 'pending_quest') {
-                    // Обрабатываем непринятые задания
-                    const questFactionData = getFactionDataByFactionId(item.data.factionId);
-                    content += getPendingQuestContent(itemId, item.data, questFactionData);
-                }
-                
-                // Добавляем разделитель между элементами (кроме последнего)
-                if (index < displayItems.length - 1) {
-                    content += '<div class="message-separator" style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>';
-                }
-            });
-
-            return content;
+            // Отображаем все элементы
+            console.log('[getFactionUnifiedContent] Возвращаем элементы:', elements);
+            return elements.join('');
         }
 
         // Получить контент для типа источника
         function getSourceContent(itemId) {
             console.log('[getSourceContent] Начало для itemId:', itemId);
+
+            // Специальная обработка для карты
+            if (itemId === 'map') {
+                console.log('[getSourceContent] Обрабатываем карту');
+                return getMapContent();
+            }
 
             // Получить фракцию и проверить есть ли активное задание
             const factionData = getFactionData(itemId);
@@ -4468,6 +4657,12 @@
                 const factionMessages = window.sourceQuests.messageHistory[factionId] || [];
                 console.log('[getSourceContent] Сообщения фракции', factionId + ':', factionMessages.length);
 
+                // Если нет сообщений и заданий, генерируем первое сообщение
+                if (factionMessages.length === 0 && !window.sourceQuests.activeQuests[factionId]) {
+                    console.log('[getSourceContent] Нет сообщений и заданий, генерируем первое сообщение');
+                    return getInitialMessageContent(itemId, factionData);
+                }
+
                 // Используем единую ленту сообщений и заданий
                 return getFactionUnifiedContent(factionId, itemId);
             }
@@ -4475,33 +4670,50 @@
             // Если нет сообщений, но есть фракция - генерируем первое задание
             if (factionId && window.sourceQuests && !window.sourceQuests.activeQuests[factionId]) {
                 console.log('[getSourceContent] Генерируем первое задание для фракции', factionId);
+                console.log('[getSourceContent] sourceQuests.getRandomQuest существует:', !!window.sourceQuests.getRandomQuest);
+                
                 // Генерируем задание напрямую
+                let quest = null;
                 if (window.sourceQuests.getRandomQuest) {
                     try {
-                        const quest = window.sourceQuests.getRandomQuest(itemId);
-                        if (quest) {
-                            const questData = {
-                                ...quest,
-                                factionId: factionId,
-                                progress: 0,
-                                accepted: false,
-                                acceptedAt: new Date(),
-                                timestamp: new Date().toISOString()
-                            };
-                            window.sourceQuests.activeQuests[factionId] = questData;
-                            console.log('[getSourceContent] Задание сгенерировано и сохранено:', questData);
-                            
-                            // Показываем уведомление о новом задании
-                            showQuestNotification(itemId, quest);
-                            
-                            // Обновляем UI
-                            if (typeof window.updateQuestsDisplay === 'function') {
-                                window.updateQuestsDisplay(itemId);
-                            }
-                        }
+                        quest = window.sourceQuests.getRandomQuest(itemId);
+                        console.log('[getSourceContent] getRandomQuest вернул:', quest);
                     } catch (error) {
                         console.warn('[getSourceContent] Ошибка при генерации задания:', error);
                     }
+                }
+                
+                // Fallback - создаем тестовое задание если система заданий не работает
+                if (!quest) {
+                    console.log('[getSourceContent] Используем fallback - создаем тестовое задание');
+                    quest = createTestQuest(factionId, itemId);
+                    console.log('[getSourceContent] Тестовое задание создано:', quest);
+                }
+                
+                if (quest) {
+                    const questData = {
+                        ...quest,
+                        factionId: factionId,
+                        progress: 0,
+                        accepted: false,
+                        acceptedAt: new Date(),
+                        timestamp: new Date().toISOString()
+                    };
+                    window.sourceQuests.activeQuests[factionId] = questData;
+                    console.log('[getSourceContent] Задание сгенерировано и сохранено:', questData);
+                    console.log('[getSourceContent] activeQuests после сохранения:', window.sourceQuests.activeQuests);
+                    
+                    // Показываем уведомление о новом задании
+                    if (typeof showQuestNotification === 'function') {
+                        showQuestNotification(itemId, quest);
+                    }
+                    
+                    // Обновляем UI
+                    if (typeof window.updateQuestsDisplay === 'function') {
+                        window.updateQuestsDisplay(itemId);
+                    }
+                } else {
+                    console.warn('[getSourceContent] Не удалось создать задание для фракции', factionId);
                 }
                 return getInitialMessageContent(itemId);
             }
@@ -4538,6 +4750,18 @@
                     return getInitialMessageContent(itemId);
                 }
             }
+        }
+
+        // Получить контент карты
+        function getMapContent() {
+            console.log('[getMapContent] Создаем карту');
+            
+            // Инициализируем карту, если еще не инициализирована
+            if (!window.gameMap) {
+                window.gameMap = new GameMap();
+            }
+            
+            return window.gameMap.getMapHTML();
         }
 
         // Получить данные о фракции по sourceType
@@ -4742,7 +4966,20 @@
                 }
 
                 // Если нет сообщений фракции, показываем задание
-                const randomQuest = window.sourceQuests.getRandomQuest(itemId);
+                let randomQuest = null;
+                if (window.sourceQuests.getRandomQuest) {
+                    try {
+                        randomQuest = window.sourceQuests.getRandomQuest(itemId);
+                    } catch (error) {
+                        console.warn('[getInitialMessageContent] Ошибка при получении задания:', error);
+                    }
+                }
+                
+                // Fallback - создаем тестовое задание если система заданий не работает
+                if (!randomQuest) {
+                    randomQuest = createTestQuest(factionId, itemId);
+                }
+                
                 if (!randomQuest) return '<div style="color: #fff;">Нет доступных заданий</div>';
 
                 // Сохраняем задание в activeQuests для фракции
@@ -4762,6 +4999,15 @@
                         quest: randomQuest,
                         factionData: factionData
                     });
+                }
+
+                // Также добавляем приветственное сообщение фракции
+                if (factionId && window.sourceQuests.sendFactionMessage) {
+                    const greetingMessage = {
+                        text: factionData.greeting + " У нас есть задание для вас. Готовы ли вы помочь?",
+                        type: 'greeting'
+                    };
+                    window.sourceQuests.sendFactionMessage(factionId, greetingMessage, itemId);
                 }
 
                 return `
@@ -4900,6 +5146,11 @@
                 // Обновляем отображение заданий
                 updateQuestsDisplay(sourceType);
 
+                // Обновляем отдельный блок заданий
+                if (typeof updateStandaloneQuestsDisplay === 'function') {
+                    updateStandaloneQuestsDisplay();
+                }
+
                 // После принятия задания нужно обновить блок сообщений
                 if (window.showInfoSourcePanel) {
                     const currentItem = window.activeQuestItem;
@@ -4935,6 +5186,11 @@
 
             // Обновляем отображение заданий
             updateQuestsDisplay(sourceType);
+
+            // Обновляем отдельный блок заданий
+            if (typeof updateStandaloneQuestsDisplay === 'function') {
+                updateStandaloneQuestsDisplay();
+            }
 
             // Показать уведомление
             if (window.showToast) {
@@ -5026,26 +5282,169 @@
 
         // Функция для сворачивания/разворачивания блока источника информации
         window.toggleInfoSourcePanel = function() {
+            togglePanel('info-source-panel');
+            
+            // Переинициализируем drag для карты, если это карта
             const panel = document.getElementById('info-source-panel');
-            if (!panel) return;
-
-            const isCollapsed = panel.classList.contains('collapsed');
-
-            if (isCollapsed) {
-                // Разворачиваем блок
-                panel.classList.remove('collapsed');
-                console.log('[toggleInfoSourcePanel] Блок источника развернут');
-
-                // Переинициализируем drag для карты, если это карта
-                if (panel.classList.contains('info-source-map')) {
-                    setTimeout(() => setupMapDragging(), 350); // Ждем окончания анимации
-                }
-            } else {
-                // Сворачиваем блок
-                panel.classList.add('collapsed');
-                console.log('[toggleInfoSourcePanel] Блок источника свернут');
+            if (panel && panel.classList.contains('info-source-map') && !panel.classList.contains('collapsed')) {
+                setTimeout(() => setupMapDragging(), 350);
             }
         };
+
+        // Функция для сворачивания/разворачивания блока карты
+        window.toggleMapPanel = function() {
+            togglePanel('map-panel');
+            
+            // Инициализируем карту при разворачивании
+            const panel = document.getElementById('map-panel');
+            if (panel && !panel.classList.contains('collapsed')) {
+                const mapContent = document.getElementById('map-content');
+                if (mapContent) {
+                    // Всегда загружаем карту при разворачивании
+                    if (!window.gameMap) {
+                        window.gameMap = new GameMap();
+                    }
+                    mapContent.innerHTML = window.gameMap.getMapHTML();
+                    
+                    // Инициализируем карту после загрузки HTML
+                    setTimeout(() => {
+                        if (window.gameMap) {
+                            window.gameMap.initializeMap();
+                        }
+                    }, 100);
+                }
+            }
+        };
+
+        // Функция для сворачивания/разворачивания блока заданий
+        window.toggleQuestsPanel = function() {
+            togglePanel('quests-panel');
+            
+            // Обновляем отображение заданий при разворачивании
+            const panel = document.getElementById('quests-panel');
+            if (panel && !panel.classList.contains('collapsed')) {
+                setTimeout(() => {
+                    updateStandaloneQuestsDisplay();
+                }, 100);
+            }
+        };
+
+        // Функция для показа блока карты
+        window.showMapPanel = function() {
+            const panel = document.getElementById('map-panel');
+            const content = document.getElementById('map-content');
+            
+            if (panel && content) {
+                // Инициализируем карту, если еще не инициализирована
+                if (!window.gameMap) {
+                    window.gameMap = new GameMap();
+                }
+                
+                // Загружаем HTML карты
+                content.innerHTML = window.gameMap.getMapHTML();
+                
+                // Показываем панель
+                panel.style.display = 'block';
+                panel.classList.remove('collapsed');
+                
+                // Инициализируем карту
+                setTimeout(() => {
+                    window.gameMap.initializeMap();
+                }, 100);
+                
+                console.log('[showMapPanel] Блок карты показан');
+            }
+        };
+
+        // Функция для скрытия блока карты
+        window.hideMapPanel = function() {
+            const panel = document.getElementById('map-panel');
+            if (panel) {
+                panel.style.display = 'none';
+                console.log('[hideMapPanel] Блок карты скрыт');
+            }
+        };
+
+        // Функция для показа блока заданий
+        window.showQuestsPanel = function() {
+            const panel = document.getElementById('quests-panel');
+            const content = document.getElementById('standalone-quests-content');
+            
+            if (panel && content) {
+                // Показываем панель
+                panel.style.display = 'block';
+                panel.classList.remove('collapsed');
+                
+                // Обновляем отображение заданий
+                setTimeout(() => {
+                    updateStandaloneQuestsDisplay();
+                }, 100);
+                
+                console.log('[showQuestsPanel] Блок заданий показан');
+            }
+        };
+
+        // Функция для скрытия блока заданий
+        window.hideQuestsPanel = function() {
+            const panel = document.getElementById('quests-panel');
+            if (panel) {
+                panel.style.display = 'none';
+                console.log('[hideQuestsPanel] Блок заданий скрыт');
+            }
+        };
+
+        // Простая функция переключения панели (как в примере)
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            if (!panel) return;
+            
+            panel.classList.toggle('collapsed');
+            console.log(`[togglePanel] Панель ${panelId} переключена`);
+        }
+
+        // Функция для обновления отображения заданий в отдельном блоке
+        function updateStandaloneQuestsDisplay() {
+            const questsList = document.getElementById('standalone-quests-list');
+            if (!questsList) {
+                console.log('[updateStandaloneQuestsDisplay] Элемент standalone-quests-list не найден');
+                return;
+            }
+
+            console.log('[updateStandaloneQuestsDisplay] Обновляем отображение заданий');
+
+            // Получаем все активные задания
+            const activeQuests = window.sourceQuests?.activeQuests || {};
+            const questEntries = Object.entries(activeQuests).filter(([factionId, quest]) => quest && quest.title);
+
+            if (questEntries.length === 0) {
+                questsList.innerHTML = `
+                    <div class="quest-item no-quests">
+                        <span class="quest-text">Нет активных заданий</span>
+                        <span class="quest-status">📭</span>
+                    </div>
+                `;
+                return;
+            }
+
+            // Отображаем все задания
+            questsList.innerHTML = questEntries.map(([factionId, quest]) => {
+                const factionData = getFactionDataByFactionId(factionId);
+                const factionName = factionData ? factionData.name : factionId;
+                
+                return `
+                    <div class="quest-item ${quest.accepted ? 'accepted' : 'pending'}">
+                        <div class="quest-header">
+                            <span class="quest-title">${quest.title}</span>
+                            <span class="quest-faction">${factionName}</span>
+                        </div>
+                        <div class="quest-description">${quest.description}</div>
+                        <div class="quest-status">
+                            ${quest.accepted ? '✅ Принято' : '⏳ Ожидает принятия'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
 
         // Система заданий для источников информации (заглушка до загрузки)
         window.sourceQuests = {
@@ -5099,6 +5498,11 @@
                     if (factionId && this.activeQuests[factionId]) {
                         delete this.activeQuests[factionId];
                         console.log(`[sourceQuests] Задание отклонено: ${sourceType} -> ${factionId}`);
+                        
+                        // Обновляем отдельный блок заданий
+                        if (typeof updateStandaloneQuestsDisplay === 'function') {
+                            updateStandaloneQuestsDisplay();
+                        }
                     }
                 },
 
@@ -5789,6 +6193,9 @@
                     console.log('[Quest System] Available quests:', window.QUEST_DATABASE.length);
                     questSystemLoaded = true;
 
+                    // Загружаем полную базу заданий
+                    loadFullQuestDatabase();
+
                     // Расширяем систему заданий сразу
                     extendQuestSystem();
 
@@ -5806,6 +6213,126 @@
             }
         }
 
+        // Принудительная инициализация системы заданий
+        function forceInitializeQuestSystem() {
+            console.log('[Quest System] Force initializing quest system...');
+            
+            // Создаем базовую систему заданий если она не загружена
+            if (!window.QuestManager) {
+                window.QuestManager = function() {
+                    this.quests = [];
+                    this.gameSeed = Date.now();
+                };
+                
+                window.QuestManager.prototype = {
+                    seededRandom: function(min, max) {
+                        const x = Math.sin(this.gameSeed++) * 10000;
+                        return Math.floor((x - Math.floor(x)) * (max - min + 1)) + min;
+                    },
+                    getRandomQuest: function(factionId) {
+                        const factionQuests = this.quests.filter(q => q.faction === factionId);
+                        if (factionQuests.length === 0) return null;
+                        const randomIndex = this.seededRandom(0, factionQuests.length - 1);
+                        return factionQuests[randomIndex];
+                    },
+                    getQuestById: function(id) {
+                        return this.quests.find(q => q.id === id);
+                    }
+                };
+            }
+            
+            if (!window.questManager) {
+                window.questManager = new window.QuestManager();
+            }
+            
+            if (!window.QUEST_DATABASE) {
+                window.QUEST_DATABASE = [];
+            }
+            
+            if (!window.QuestUtils) {
+                window.QuestUtils = {
+                    getGradeColor: function(grade) {
+                        const colors = {
+                            common: '#8B8B8B',
+                            uncommon: '#4CAF50',
+                            rare: '#2196F3',
+                            epic: '#9C27B0',
+                            legendary: '#FF9800'
+                        };
+                        return colors[grade] || '#8B8B8B';
+                    },
+                    getGradeLabel: function(grade) {
+                        const labels = {
+                            common: 'Обычное',
+                            uncommon: 'Необычное',
+                            rare: 'Редкое',
+                            epic: 'Эпическое',
+                            legendary: 'Легендарное'
+                        };
+                        return labels[grade] || 'Обычное';
+                    }
+                };
+            }
+            
+            questSystemLoaded = true;
+            console.log('[Quest System] Force initialization completed');
+            
+            // Загружаем полную базу заданий
+            loadFullQuestDatabase();
+            
+            // Расширяем систему заданий
+            extendQuestSystem();
+        }
+
+
+        // Загрузка полной базы заданий из quests.ts
+        function loadFullQuestDatabase() {
+            console.log('[Quest System] Loading full quest database...');
+            
+            // Создаем полную базу заданий на основе quests.ts
+            const FULL_QUEST_DATABASE = createFullQuestDatabase();
+            
+            // Расширяем существующую базу
+            if (window.QUEST_DATABASE) {
+                window.QUEST_DATABASE = FULL_QUEST_DATABASE;
+                console.log('[Quest System] Full quest database loaded:', FULL_QUEST_DATABASE.length, 'quests');
+            }
+            
+            // Обновляем questManager
+            if (window.questManager) {
+                window.questManager.quests = FULL_QUEST_DATABASE;
+                console.log('[Quest System] QuestManager updated with full database');
+            }
+        }
+
+        // Создание полной базы заданий (500 заданий по 100 на фракцию)
+        function createFullQuestDatabase() {
+            const quests = [];
+            
+            // Базовые задания для каждой фракции
+            const factionQuests = {
+                hq: createHQQuests(),
+                rebels: createRebelsQuests(),
+                marauders: createMaraudersQuests(),
+                free: createFreeQuests(),
+                mystery: createMysteryQuests()
+            };
+            
+            // Добавляем базовые задания
+            Object.values(factionQuests).forEach(factionQuestList => {
+                quests.push(...factionQuestList);
+            });
+            
+            // Генерируем дополнительные задания для достижения 100 на фракцию
+            Object.entries(factionQuests).forEach(([factionId, baseQuests]) => {
+                const additionalQuests = generateAdditionalQuestsForFaction(factionId, baseQuests, 100 - baseQuests.length);
+                quests.push(...additionalQuests);
+            });
+            
+            console.log('[Quest System] Generated', quests.length, 'total quests');
+            return quests;
+        }
+
         // Расширяем систему заданий
         function extendQuestSystem() {
             console.log('[Quest System] Extending quest system...');
@@ -5813,8 +6340,12 @@
             // Расширяем систему заданий
             window.sourceQuests.getRandomQuest = function(factionType) {
                 if (!questSystemLoaded || !window.questManager) {
-                    console.warn('[sourceQuests] Quest system not loaded');
-                    return null;
+                    console.warn('[sourceQuests] Quest system not loaded, trying force initialization...');
+                    forceInitializeQuestSystem();
+                    if (!questSystemLoaded) {
+                        console.error('[sourceQuests] Failed to initialize quest system');
+                        return null;
+                    }
                 }
 
                 const factionMap = {
@@ -5837,8 +6368,12 @@
             // Переопределяем acceptQuest для использования реальной системы
             window.sourceQuests.acceptQuest = function(sourceType, questId) {
                 if (!questSystemLoaded) {
-                    console.warn('[sourceQuests] Quest system not loaded');
-                    return false;
+                    console.warn('[sourceQuests] Quest system not loaded, trying force initialization...');
+                    forceInitializeQuestSystem();
+                    if (!questSystemLoaded) {
+                        console.error('[sourceQuests] Failed to initialize quest system');
+                        return false;
+                    }
                 }
 
                 console.log('[sourceQuests] Accepting quest:', questId);
@@ -5902,6 +6437,11 @@
 
                 console.log(`[sourceQuests] Задание принято: ${quest.title}`);
 
+                // Обновляем отдельный блок заданий
+                if (typeof updateStandaloneQuestsDisplay === 'function') {
+                    updateStandaloneQuestsDisplay();
+                }
+
                 // Удаляем из списка обрабатываемых при успешном завершении
                 window.sourceQuests._processingQuests.delete(processingKey);
 
@@ -5913,7 +6453,13 @@
         }
 
         // Начинаем инициализацию системы заданий
-        setTimeout(initializeQuestSystem, 100);
+        setTimeout(() => {
+            if (!initializeQuestSystem()) {
+                // Если обычная инициализация не сработала, принудительно инициализируем
+                console.log('[Quest System] Fallback to force initialization');
+                forceInitializeQuestSystem();
+            }
+        }, 100);
 
         // Функция для обновления блока заданий
         window.updateQuestsDisplay = function(sourceType) {
@@ -6061,6 +6607,10 @@
                     </div>
                 `;
             }
+            
+            // Обновляем отдельный блок заданий
+            updateStandaloneQuestsDisplay();
+            
             console.log(`[updateQuestsDisplay] ===== КОНЕЦ ОБНОВЛЕНИЯ ЗАДАНИЙ ДЛЯ ${sourceType} =====`);
         };
 
@@ -6332,7 +6882,30 @@
                         }
                         
                         const gradeLabel = window.QuestUtils ? window.QuestUtils.getGradeLabel(quest.grade) : 'Обычное';
-                        return `Новое задание от фракции!\n\n${quest.title}\n${quest.description}\n\nНаграда: ${gradeLabel} (${quest.reward ? quest.reward.value : 'Неизвестно'})`;
+                        
+                        // Форматируем награду правильно
+                        let rewardText = 'Неизвестная награда';
+                        if (quest.reward) {
+                            const reward = quest.reward;
+                            switch (reward.type) {
+                                case 'experience':
+                                    rewardText = `Опыт: +${reward.value}`;
+                                    break;
+                                case 'reputation':
+                                    rewardText = `Репутация: +${reward.value}`;
+                                    break;
+                                case 'item':
+                                    rewardText = `Предмет: ${reward.value}`;
+                                    break;
+                                case 'resource':
+                                    rewardText = `Ресурс: ${reward.value}`;
+                                    break;
+                                default:
+                                    rewardText = `Награда: ${reward.value}`;
+                            }
+                        }
+                        
+                        return `Новое задание от фракции!\n\n${quest.title}\n${quest.description}\n\nНаграда: ${gradeLabel} (${rewardText})`;
                     }
                 } catch (error) {
                     console.warn('[getInitialMessageContent] Error getting quest:', error);
@@ -6347,6 +6920,216 @@
             // Последний fallback
             return 'Привет! У меня есть задание для тебя.';
         };
+
+        // ===== КЛАСС КАРТЫ =====
+        class GameMap {
+            constructor() {
+                this.mapSize = 300; // Размер карты 300x300
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.isDragging = false;
+                this.lastMouseX = 0;
+                this.lastMouseY = 0;
+                this.bunkerX = 0;
+                this.bunkerY = 0;
+                this.clickCoords = null;
+                this.clickTimeout = null;
+                
+                // Инициализируем случайную позицию бункера
+                this.initializeBunkerPosition();
+                
+                console.log('[GameMap] Карта инициализирована, бункер в позиции:', this.bunkerX, this.bunkerY);
+            }
+            
+            initializeBunkerPosition() {
+                // Случайная позиция бункера на карте
+                this.bunkerX = Math.random() * (this.mapSize - 20) + 10;
+                this.bunkerY = Math.random() * (this.mapSize - 20) + 10;
+            }
+            
+            getMapHTML() {
+                return `
+                    <div class="map-container" id="map-container">
+                        <div class="map-canvas" id="map-canvas">
+                            <div class="map-grid" id="map-grid"></div>
+                            <div class="map-bunker" id="map-bunker" style="left: ${this.bunkerX}px; top: ${this.bunkerY}px;" title="Ваш бункер"></div>
+                        </div>
+                        <!-- Элементы управления поверх карты -->
+                        <div class="map-coordinates" id="map-coordinates">X: 0, Y: 0</div>
+                        <div class="map-zoom-controls">
+                            <button class="map-zoom-btn" id="map-zoom-in">+</button>
+                            <button class="map-zoom-btn" id="map-zoom-out">-</button>
+                            <button class="map-zoom-btn" id="map-reset">⌂</button>
+                        </div>
+                        <div class="map-info">Карта 300x300 | Зум: ${Math.round(this.zoom * 100)}%</div>
+                        <div class="map-click-coords" id="map-click-coords" style="display: none;"></div>
+                    </div>
+                `;
+            }
+            
+            initializeMap() {
+                const container = document.getElementById('map-container');
+                const canvas = document.getElementById('map-canvas');
+                const grid = document.getElementById('map-grid');
+                const coordinates = document.getElementById('map-coordinates');
+                const clickCoords = document.getElementById('map-click-coords');
+                
+                if (!container || !canvas || !grid) {
+                    console.warn('[GameMap] Элементы карты не найдены');
+                    return;
+                }
+                
+                // Создаем сетку координат
+                this.createGrid(grid);
+                
+                // Обработчики событий
+                this.setupEventListeners(container, canvas, coordinates, clickCoords);
+                
+                console.log('[GameMap] Карта инициализирована');
+            }
+            
+            createGrid(gridElement) {
+                // Очищаем существующую сетку
+                gridElement.innerHTML = '';
+                
+                // Создаем вертикальные линии каждые 50 пикселей
+                for (let x = 0; x <= this.mapSize; x += 50) {
+                    const line = document.createElement('div');
+                    line.className = 'map-grid-line vertical';
+                    line.style.left = x + 'px';
+                    gridElement.appendChild(line);
+                }
+                
+                // Создаем горизонтальные линии каждые 50 пикселей
+                for (let y = 0; y <= this.mapSize; y += 50) {
+                    const line = document.createElement('div');
+                    line.className = 'map-grid-line horizontal';
+                    line.style.top = y + 'px';
+                    gridElement.appendChild(line);
+                }
+            }
+            
+            setupEventListeners(container, canvas, coordinates, clickCoords) {
+                // Обработчик движения мыши для обновления координат
+                container.addEventListener('mousemove', (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = Math.round((e.clientX - rect.left) / this.zoom - this.panX);
+                    const y = Math.round((e.clientY - rect.top) / this.zoom - this.panY);
+                    
+                    if (x >= 0 && x <= this.mapSize && y >= 0 && y <= this.mapSize) {
+                        coordinates.textContent = `X: ${x}, Y: ${y}`;
+                    }
+                });
+                
+                // Обработчик клика для отображения координат
+                container.addEventListener('click', (e) => {
+                    // Проверяем, что клик не по элементам управления
+                    if (e.target.closest('.map-zoom-controls') || 
+                        e.target.closest('.map-coordinates') || 
+                        e.target.closest('.map-info')) {
+                        return;
+                    }
+                    
+                    const rect = canvas.getBoundingClientRect();
+                    const x = Math.round((e.clientX - rect.left) / this.zoom - this.panX);
+                    const y = Math.round((e.clientY - rect.top) / this.zoom - this.panY);
+                    
+                    if (x >= 0 && x <= this.mapSize && y >= 0 && y <= this.mapSize) {
+                        this.showClickCoordinates(clickCoords, x, y, e.clientX, e.clientY);
+                    }
+                });
+                
+                // Обработчики перетаскивания
+                canvas.addEventListener('mousedown', (e) => {
+                    // Проверяем, что клик не по бункеру
+                    if (e.target.closest('.map-bunker')) {
+                        return;
+                    }
+                    
+                    this.isDragging = true;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                    canvas.style.cursor = 'grabbing';
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isDragging) {
+                        const deltaX = e.clientX - this.lastMouseX;
+                        const deltaY = e.clientY - this.lastMouseY;
+                        
+                        this.panX += deltaX;
+                        this.panY += deltaY;
+                        
+                        this.updateTransform(canvas);
+                        
+                        this.lastMouseX = e.clientX;
+                        this.lastMouseY = e.clientY;
+                    }
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    this.isDragging = false;
+                    canvas.style.cursor = 'grab';
+                });
+                
+                // Обработчики зума
+                document.getElementById('map-zoom-in').addEventListener('click', () => {
+                    this.zoom = Math.min(this.zoom * 1.2, 3);
+                    this.updateTransform(canvas);
+                });
+                
+                document.getElementById('map-zoom-out').addEventListener('click', () => {
+                    this.zoom = Math.max(this.zoom / 1.2, 0.5);
+                    this.updateTransform(canvas);
+                });
+                
+                document.getElementById('map-reset').addEventListener('click', () => {
+                    this.zoom = 1;
+                    this.panX = 0;
+                    this.panY = 0;
+                    this.updateTransform(canvas);
+                });
+                
+                // Обработчик колесика мыши для зума
+                canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                    this.zoom = Math.max(0.5, Math.min(3, this.zoom * delta));
+                    this.updateTransform(canvas);
+                });
+            }
+            
+            updateTransform(canvas) {
+                canvas.style.transform = `scale(${this.zoom}) translate(${this.panX}px, ${this.panY}px)`;
+                
+                // Обновляем информацию о зуме
+                const mapInfo = document.querySelector('.map-info');
+                if (mapInfo) {
+                    mapInfo.textContent = `Карта 300x300 | Зум: ${Math.round(this.zoom * 100)}%`;
+                }
+            }
+            
+            showClickCoordinates(clickCoords, x, y, clientX, clientY) {
+                // Очищаем предыдущий таймаут
+                if (this.clickTimeout) {
+                    clearTimeout(this.clickTimeout);
+                }
+                
+                // Показываем координаты
+                clickCoords.textContent = `Клик: X:${x}, Y:${y}`;
+                clickCoords.style.left = (clientX - 50) + 'px';
+                clickCoords.style.top = (clientY - 30) + 'px';
+                clickCoords.style.display = 'block';
+                
+                // Скрываем через 2 секунды
+                this.clickTimeout = setTimeout(() => {
+                    clickCoords.style.display = 'none';
+                }, 2000);
+                
+                console.log(`[GameMap] Клик по координатам: X:${x}, Y:${y}`);
+            }
+        }
 
     </script>
 
@@ -6419,29 +7202,770 @@
         </div>
     </div>
 
-    <!-- Блок источника информации (правый нижний угол) -->
-    <div id="info-source-panel" class="info-source-panel" style="display: none;">
-        <!-- Заголовок с иконкой и названием -->
-        <div class="info-source-header" onclick="window.toggleInfoSourcePanel()">
-            <div class="source-icon" id="source-icon">📡</div>
-            <div class="source-name" id="source-name">Нет источника</div>
-            <div class="source-toggle-indicator">▼</div>
+    <!-- Контейнер для всех блоков -->
+    <div class="panels-container">
+        <!-- Блок источника информации -->
+        <div id="info-source-panel" class="info-source-panel" style="display: none;">
+            <!-- Заголовок с иконкой и названием -->
+            <div class="info-source-header" onclick="window.toggleInfoSourcePanel()">
+                <div class="source-icon" id="source-icon">📡</div>
+                <div class="source-name" id="source-name">Нет источника</div>
+                <div class="source-toggle-indicator">▼</div>
+            </div>
+
+            <!-- Блок информации -->
+            <div class="info-content" id="info-content">
+                <!-- Содержимое будет меняться в зависимости от источника -->
+            </div>
         </div>
 
-        <!-- Блок информации -->
-        <div class="info-content" id="info-content">
-            <!-- Содержимое будет меняться в зависимости от источника -->
+        <!-- Блок карты -->
+        <div id="map-panel" class="info-source-panel map-panel collapsed" style="display: block;">
+            <!-- Заголовок с иконкой и названием -->
+            <div class="info-source-header" onclick="window.toggleMapPanel()">
+                <div class="source-icon">🗺️</div>
+                <div class="source-name">Карта</div>
+                <div class="source-toggle-indicator">▼</div>
+            </div>
+
+            <!-- Блок карты -->
+            <div class="info-content" id="map-content">
+                <!-- Карта будет загружаться динамически -->
+            </div>
         </div>
 
         <!-- Блок заданий -->
-        <div class="quests-content" id="quests-content">
-            <div class="quests-header">📋 Задания</div>
-            <div id="quests-list">
-                <!-- Задания будут загружаться динамически -->
+        <div id="quests-panel" class="info-source-panel quests-panel collapsed" style="display: block;">
+            <!-- Заголовок с иконкой и названием -->
+            <div class="info-source-header" onclick="window.toggleQuestsPanel()">
+                <div class="source-icon">📋</div>
+                <div class="source-name">Задания</div>
+                <div class="source-toggle-indicator">▼</div>
+            </div>
+
+            <!-- Блок заданий -->
+            <div class="quests-content" id="standalone-quests-content">
+                <div class="quests-header">📋 Активные задания</div>
+                <div id="standalone-quests-list">
+                    <!-- Задания будут загружаться динамически -->
+                </div>
             </div>
         </div>
-    </div>
+    </div> <!-- Закрываем контейнер panels-container -->
 
+    </script>
+
+    <!-- Инициализация отдельных блоков при загрузке -->
+    <script>
+        window.addEventListener('load', function() {
+            console.log('[Standalone Blocks] Инициализация отдельных блоков');
+            
+            // Инициализируем блок карты (только создаем объект, не загружаем HTML)
+            const mapContent = document.getElementById('map-content');
+            if (mapContent) {
+                if (!window.gameMap) {
+                    window.gameMap = new GameMap();
+                    console.log('[Standalone Blocks] Объект карты создан');
+                }
+                // Не загружаем HTML сразу - это будет сделано при первом разворачивании
+            } else {
+                console.warn('[Standalone Blocks] map-content не найден');
+            }
+            
+            // Инициализируем блок заданий
+            setTimeout(() => {
+                if (window.updateStandaloneQuestsDisplay) {
+                    window.updateStandaloneQuestsDisplay();
+                    console.log('[Standalone Blocks] Блок заданий инициализирован');
+                }
+            }, 200);
+            
+            // Блоки остаются свернутыми по умолчанию
+            console.log('[Standalone Blocks] Блоки инициализированы, остаются свернутыми');
+            
+            // Блоки остаются свернутыми по умолчанию
+        });
+
+        // ===== ГЕНЕРАЦИЯ ПОЛНОЙ БАЗЫ ЗАДАНИЙ =====
+        
+        // Задания для Штаба (HQ)
+        function createHQQuests() {
+            return [
+                // Common grade (1-25)
+                {
+                    id: 'hq_recruit_1',
+                    faction: 'hq',
+                    title: 'Прием новобранцев',
+                    description: 'Принять 3 новых жителей в бункер',
+                    type: 'recruit',
+                    grade: 'common',
+                    rarity: 20,
+                    target: 3,
+                    reward: { type: 'experience', value: 50 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_ammo_1',
+                    faction: 'hq',
+                    title: 'Боеприпасы для защиты',
+                    description: 'Собрать 10 патронов для обороны',
+                    type: 'collect_resource',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 10,
+                    reward: { type: 'resource', value: 'ammo', amount: 5 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_food_1',
+                    faction: 'hq',
+                    title: 'Продовольственный запас',
+                    description: 'Накопить 20 единиц еды',
+                    type: 'collect_resource',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 20,
+                    reward: { type: 'resource', value: 'food', amount: 10 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_bedroom_1',
+                    faction: 'hq',
+                    title: 'Расширение жилплощади',
+                    description: 'Построить 2 спальни',
+                    type: 'build_room',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 2,
+                    reward: { type: 'reputation', value: 25 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_engineer_1',
+                    faction: 'hq',
+                    title: 'Найм специалистов',
+                    description: 'Принять 2 инженеров',
+                    type: 'accept_profession',
+                    grade: 'common',
+                    rarity: 10,
+                    target: 2,
+                    reward: { type: 'experience', value: 75 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon grade (26-50)
+                {
+                    id: 'hq_kill_zombies_1',
+                    faction: 'hq',
+                    title: 'Очистка от нежити',
+                    description: 'Уничтожить 5 зомби',
+                    type: 'kill_enemy',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 5,
+                    reward: { type: 'reputation', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_defense_1',
+                    faction: 'hq',
+                    title: 'Укрепление позиций',
+                    description: 'Повысить защиту бункера до 75%',
+                    type: 'collect_resource',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 75,
+                    reward: { type: 'item', value: 'backpack' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_refuse_unemployed_1',
+                    faction: 'hq',
+                    title: 'Отсев неэффективных',
+                    description: 'Отказать 3 безработным',
+                    type: 'refuse_profession',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 3,
+                    reward: { type: 'experience', value: 60 },
+                    penalty: { type: 'reputation', value: -10 }
+                },
+                {
+                    id: 'hq_male_only_1',
+                    faction: 'hq',
+                    title: 'Строгий отбор',
+                    description: 'Принять только мужчин (отказать 5 женщинам)',
+                    type: 'refuse_gender',
+                    grade: 'uncommon',
+                    rarity: 4,
+                    target: 5,
+                    reward: { type: 'reputation', value: 35 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_metal_1',
+                    faction: 'hq',
+                    title: 'Металлический запас',
+                    description: 'Накопить 15 единиц металла',
+                    type: 'collect_resource',
+                    grade: 'uncommon',
+                    rarity: 7,
+                    target: 15,
+                    reward: { type: 'resource', value: 'metal', amount: 8 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare grade (51-75)
+                {
+                    id: 'hq_elite_soldiers_1',
+                    faction: 'hq',
+                    title: 'Элитные солдаты',
+                    description: 'Принять 3 солдат с навыком "сила"',
+                    type: 'accept_skill',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 3,
+                    reward: { type: 'experience', value: 150 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_weapon_cache_1',
+                    faction: 'hq',
+                    title: 'Оружейный склад',
+                    description: 'Собрать 25 патронов',
+                    type: 'collect_resource',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 25,
+                    reward: { type: 'item', value: 'ammo' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_armory_1',
+                    faction: 'hq',
+                    title: 'Строительство арсенала',
+                    description: 'Построить оружейную',
+                    type: 'build_room',
+                    grade: 'rare',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'reputation', value: 100 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_exile_weak_1',
+                    faction: 'hq',
+                    title: 'Чистка рядов',
+                    description: 'Изгнать 2 жителей с низким здоровьем',
+                    type: 'exile',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 2,
+                    reward: { type: 'experience', value: 120 },
+                    penalty: { type: 'reputation', value: -25 }
+                },
+                {
+                    id: 'hq_kill_marauders_1',
+                    faction: 'hq',
+                    title: 'Уничтожение мародеров',
+                    description: 'Уничтожить 3 мародера',
+                    type: 'kill_enemy',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 3,
+                    reward: { type: 'resource', value: 'ammo', amount: 15 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Epic grade (76-90)
+                {
+                    id: 'hq_max_defense_1',
+                    faction: 'hq',
+                    title: 'Непроницаемая крепость',
+                    description: 'Достичь максимальной защиты (100%)',
+                    type: 'collect_resource',
+                    grade: 'epic',
+                    rarity: 1,
+                    target: 100,
+                    reward: { type: 'experience', value: 300 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_sacrifice_1',
+                    faction: 'hq',
+                    title: 'Жертва ради порядка',
+                    description: 'Принести в жертву жителя с низким здоровьем',
+                    type: 'sacrifice',
+                    grade: 'epic',
+                    rarity: 0.5,
+                    target: 1,
+                    reward: { type: 'reputation', value: 150 },
+                    penalty: { type: 'reputation', value: -50 }
+                },
+                {
+                    id: 'hq_attack_rebels_1',
+                    faction: 'hq',
+                    title: 'Уничтожение повстанцев',
+                    description: 'Напасть на бункер повстанцев',
+                    type: 'attack_bunker',
+                    grade: 'epic',
+                    rarity: 0.5,
+                    target: 1,
+                    reward: { type: 'experience', value: 400 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Legendary grade (91-100)
+                {
+                    id: 'hq_elite_army_1',
+                    faction: 'hq',
+                    title: 'Элитная армия',
+                    description: 'Принять 5 солдат с навыками "сила" и "выносливость"',
+                    type: 'accept_skill',
+                    grade: 'legendary',
+                    rarity: 0.1,
+                    target: 5,
+                    reward: { type: 'reputation', value: 500 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_complete_control_1',
+                    faction: 'hq',
+                    title: 'Полный контроль',
+                    description: 'Достичь максимального порядка (100% морали и счастья)',
+                    type: 'collect_resource',
+                    grade: 'legendary',
+                    rarity: 0.1,
+                    target: 100,
+                    reward: { type: 'experience', value: 1000 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Задания для Повстанцев (Rebels)
+        function createRebelsQuests() {
+            return [
+                // Common
+                {
+                    id: 'rebels_recruit_1',
+                    faction: 'rebels',
+                    title: 'Новые бойцы',
+                    description: 'Принять 4 новых жителя',
+                    type: 'recruit',
+                    grade: 'common',
+                    rarity: 20,
+                    target: 4,
+                    reward: { type: 'experience', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_scout_1',
+                    faction: 'rebels',
+                    title: 'Разведка местности',
+                    description: 'Принять 2 разведчиков',
+                    type: 'accept_profession',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 2,
+                    reward: { type: 'reputation', value: 30 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon
+                {
+                    id: 'rebels_attack_hq_1',
+                    faction: 'rebels',
+                    title: 'Нападение на Штаб',
+                    description: 'Напасть на бункер Штаба',
+                    type: 'attack_bunker',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 1,
+                    reward: { type: 'experience', value: 200 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_kill_soldiers_1',
+                    faction: 'rebels',
+                    title: 'Борьба с угнетателями',
+                    description: 'Уничтожить 4 солдат Штаба',
+                    type: 'kill_enemy',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 4,
+                    reward: { type: 'resource', value: 'ammo', amount: 12 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare
+                {
+                    id: 'rebels_sabotage_1',
+                    faction: 'rebels',
+                    title: 'Диверсионные действия',
+                    description: 'Ослабить оборону противника',
+                    type: 'kill_enemy',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 1,
+                    reward: { type: 'reputation', value: 80 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_recruit_warriors_1',
+                    faction: 'rebels',
+                    title: 'Набор воинов',
+                    description: 'Принять 3 жителей с навыком "сила"',
+                    type: 'accept_skill',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 3,
+                    reward: { type: 'item', value: 'backpack' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Epic
+                {
+                    id: 'rebels_destroy_hq_1',
+                    faction: 'rebels',
+                    title: 'Революция',
+                    description: 'Уничтожить бункер Штаба',
+                    type: 'attack_bunker',
+                    grade: 'epic',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'experience', value: 500 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Legendary
+                {
+                    id: 'rebels_free_world_1',
+                    faction: 'rebels',
+                    title: 'Свободный мир',
+                    description: 'Уничтожить все бункеры Штаба',
+                    type: 'attack_bunker',
+                    grade: 'legendary',
+                    rarity: 0.05,
+                    target: 5,
+                    reward: { type: 'reputation', value: 1000 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Задания для Мародеров (Marauders)
+        function createMaraudersQuests() {
+            return [
+                // Common
+                {
+                    id: 'marauders_loot_1',
+                    faction: 'marauders',
+                    title: 'Добыча ресурсов',
+                    description: 'Собрать 15 единиц металла',
+                    type: 'collect_resource',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 15,
+                    reward: { type: 'resource', value: 'metal', amount: 8 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_attack_1',
+                    faction: 'marauders',
+                    title: 'Охота на слабых',
+                    description: 'Напасть на бункер Свободных',
+                    type: 'attack_bunker',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 1,
+                    reward: { type: 'resource', value: 'money', amount: 50 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon
+                {
+                    id: 'marauders_kill_1',
+                    faction: 'marauders',
+                    title: 'Кровавая жатва',
+                    description: 'Уничтожить 6 жителей других бункеров',
+                    type: 'kill_enemy',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 6,
+                    reward: { type: 'experience', value: 100 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_steal_1',
+                    faction: 'marauders',
+                    title: 'Кража технологий',
+                    description: 'Украсть предмет из другого бункера',
+                    type: 'get_item',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 1,
+                    reward: { type: 'item', value: 'multi_tool' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare
+                {
+                    id: 'marauders_rampage_1',
+                    faction: 'marauders',
+                    title: 'Разгром',
+                    description: 'Уничтожить 10 жителей',
+                    type: 'kill_enemy',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 10,
+                    reward: { type: 'reputation', value: 120 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Epic
+                {
+                    id: 'marauders_empire_1',
+                    faction: 'marauders',
+                    title: 'Империя хаоса',
+                    description: 'Уничтожить 3 бункера',
+                    type: 'attack_bunker',
+                    grade: 'epic',
+                    rarity: 1,
+                    target: 3,
+                    reward: { type: 'experience', value: 600 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Legendary
+                {
+                    id: 'marauders_apocalypse_1',
+                    faction: 'marauders',
+                    title: 'Апокалипсис',
+                    description: 'Уничтожить все выжившие бункеры',
+                    type: 'attack_bunker',
+                    grade: 'legendary',
+                    rarity: 0.01,
+                    target: 10,
+                    reward: { type: 'reputation', value: 2000 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Задания для Свободных (Free)
+        function createFreeQuests() {
+            return [
+                // Common
+                {
+                    id: 'free_trade_1',
+                    faction: 'free',
+                    title: 'Свободная торговля',
+                    description: 'Организовать торговый обмен',
+                    type: 'trade',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 1,
+                    reward: { type: 'resource', value: 'money', amount: 30 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_community_1',
+                    faction: 'free',
+                    title: 'Сообщество',
+                    description: 'Принять 5 новых жителей',
+                    type: 'recruit',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 5,
+                    reward: { type: 'reputation', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon
+                {
+                    id: 'free_neutrality_1',
+                    faction: 'free',
+                    title: 'Нейтралитет',
+                    description: 'Найти предмет "Нейтралитет"',
+                    type: 'find_sidequest',
+                    grade: 'uncommon',
+                    rarity: 7,
+                    target: 1,
+                    reward: { type: 'experience', value: 90 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_balance_1',
+                    faction: 'free',
+                    title: 'Баланс сил',
+                    description: 'Поддерживать нейтральные отношения со всеми фракциями',
+                    type: 'recruit',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 1,
+                    reward: { type: 'reputation', value: 60 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare
+                {
+                    id: 'free_alliance_1',
+                    faction: 'free',
+                    title: 'Альянс',
+                    description: 'Помочь другой фракции в кризисной ситуации',
+                    type: 'trade',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 1,
+                    reward: { type: 'experience', value: 180 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Epic
+                {
+                    id: 'free_peace_1',
+                    faction: 'free',
+                    title: 'Мир во всем мире',
+                    description: 'Достичь мирных отношений со всеми фракциями',
+                    type: 'recruit',
+                    grade: 'epic',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'reputation', value: 300 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Legendary
+                {
+                    id: 'free_utopia_1',
+                    faction: 'free',
+                    title: 'Утопия',
+                    description: 'Создать идеальное общество без конфликтов',
+                    type: 'recruit',
+                    grade: 'legendary',
+                    rarity: 0.02,
+                    target: 1,
+                    reward: { type: 'experience', value: 2000 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Задания для Тайны (Mystery)
+        function createMysteryQuests() {
+            return [
+                // Common
+                {
+                    id: 'mystery_explore_1',
+                    faction: 'mystery',
+                    title: 'Исследование',
+                    description: 'Найти предмет "Истина"',
+                    type: 'find_sidequest',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 1,
+                    reward: { type: 'experience', value: 70 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_zombie_1',
+                    faction: 'mystery',
+                    title: 'Изучение нежити',
+                    description: 'Уничтожить 3 зомби',
+                    type: 'kill_enemy',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 3,
+                    reward: { type: 'reputation', value: 25 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon
+                {
+                    id: 'mystery_mutant_1',
+                    faction: 'mystery',
+                    title: 'Мутантная угроза',
+                    description: 'Уничтожить 2 мутанта',
+                    type: 'kill_enemy',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 2,
+                    reward: { type: 'item', value: 'medicine' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_lie_1',
+                    faction: 'mystery',
+                    title: 'Поиск обмана',
+                    description: 'Найти предмет "Ложь"',
+                    type: 'find_sidequest',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 1,
+                    reward: { type: 'experience', value: 110 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare
+                {
+                    id: 'mystery_insanity_1',
+                    faction: 'mystery',
+                    title: 'Безумие',
+                    description: 'Довести жителя до безумия',
+                    type: 'insanity',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 1,
+                    reward: { type: 'reputation', value: 90 },
+                    penalty: { type: 'reputation', value: -30 }
+                },
+                {
+                    id: 'mystery_enemy_in_1',
+                    faction: 'mystery',
+                    title: 'Эксперимент',
+                    description: 'Впустить врага в бункер',
+                    type: 'let_enemy_in',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 1,
+                    reward: { type: 'experience', value: 250 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Epic
+                {
+                    id: 'mystery_transformation_1',
+                    faction: 'mystery',
+                    title: 'Трансформация',
+                    description: 'Преобразовать 3 жителей в мутантов',
+                    type: 'insanity',
+                    grade: 'epic',
+                    rarity: 1,
+                    target: 3,
+                    reward: { type: 'reputation', value: 200 },
+                    penalty: { type: 'reputation', value: -100 }
+                },
+                // Legendary
+                {
+                    id: 'mystery_apocalypse_1',
+                    faction: 'mystery',
+                    title: 'Истинный апокалипсис',
+                    description: 'Уничтожить все живое',
+                    type: 'kill_enemy',
+                    grade: 'legendary',
+                    rarity: 0.005,
+                    target: 100,
+                    reward: { type: 'experience', value: 5000 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Генерация дополнительных заданий для фракции
+        function generateAdditionalQuestsForFaction(factionId, baseQuests, count) {
+            const additionalQuests = [];
+            
+            for (let i = 0; i < count; i++) {
+                const baseQuest = baseQuests[Math.floor(Math.random() * baseQuests.length)];
+                const variation = Math.floor(Math.random() * 1000); // Для уникальности ID
+                
+                additionalQuests.push({
+                    ...baseQuest,
+                    id: `${baseQuest.id}_v${variation}`,
+                    target: Math.floor(baseQuest.target * (0.8 + Math.random() * 0.4)), // 80-120% от базовой цели
+                    reward: {
+                        ...baseQuest.reward,
+                        value: typeof baseQuest.reward.value === 'number'
+                            ? Math.floor(baseQuest.reward.value * (0.9 + Math.random() * 0.2))
+                            : baseQuest.reward.value
+                    }
+                });
+            }
+            
+            return additionalQuests;
+        }
     </script>
 </body>
 </html>
