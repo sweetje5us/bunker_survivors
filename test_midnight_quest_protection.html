@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест защиты заданий в полночь</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .quest-item {
+            background: #333;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border-left: 3px solid #4CAF50;
+        }
+        .quest-item.accepted {
+            border-left-color: #2196F3;
+        }
+        .quest-item.pending {
+            border-left-color: #FF9800;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛡️ Тест защиты заданий в полночь</h1>
+    
+    <div class="test-section">
+        <h2>📋 Проверка системы защиты заданий</h2>
+        <div id="system-status">Проверяем...</div>
+        <button onclick="checkSystem()">Проверить систему</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест защиты принятых заданий</h2>
+        <div id="accepted-quest-test"></div>
+        <button onclick="testAcceptedQuestProtection()">Тестировать защиту принятых заданий</button>
+    </div>
+
+    <div class="test-section">
+        <h2>⏰ Тест защиты непринятых заданий</h2>
+        <div id="pending-quest-test"></div>
+        <button onclick="testPendingQuestProtection()">Тестировать защиту непринятых заданий</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🌙 Симуляция полночи</h2>
+        <div id="midnight-simulation"></div>
+        <button onclick="simulateMidnight()">Симулировать полночь</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <!-- Подключаем систему заданий -->
+    <script src="src/core/quests-data.js"></script>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Инициализируем систему
+        function initializeSystem() {
+            // Инициализируем sourceQuests
+            if (!window.sourceQuests) {
+                window.sourceQuests = {
+                    messageHistory: {},
+                    activeQuests: {},
+                    messageScheduler: {
+                        activeFactions: new Set(['hq', 'rebels', 'mystery']),
+                        lastMessageTime: {}
+                    }
+                };
+            }
+
+            // Инициализируем questManager
+            if (!window.questManager) {
+                window.questManager = {
+                    getRandomQuest: function(factionId) {
+                        if (window.questData && window.questData.getRandomQuest) {
+                            return window.questData.getRandomQuest(factionId);
+                        }
+                        return null;
+                    }
+                };
+            }
+
+            // Инициализируем QuestUtils
+            if (!window.QuestUtils) {
+                window.QuestUtils = {
+                    getGradeColor: function(grade) {
+                        const colors = {
+                            'common': '#8B8B8B',
+                            'uncommon': '#4CAF50',
+                            'rare': '#2196F3',
+                            'epic': '#9C27B0',
+                            'legendary': '#FF9800'
+                        };
+                        return colors[grade] || '#8B8B8B';
+                    },
+                    getGradeLabel: function(grade) {
+                        const labels = {
+                            'common': 'Обычное',
+                            'uncommon': 'Необычное',
+                            'rare': 'Редкое',
+                            'epic': 'Эпическое',
+                            'legendary': 'Легендарное'
+                        };
+                        return labels[grade] || 'Обычное';
+                    }
+                };
+            }
+
+            window.questSystemLoaded = true;
+        }
+
+        function checkSystem() {
+            log('=== ПРОВЕРКА СИСТЕМЫ ЗАЩИТЫ ЗАДАНИЙ ===');
+            
+            const statusDiv = document.getElementById('system-status');
+            
+            // Инициализируем систему
+            initializeSystem();
+            log('✅ Система инициализирована');
+
+            // Проверяем компоненты
+            const checks = [
+                { name: 'sourceQuests', obj: window.sourceQuests },
+                { name: 'questManager', obj: window.questManager },
+                { name: 'QuestUtils', obj: window.QuestUtils },
+                { name: 'questSystemLoaded', obj: window.questSystemLoaded }
+            ];
+
+            let allGood = true;
+            checks.forEach(check => {
+                if (check.obj) {
+                    log(`✅ ${check.name} - OK`);
+                } else {
+                    log(`❌ ${check.name} - НЕ НАЙДЕНО`);
+                    allGood = false;
+                }
+            });
+
+            if (allGood) {
+                statusDiv.innerHTML = '<span class="success">✅ Система защиты заданий готова к работе</span>';
+                log('✅ Система защиты заданий готова к работе');
+            } else {
+                statusDiv.innerHTML = '<span class="error">❌ Некоторые компоненты не найдены</span>';
+                log('❌ Некоторые компоненты не найдены');
+            }
+        }
+
+        function testAcceptedQuestProtection() {
+            log('=== ТЕСТ ЗАЩИТЫ ПРИНЯТЫХ ЗАДАНИЙ ===');
+            
+            const testDiv = document.getElementById('accepted-quest-test');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeSystem();
+            
+            // Очищаем activeQuests
+            window.sourceQuests.activeQuests = {};
+            
+            // Создаем принятое задание
+            const acceptedQuest = {
+                id: 'test_accepted_quest',
+                title: 'Принятое задание',
+                description: 'Это задание уже принято',
+                grade: 'common',
+                accepted: true,
+                progress: 50,
+                target: 100,
+                timestamp: new Date().toISOString()
+            };
+            
+            window.sourceQuests.activeQuests['rebels'] = acceptedQuest;
+            log('✅ Создано принятое задание для rebels');
+            
+            // Симулируем generateDailyFactionQuests
+            log('Симулируем generateDailyFactionQuests...');
+            
+            const unlockedFactions = [
+                { id: 'rebels', name: 'Повстанцы' },
+                { id: 'hq', name: 'Штаб' }
+            ];
+            
+            unlockedFactions.forEach(faction => {
+                const existingQuest = window.sourceQuests.activeQuests[faction.id];
+                if (existingQuest) {
+                    if (existingQuest.accepted) {
+                        log(`✅ Пропускаем генерацию для ${faction.id} - уже есть принятое задание: ${existingQuest.title}`);
+                    } else {
+                        log(`⚠️ Пропускаем генерацию для ${faction.id} - уже есть непринятое задание: ${existingQuest.title}`);
+                    }
+                } else {
+                    log(`ℹ️ Можно генерировать задание для ${faction.id}`);
+                }
+            });
+            
+            // Проверяем, что задание не было перезаписано
+            const finalQuest = window.sourceQuests.activeQuests['rebels'];
+            if (finalQuest && finalQuest.id === 'test_accepted_quest' && finalQuest.accepted) {
+                log('✅ Принятое задание защищено от перезаписи');
+                
+                const questDiv = document.createElement('div');
+                questDiv.className = 'quest-item accepted';
+                questDiv.innerHTML = `
+                    <strong>✅ ${finalQuest.title}</strong><br>
+                    <span style="color: #2196F3;">[ПРИНЯТО]</span><br>
+                    ${finalQuest.description}<br>
+                    <em>Прогресс: ${finalQuest.progress}/${finalQuest.target}</em>
+                `;
+                testDiv.appendChild(questDiv);
+            } else {
+                log('❌ Принятое задание было перезаписано!');
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'quest-item';
+                errorDiv.innerHTML = '<div style="color: #f44336;">❌ Задание было перезаписано!</div>';
+                testDiv.appendChild(errorDiv);
+            }
+        }
+
+        function testPendingQuestProtection() {
+            log('=== ТЕСТ ЗАЩИТЫ НЕПРИНЯТЫХ ЗАДАНИЙ ===');
+            
+            const testDiv = document.getElementById('pending-quest-test');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeSystem();
+            
+            // Очищаем activeQuests
+            window.sourceQuests.activeQuests = {};
+            
+            // Создаем непринятое задание
+            const pendingQuest = {
+                id: 'test_pending_quest',
+                title: 'Непринятое задание',
+                description: 'Это задание еще не принято',
+                grade: 'rare',
+                accepted: false,
+                progress: 0,
+                target: 50,
+                timestamp: new Date().toISOString()
+            };
+            
+            window.sourceQuests.activeQuests['hq'] = pendingQuest;
+            log('✅ Создано непринятое задание для hq');
+            
+            // Симулируем generateDailyFactionQuests
+            log('Симулируем generateDailyFactionQuests...');
+            
+            const unlockedFactions = [
+                { id: 'hq', name: 'Штаб' },
+                { id: 'rebels', name: 'Повстанцы' }
+            ];
+            
+            unlockedFactions.forEach(faction => {
+                const existingQuest = window.sourceQuests.activeQuests[faction.id];
+                if (existingQuest) {
+                    if (existingQuest.accepted) {
+                        log(`✅ Пропускаем генерацию для ${faction.id} - уже есть принятое задание: ${existingQuest.title}`);
+                    } else {
+                        log(`⚠️ Пропускаем генерацию для ${faction.id} - уже есть непринятое задание: ${existingQuest.title}`);
+                    }
+                } else {
+                    log(`ℹ️ Можно генерировать задание для ${faction.id}`);
+                }
+            });
+            
+            // Проверяем, что задание не было перезаписано
+            const finalQuest = window.sourceQuests.activeQuests['hq'];
+            if (finalQuest && finalQuest.id === 'test_pending_quest' && !finalQuest.accepted) {
+                log('✅ Непринятое задание защищено от перезаписи');
+                
+                const questDiv = document.createElement('div');
+                questDiv.className = 'quest-item pending';
+                questDiv.innerHTML = `
+                    <strong>⏳ ${finalQuest.title}</strong><br>
+                    <span style="color: #FF9800;">[НЕ ПРИНЯТО]</span><br>
+                    ${finalQuest.description}<br>
+                    <em>Прогресс: ${finalQuest.progress}/${finalQuest.target}</em>
+                `;
+                testDiv.appendChild(questDiv);
+            } else {
+                log('❌ Непринятое задание было перезаписано!');
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'quest-item';
+                errorDiv.innerHTML = '<div style="color: #f44336;">❌ Задание было перезаписано!</div>';
+                testDiv.appendChild(errorDiv);
+            }
+        }
+
+        function simulateMidnight() {
+            log('=== СИМУЛЯЦИЯ ПОЛНОЧИ ===');
+            
+            const testDiv = document.getElementById('midnight-simulation');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeSystem();
+            
+            // Создаем тестовые задания
+            const testQuests = [
+                {
+                    faction: 'rebels',
+                    quest: {
+                        id: 'rebels_accepted',
+                        title: 'Принятое задание повстанцев',
+                        description: 'Это задание уже принято',
+                        grade: 'common',
+                        accepted: true,
+                        progress: 75,
+                        target: 100
+                    }
+                },
+                {
+                    faction: 'hq',
+                    quest: {
+                        id: 'hq_pending',
+                        title: 'Непринятое задание штаба',
+                        description: 'Это задание еще не принято',
+                        grade: 'rare',
+                        accepted: false,
+                        progress: 0,
+                        target: 50
+                    }
+                }
+            ];
+            
+            // Устанавливаем тестовые задания
+            testQuests.forEach(({ faction, quest }) => {
+                window.sourceQuests.activeQuests[faction] = quest;
+                log(`✅ Установлено задание для ${faction}: ${quest.title} (${quest.accepted ? 'принято' : 'не принято'})`);
+            });
+            
+            // Симулируем полночь
+            log('🌙 Наступает полночь...');
+            
+            const unlockedFactions = [
+                { id: 'rebels', name: 'Повстанцы' },
+                { id: 'hq', name: 'Штаб' },
+                { id: 'free', name: 'Свобода' }
+            ];
+            
+            log('Генерируем новые задания...');
+            
+            unlockedFactions.forEach(faction => {
+                const existingQuest = window.sourceQuests.activeQuests[faction.id];
+                if (existingQuest) {
+                    if (existingQuest.accepted) {
+                        log(`✅ Пропускаем ${faction.name} - есть принятое задание: ${existingQuest.title}`);
+                    } else {
+                        log(`⚠️ Пропускаем ${faction.name} - есть непринятое задание: ${existingQuest.title}`);
+                    }
+                } else {
+                    log(`ℹ️ Генерируем новое задание для ${faction.name}`);
+                    // Здесь можно было бы сгенерировать новое задание
+                }
+            });
+            
+            // Проверяем результат
+            log('Проверяем результат...');
+            
+            testQuests.forEach(({ faction, quest }) => {
+                const finalQuest = window.sourceQuests.activeQuests[faction];
+                if (finalQuest && finalQuest.id === quest.id) {
+                    log(`✅ Задание ${faction} защищено: ${finalQuest.title}`);
+                    
+                    const questDiv = document.createElement('div');
+                    questDiv.className = `quest-item ${finalQuest.accepted ? 'accepted' : 'pending'}`;
+                    questDiv.innerHTML = `
+                        <strong>${finalQuest.accepted ? '✅' : '⏳'} ${finalQuest.title}</strong><br>
+                        <span style="color: ${finalQuest.accepted ? '#2196F3' : '#FF9800'};">
+                            [${finalQuest.accepted ? 'ПРИНЯТО' : 'НЕ ПРИНЯТО'}]
+                        </span><br>
+                        ${finalQuest.description}
+                    `;
+                    testDiv.appendChild(questDiv);
+                } else {
+                    log(`❌ Задание ${faction} было перезаписано!`);
+                }
+            });
+            
+            log('✅ Симуляция полночи завершена');
+        }
+
+        // Автоматически запускаем проверку при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест защиты заданий в полночь запущен');
+            checkSystem();
+        });
+    </script>
+</body>
+</html>

@@ -8126,10 +8126,12 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < questCount; i++) {
       let factionId: FactionId;
       let randomFaction;
+      let activeSourceType: string | null = null;
+      let activeFactionId: FactionId | null = null;
 
       // Если есть активный источник информации, приоритетно генерируем задание для его фракции
       if ((window as any).activeQuestItem && (window as any).activeQuestItem.id) {
-        const activeSourceType = (window as any).activeQuestItem.id;
+        activeSourceType = (window as any).activeQuestItem.id;
         // Конвертируем sourceType в factionId
         const sourceTypeToFactionId: Record<string, FactionId> = {
           'radio': 'hq' as FactionId,
@@ -8140,7 +8142,7 @@ export class GameScene extends Phaser.Scene {
           'map': 'treasures' as FactionId
         };
 
-        const activeFactionId = sourceTypeToFactionId[activeSourceType];
+        activeFactionId = activeSourceType ? sourceTypeToFactionId[activeSourceType] : null;
         if (activeFactionId && unlockedFactions.some(f => f.id === activeFactionId)) {
           // Генерируем задание для фракции активного источника
           randomFaction = unlockedFactions.find(f => f.id === activeFactionId);
@@ -8157,6 +8159,40 @@ export class GameScene extends Phaser.Scene {
         factionId = randomFaction!.id as FactionId;
       }
 
+      // Проверяем, есть ли уже задание для этой фракции
+      const existingQuest = (window as any).sourceQuests?.activeQuests?.[factionId];
+      if (existingQuest) {
+        if (existingQuest.accepted) {
+          console.log(`[generateDailyFactionQuests] Пропускаем генерацию для ${factionId} - уже есть принятое задание: ${existingQuest.title}`);
+        } else {
+          console.log(`[generateDailyFactionQuests] Пропускаем генерацию для ${factionId} - уже есть непринятое задание: ${existingQuest.title}`);
+        }
+        
+        // Если это был приоритетный активный источник, пробуем другую фракцию
+        if (activeSourceType && factionId === activeFactionId) {
+          console.log(`[generateDailyFactionQuests] Активный источник ${activeSourceType} уже имеет задание, выбираем другую фракцию`);
+          // Выбираем случайную разблокированную фракцию, отличную от активной
+          const otherFactions = unlockedFactions.filter(f => f.id !== activeFactionId);
+          if (otherFactions.length > 0) {
+            randomFaction = otherFactions[Math.floor(Math.random() * otherFactions.length)];
+            factionId = randomFaction!.id as FactionId;
+            console.log(`[generateDailyFactionQuests] Выбрана альтернативная фракция: ${factionId}`);
+            
+            // Проверяем новую фракцию
+            const newExistingQuest = (window as any).sourceQuests?.activeQuests?.[factionId];
+            if (newExistingQuest) {
+              console.log(`[generateDailyFactionQuests] Альтернативная фракция ${factionId} тоже имеет задание, пропускаем`);
+              continue;
+            }
+          } else {
+            console.log(`[generateDailyFactionQuests] Нет других доступных фракций, пропускаем генерацию`);
+            continue;
+          }
+        } else {
+          continue; // Пропускаем генерацию для этой фракции
+        }
+      }
+
       // Получаем случайное задание для фракции
       const quest = this.questManager.getRandomQuest(factionId);
 
@@ -8171,7 +8207,7 @@ export class GameScene extends Phaser.Scene {
             acceptedAt: new Date()
           };
 
-          // Сохраняем задание в sourceQuests
+          // Сохраняем задание в sourceQuests (только если нет принятого задания)
           (window as any).sourceQuests.activeQuests[factionId] = activeQuest;
           console.log(`[generateDailyFactionQuests] Сохранено задание для фракции ${factionId}:`, activeQuest);
 

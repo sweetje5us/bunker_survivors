@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест системы уведомлений</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .notification-demo {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .demo-item {
+            background: #333;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔔 Тест системы уведомлений</h1>
+    
+    <div class="test-section">
+        <h2>📋 Проверка системы уведомлений</h2>
+        <div id="system-status">Проверяем...</div>
+        <button onclick="checkNotificationSystem()">Проверить систему</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест уведомлений о заданиях</h2>
+        <div id="quest-notifications"></div>
+        <button onclick="testQuestNotifications()">Тестировать уведомления заданий</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📨 Тест уведомлений о сообщениях</h2>
+        <div id="message-notifications"></div>
+        <button onclick="testMessageNotifications()">Тестировать уведомления сообщений</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔊 Тест звуков уведомлений</h2>
+        <div id="sound-test"></div>
+        <button onclick="testNotificationSounds()">Тестировать звуки</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Демонстрация всех типов уведомлений</h2>
+        <div id="all-notifications-demo" class="notification-demo"></div>
+        <button onclick="demoAllNotifications()">Показать демо</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <!-- Подключаем систему заданий -->
+    <script src="src/core/quests-data.js"></script>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Инициализируем систему уведомлений
+        function initializeNotificationSystem() {
+            // Инициализируем sourceQuests
+            if (!window.sourceQuests) {
+                window.sourceQuests = {
+                    messageHistory: {},
+                    activeQuests: {},
+                    messageScheduler: {
+                        activeFactions: new Set(['hq', 'rebels', 'mystery']),
+                        lastMessageTime: {}
+                    }
+                };
+            }
+
+            // Инициализируем questManager
+            if (!window.questManager) {
+                window.questManager = {
+                    getRandomQuest: function(factionId) {
+                        if (window.questData && window.questData.getRandomQuest) {
+                            return window.questData.getRandomQuest(factionId);
+                        }
+                        return null;
+                    }
+                };
+            }
+
+            // Инициализируем QuestUtils
+            if (!window.QuestUtils) {
+                window.QuestUtils = {
+                    getGradeColor: function(grade) {
+                        const colors = {
+                            'common': '#8B8B8B',
+                            'uncommon': '#4CAF50',
+                            'rare': '#2196F3',
+                            'epic': '#9C27B0',
+                            'legendary': '#FF9800'
+                        };
+                        return colors[grade] || '#8B8B8B';
+                    },
+                    getGradeLabel: function(grade) {
+                        const labels = {
+                            'common': 'Обычное',
+                            'uncommon': 'Необычное',
+                            'rare': 'Редкое',
+                            'epic': 'Эпическое',
+                            'legendary': 'Легендарное'
+                        };
+                        return labels[grade] || 'Обычное';
+                    }
+                };
+            }
+
+            // Инициализируем questSystemLoaded
+            window.questSystemLoaded = true;
+        }
+
+        function checkNotificationSystem() {
+            log('=== ПРОВЕРКА СИСТЕМЫ УВЕДОМЛЕНИЙ ===');
+            
+            const statusDiv = document.getElementById('system-status');
+            
+            // Инициализируем систему
+            initializeNotificationSystem();
+            log('✅ Система уведомлений инициализирована');
+
+            // Проверяем компоненты
+            const checks = [
+                { name: 'showNotification', obj: typeof window.showNotification === 'function' },
+                { name: 'showQuestNotification', obj: typeof window.showQuestNotification === 'function' },
+                { name: 'showMessageNotification', obj: typeof window.showMessageNotification === 'function' },
+                { name: 'playNotificationSound', obj: typeof window.playNotificationSound === 'function' },
+                { name: 'NOTIFICATION_SOUNDS', obj: window.NOTIFICATION_SOUNDS }
+            ];
+
+            let allGood = true;
+            checks.forEach(check => {
+                if (check.obj) {
+                    log(`✅ ${check.name} - OK`);
+                } else {
+                    log(`❌ ${check.name} - НЕ НАЙДЕНО`);
+                    allGood = false;
+                }
+            });
+
+            if (allGood) {
+                statusDiv.innerHTML = '<span class="success">✅ Система уведомлений готова к работе</span>';
+                log('✅ Система уведомлений готова к работе');
+            } else {
+                statusDiv.innerHTML = '<span class="error">❌ Некоторые компоненты не найдены</span>';
+                log('❌ Некоторые компоненты не найдены');
+            }
+        }
+
+        function testQuestNotifications() {
+            log('=== ТЕСТ УВЕДОМЛЕНИЙ О ЗАДАНИЯХ ===');
+            
+            const testDiv = document.getElementById('quest-notifications');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeNotificationSystem();
+            
+            const sources = [
+                { id: 'gps', name: 'GPS-навигатор', faction: 'rebels' },
+                { id: 'radio', name: 'Радио', faction: 'hq' },
+                { id: 'laptop', name: 'Ноутбук', faction: 'free' },
+                { id: 'phone', name: 'Телефон', faction: 'marauders' },
+                { id: 'transmitter', name: 'Передатчик', faction: 'mystery' }
+            ];
+
+            sources.forEach((source, index) => {
+                setTimeout(() => {
+                    // Создаем тестовое задание
+                    const testQuest = {
+                        id: `test_quest_${source.id}`,
+                        title: `Тестовое задание от ${source.name}`,
+                        description: `Описание задания для ${source.name}`,
+                        grade: 'common',
+                        reward: { type: 'experience', value: 100 }
+                    };
+                    
+                    log(`Показываем уведомление о задании для ${source.name}`);
+                    
+                    // Показываем уведомление
+                    if (typeof window.showQuestNotification === 'function') {
+                        window.showQuestNotification(source.id, testQuest);
+                    } else {
+                        log(`❌ showQuestNotification не найдена`);
+                    }
+                }, index * 2000); // Задержка между уведомлениями
+            });
+
+            log('✅ Тест уведомлений о заданиях запущен');
+        }
+
+        function testMessageNotifications() {
+            log('=== ТЕСТ УВЕДОМЛЕНИЙ О СООБЩЕНИЯХ ===');
+            
+            const testDiv = document.getElementById('message-notifications');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeNotificationSystem();
+            
+            const sources = [
+                { id: 'gps', name: 'GPS-навигатор', faction: 'rebels' },
+                { id: 'radio', name: 'Радио', faction: 'hq' },
+                { id: 'laptop', name: 'Ноутбук', faction: 'free' },
+                { id: 'phone', name: 'Телефон', faction: 'marauders' },
+                { id: 'transmitter', name: 'Передатчик', faction: 'mystery' }
+            ];
+
+            sources.forEach((source, index) => {
+                setTimeout(() => {
+                    // Создаем тестовое сообщение
+                    const testMessage = {
+                        text: `Тестовое сообщение от ${source.name}`,
+                        type: 'useful',
+                        category: 'test'
+                    };
+                    
+                    log(`Показываем уведомление о сообщении для ${source.name}`);
+                    
+                    // Показываем уведомление
+                    if (typeof window.showMessageNotification === 'function') {
+                        window.showMessageNotification(source.id, testMessage);
+                    } else {
+                        log(`❌ showMessageNotification не найдена`);
+                    }
+                }, index * 2000); // Задержка между уведомлениями
+            });
+
+            log('✅ Тест уведомлений о сообщениях запущен');
+        }
+
+        function testNotificationSounds() {
+            log('=== ТЕСТ ЗВУКОВ УВЕДОМЛЕНИЙ ===');
+            
+            const testDiv = document.getElementById('sound-test');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeNotificationSystem();
+            
+            const soundTypes = ['quest', 'message'];
+            const sources = ['gps', 'radio', 'laptop', 'phone', 'transmitter'];
+            
+            let soundIndex = 0;
+            const totalSounds = soundTypes.length * sources.length;
+            
+            soundTypes.forEach(type => {
+                sources.forEach(source => {
+                    setTimeout(() => {
+                        log(`Воспроизводим звук: ${type}/${source}`);
+                        
+                        if (typeof window.playNotificationSound === 'function') {
+                            window.playNotificationSound(type, source);
+                        } else {
+                            log(`❌ playNotificationSound не найдена`);
+                        }
+                        
+                        soundIndex++;
+                        if (soundIndex === totalSounds) {
+                            log('✅ Тест звуков завершен');
+                        }
+                    }, soundIndex * 1000); // Задержка между звуками
+                });
+            });
+
+            log('✅ Тест звуков запущен');
+        }
+
+        function demoAllNotifications() {
+            log('=== ДЕМОНСТРАЦИЯ ВСЕХ УВЕДОМЛЕНИЙ ===');
+            
+            const demoDiv = document.getElementById('all-notifications-demo');
+            demoDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeNotificationSystem();
+            
+            const sources = [
+                { id: 'gps', name: 'GPS-навигатор', icon: '📡' },
+                { id: 'radio', name: 'Радио', icon: '📻' },
+                { id: 'laptop', name: 'Ноутбук', icon: '💻' },
+                { id: 'phone', name: 'Телефон', icon: '📱' },
+                { id: 'transmitter', name: 'Передатчик', icon: '📡' }
+            ];
+
+            sources.forEach((source, index) => {
+                const demoItem = document.createElement('div');
+                demoItem.className = 'demo-item';
+                demoItem.innerHTML = `
+                    <h4>${source.icon} ${source.name}</h4>
+                    <button onclick="testSourceNotification('${source.id}', 'quest')">Тест задания</button>
+                    <button onclick="testSourceNotification('${source.id}', 'message')">Тест сообщения</button>
+                `;
+                demoDiv.appendChild(demoItem);
+            });
+
+            log('✅ Демонстрация всех уведомлений создана');
+        }
+
+        // Функция для тестирования уведомления конкретного источника
+        function testSourceNotification(sourceId, type) {
+            log(`Тестируем ${type} уведомление для ${sourceId}`);
+            
+            if (type === 'quest') {
+                const testQuest = {
+                    id: `test_quest_${sourceId}`,
+                    title: `Тестовое задание`,
+                    description: `Описание задания для ${sourceId}`,
+                    grade: 'common',
+                    reward: { type: 'experience', value: 100 }
+                };
+                window.showQuestNotification(sourceId, testQuest);
+            } else if (type === 'message') {
+                const testMessage = {
+                    text: `Тестовое сообщение для ${sourceId}`,
+                    type: 'useful',
+                    category: 'test'
+                };
+                window.showMessageNotification(sourceId, testMessage);
+            }
+        }
+
+        // Автоматически запускаем проверку при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест системы уведомлений запущен');
+            checkNotificationSystem();
+        });
+    </script>
+</body>
+</html>

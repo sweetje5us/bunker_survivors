@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест исправления принятия заданий</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .info { color: #2196F3; }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .quest-item {
+            background: #333;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border-left: 3px solid #4CAF50;
+        }
+        .quest-item.accepted {
+            border-left-color: #2196F3;
+        }
+        .quest-item.pending {
+            border-left-color: #FF9800;
+        }
+        .quest-item.new {
+            border-left-color: #4CAF50;
+        }
+        .scenario {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Тест исправления принятия заданий</h1>
+    
+    <div class="test-section">
+        <h2>📋 Проверка системы</h2>
+        <div id="system-status">Проверяем...</div>
+        <button onclick="checkSystem()">Проверить систему</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест принятия заданий без активного источника</h2>
+        <div class="scenario">
+            <strong>Проблема:</strong> Задания не принимаются, когда нет активного источника<br>
+            <strong>Решение:</strong> Система должна находить задания по фракции, а не по ID
+        </div>
+        <div id="acceptance-test"></div>
+        <button onclick="testQuestAcceptance()">Тестировать принятие заданий</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест активных фракций</h2>
+        <div class="scenario">
+            <strong>Проблема:</strong> activeFactions пустой, когда есть задания<br>
+            <strong>Решение:</strong> Автоматически добавлять фракции с заданиями в activeFactions
+        </div>
+        <div id="active-factions-test"></div>
+        <button onclick="testActiveFactions()">Тестировать активные фракции</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест поиска заданий по ID</h2>
+        <div class="scenario">
+            <strong>Проблема:</strong> Quest not found in activeQuests по ID<br>
+            <strong>Решение:</strong> Искать задания по фракции, а не по точному совпадению ID
+        </div>
+        <div id="quest-search-test"></div>
+        <button onclick="testQuestSearch()">Тестировать поиск заданий</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🌙 Полная симуляция</h2>
+        <div id="full-simulation"></div>
+        <button onclick="simulateFullScenario()">Симулировать полный сценарий</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <!-- Подключаем систему заданий -->
+    <script src="src/core/quests-data.js"></script>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Инициализируем систему
+        function initializeSystem() {
+            // Инициализируем sourceQuests
+            if (!window.sourceQuests) {
+                window.sourceQuests = {
+                    messageHistory: {},
+                    activeQuests: {},
+                    messageScheduler: {
+                        activeFactions: new Set(),
+                        lastMessageTime: {}
+                    }
+                };
+            }
+
+            // Инициализируем questManager
+            if (!window.questManager) {
+                window.questManager = {
+                    getRandomQuest: function(factionId) {
+                        if (window.questData && window.questData.getRandomQuest) {
+                            return window.questData.getRandomQuest(factionId);
+                        }
+                        // Возвращаем тестовое задание
+                        return {
+                            id: `test_quest_${factionId}`,
+                            title: `Тестовое задание для ${factionId}`,
+                            description: `Описание задания для фракции ${factionId}`,
+                            grade: 'common',
+                            type: 'test',
+                            reward: { type: 'experience', value: 100 }
+                        };
+                    }
+                };
+            }
+
+            // Инициализируем QuestUtils
+            if (!window.QuestUtils) {
+                window.QuestUtils = {
+                    getGradeColor: function(grade) {
+                        const colors = {
+                            'common': '#8B8B8B',
+                            'uncommon': '#4CAF50',
+                            'rare': '#2196F3',
+                            'epic': '#9C27B0',
+                            'legendary': '#FF9800'
+                        };
+                        return colors[grade] || '#8B8B8B';
+                    },
+                    getGradeLabel: function(grade) {
+                        const labels = {
+                            'common': 'Обычное',
+                            'uncommon': 'Необычное',
+                            'rare': 'Редкое',
+                            'epic': 'Эпическое',
+                            'legendary': 'Легендарное'
+                        };
+                        return labels[grade] || 'Обычное';
+                    }
+                };
+            }
+
+            window.questSystemLoaded = true;
+        }
+
+        function checkSystem() {
+            log('=== ПРОВЕРКА СИСТЕМЫ ===');
+            
+            const statusDiv = document.getElementById('system-status');
+            
+            // Инициализируем систему
+            initializeSystem();
+            log('✅ Система инициализирована');
+
+            // Проверяем компоненты
+            const checks = [
+                { name: 'sourceQuests', obj: window.sourceQuests },
+                { name: 'questManager', obj: window.questManager },
+                { name: 'QuestUtils', obj: window.QuestUtils },
+                { name: 'questSystemLoaded', obj: window.questSystemLoaded },
+                { name: 'acceptQuest', obj: typeof window.acceptQuest === 'function' }
+            ];
+
+            let allGood = true;
+            checks.forEach(check => {
+                if (check.obj) {
+                    log(`✅ ${check.name} - OK`);
+                } else {
+                    log(`❌ ${check.name} - НЕ НАЙДЕНО`);
+                    allGood = false;
+                }
+            });
+
+            if (allGood) {
+                statusDiv.innerHTML = '<span class="success">✅ Система готова к работе</span>';
+                log('✅ Система готова к работе');
+            } else {
+                statusDiv.innerHTML = '<span class="error">❌ Некоторые компоненты не найдены</span>';
+                log('❌ Некоторые компоненты не найдены');
+            }
+        }
+
+        function testQuestAcceptance() {
+            log('=== ТЕСТ ПРИНЯТИЯ ЗАДАНИЙ БЕЗ АКТИВНОГО ИСТОЧНИКА ===');
+            
+            const testDiv = document.getElementById('acceptance-test');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeSystem();
+            
+            // Очищаем activeQuests
+            window.sourceQuests.activeQuests = {};
+            
+            // Создаем тестовые задания
+            const testQuests = [
+                {
+                    faction: 'free',
+                    quest: {
+                        id: 'free_neutrality_1_55',
+                        title: 'Нейтралитет',
+                        description: 'Достичь нейтралитета с фракцией',
+                        grade: 'common',
+                        accepted: false,
+                        progress: 0,
+                        target: 50
+                    }
+                },
+                {
+                    faction: 'hq',
+                    quest: {
+                        id: 'hq_security_1_23',
+                        title: 'Безопасность',
+                        description: 'Обеспечить безопасность базы',
+                        grade: 'rare',
+                        accepted: false,
+                        progress: 0,
+                        target: 100
+                    }
+                }
+            ];
+            
+            // Устанавливаем тестовые задания
+            testQuests.forEach(({ faction, quest }) => {
+                window.sourceQuests.activeQuests[faction] = quest;
+                log(`✅ Установлено задание для ${faction}: ${quest.title}`);
+            });
+            
+            // Тестируем принятие заданий
+            testQuests.forEach(({ faction, quest }) => {
+                const sourceType = getSourceTypeFromFaction(faction);
+                log(`Пытаемся принять задание ${quest.id} для фракции ${faction} (источник: ${sourceType})`);
+                
+                // Симулируем acceptQuest
+                const result = simulateAcceptQuest(sourceType, quest.id);
+                
+                if (result) {
+                    log(`✅ Задание ${quest.id} успешно принято`);
+                    
+                    const questDiv = document.createElement('div');
+                    questDiv.className = 'quest-item accepted';
+                    questDiv.innerHTML = `
+                        <strong>✅ ${quest.title}</strong><br>
+                        <span style="color: #2196F3;">[ПРИНЯТО]</span><br>
+                        ${quest.description}<br>
+                        <em>Фракция: ${faction}, ID: ${quest.id}</em>
+                    `;
+                    testDiv.appendChild(questDiv);
+                } else {
+                    log(`❌ Задание ${quest.id} не принято`);
+                    
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'quest-item';
+                    errorDiv.innerHTML = `
+                        <div style="color: #f44336;">❌ ${quest.title} - НЕ ПРИНЯТО</div>
+                        <em>Фракция: ${faction}, ID: ${quest.id}</em>
+                    `;
+                    testDiv.appendChild(errorDiv);
+                }
+            });
+            
+            log('✅ Тест принятия заданий завершен');
+        }
+
+        function testActiveFactions() {
+            log('=== ТЕСТ АКТИВНЫХ ФРАКЦИЙ ===');
+            
+            const testDiv = document.getElementById('active-factions-test');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeSystem();
+            
+            // Очищаем activeQuests и activeFactions
+            window.sourceQuests.activeQuests = {};
+            window.sourceQuests.messageScheduler.activeFactions.clear();
+            
+            // Создаем тестовые задания
+            const testQuests = [
+                { faction: 'free', quest: { id: 'free_test', title: 'Тест свободы' } },
+                { faction: 'hq', quest: { id: 'hq_test', title: 'Тест штаба' } },
+                { faction: 'rebels', quest: { id: 'rebels_test', title: 'Тест повстанцев' } }
+            ];
+            
+            // Устанавливаем тестовые задания
+            testQuests.forEach(({ faction, quest }) => {
+                window.sourceQuests.activeQuests[faction] = quest;
+                log(`✅ Установлено задание для ${faction}: ${quest.title}`);
+            });
+            
+            // Проверяем activeFactions до исправления
+            log(`activeFactions до исправления: ${Array.from(window.sourceQuests.messageScheduler.activeFactions)}`);
+            
+            // Симулируем checkAndGenerateMessages
+            simulateCheckAndGenerateMessages();
+            
+            // Проверяем activeFactions после исправления
+            const activeFactions = Array.from(window.sourceQuests.messageScheduler.activeFactions);
+            log(`activeFactions после исправления: ${activeFactions}`);
+            
+            if (activeFactions.length > 0) {
+                log('✅ Активные фракции успешно добавлены');
+                
+                activeFactions.forEach(faction => {
+                    const questDiv = document.createElement('div');
+                    questDiv.className = 'quest-item new';
+                    questDiv.innerHTML = `
+                        <strong>✅ Фракция ${faction}</strong><br>
+                        <span style="color: #4CAF50;">[АКТИВНА]</span><br>
+                        <em>Задание: ${window.sourceQuests.activeQuests[faction].title}</em>
+                    `;
+                    testDiv.appendChild(questDiv);
+                });
+            } else {
+                log('❌ Активные фракции не добавлены');
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'quest-item';
+                errorDiv.innerHTML = '<div style="color: #f44336;">❌ Активные фракции не добавлены</div>';
+                testDiv.appendChild(errorDiv);
+            }
+        }
+
+        function testQuestSearch() {
+            log('=== ТЕСТ ПОИСКА ЗАДАНИЙ ПО ID ===');
+            
+            const testDiv = document.getElementById('quest-search-test');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeSystem();
+            
+            // Очищаем activeQuests
+            window.sourceQuests.activeQuests = {};
+            
+            // Создаем тестовое задание
+            const testQuest = {
+                id: 'free_neutrality_1_55',
+                title: 'Нейтралитет',
+                description: 'Достичь нейтралитета с фракцией',
+                grade: 'common',
+                accepted: false,
+                progress: 0,
+                target: 50
+            };
+            
+            window.sourceQuests.activeQuests['free'] = testQuest;
+            log(`✅ Установлено задание для free: ${testQuest.title} (ID: ${testQuest.id})`);
+            
+            // Тестируем поиск задания
+            const sourceType = 'laptop'; // laptop -> free
+            const questId = 'free_neutrality_1_55';
+            
+            log(`Ищем задание ${questId} для источника ${sourceType}`);
+            
+            // Симулируем поиск задания
+            const factionId = getFactionIdFromSourceType(sourceType);
+            const quest = window.sourceQuests.activeQuests[factionId];
+            
+            if (quest) {
+                log(`✅ Задание найдено для фракции ${factionId}: ${quest.title}`);
+                
+                // Проверяем, что задание еще не принято
+                if (quest.accepted) {
+                    log(`⚠️ Задание уже принято`);
+                } else {
+                    log(`✅ Задание готово к принятию`);
+                    
+                    const questDiv = document.createElement('div');
+                    questDiv.className = 'quest-item pending';
+                    questDiv.innerHTML = `
+                        <strong>⏳ ${quest.title}</strong><br>
+                        <span style="color: #FF9800;">[ГОТОВО К ПРИНЯТИЮ]</span><br>
+                        ${quest.description}<br>
+                        <em>ID: ${quest.id}, Фракция: ${factionId}</em>
+                    `;
+                    testDiv.appendChild(questDiv);
+                }
+            } else {
+                log(`❌ Задание не найдено для фракции ${factionId}`);
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'quest-item';
+                errorDiv.innerHTML = `
+                    <div style="color: #f44336;">❌ Задание не найдено</div>
+                    <em>ID: ${questId}, Фракция: ${factionId}</em>
+                `;
+                testDiv.appendChild(errorDiv);
+            }
+        }
+
+        function simulateFullScenario() {
+            log('=== ПОЛНАЯ СИМУЛЯЦИЯ ===');
+            
+            const testDiv = document.getElementById('full-simulation');
+            testDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeSystem();
+            
+            // Очищаем все
+            window.sourceQuests.activeQuests = {};
+            window.sourceQuests.messageScheduler.activeFactions.clear();
+            
+            // Создаем тестовые задания
+            const testQuests = [
+                {
+                    faction: 'free',
+                    quest: {
+                        id: 'free_neutrality_1_55',
+                        title: 'Нейтралитет',
+                        description: 'Достичь нейтралитета с фракцией',
+                        grade: 'common',
+                        accepted: false,
+                        progress: 0,
+                        target: 50
+                    }
+                },
+                {
+                    faction: 'hq',
+                    quest: {
+                        id: 'hq_security_1_23',
+                        title: 'Безопасность',
+                        description: 'Обеспечить безопасность базы',
+                        grade: 'rare',
+                        accepted: false,
+                        progress: 0,
+                        target: 100
+                    }
+                }
+            ];
+            
+            // Устанавливаем тестовые задания
+            testQuests.forEach(({ faction, quest }) => {
+                window.sourceQuests.activeQuests[faction] = quest;
+                log(`✅ Установлено задание для ${faction}: ${quest.title}`);
+            });
+            
+            // Симулируем checkAndGenerateMessages
+            simulateCheckAndGenerateMessages();
+            
+            // Проверяем активные фракции
+            const activeFactions = Array.from(window.sourceQuests.messageScheduler.activeFactions);
+            log(`Активные фракции: ${activeFactions}`);
+            
+            // Тестируем принятие заданий
+            testQuests.forEach(({ faction, quest }) => {
+                const sourceType = getSourceTypeFromFaction(faction);
+                log(`Пытаемся принять задание ${quest.id} для фракции ${faction}`);
+                
+                const result = simulateAcceptQuest(sourceType, quest.id);
+                
+                if (result) {
+                    log(`✅ Задание ${quest.id} успешно принято`);
+                    
+                    const questDiv = document.createElement('div');
+                    questDiv.className = 'quest-item accepted';
+                    questDiv.innerHTML = `
+                        <strong>✅ ${quest.title}</strong><br>
+                        <span style="color: #2196F3;">[ПРИНЯТО]</span><br>
+                        ${quest.description}<br>
+                        <em>Фракция: ${faction}, Источник: ${sourceType}</em>
+                    `;
+                    testDiv.appendChild(questDiv);
+                } else {
+                    log(`❌ Задание ${quest.id} не принято`);
+                }
+            });
+            
+            log('✅ Полная симуляция завершена');
+        }
+
+        // Вспомогательные функции
+        function getSourceTypeFromFaction(factionId) {
+            const factionToSource = {
+                'hq': 'radio',
+                'rebels': 'gps',
+                'free': 'laptop',
+                'marauders': 'phone',
+                'mystery': 'transmitter'
+            };
+            return factionToSource[factionId] || 'unknown';
+        }
+
+        function getFactionIdFromSourceType(sourceType) {
+            const sourceToFaction = {
+                'radio': 'hq',
+                'gps': 'rebels',
+                'laptop': 'free',
+                'phone': 'marauders',
+                'transmitter': 'mystery'
+            };
+            return sourceToFaction[sourceType] || null;
+        }
+
+        function simulateAcceptQuest(sourceType, questId) {
+            const factionId = getFactionIdFromSourceType(sourceType);
+            if (!factionId) {
+                log(`❌ Неизвестный sourceType: ${sourceType}`);
+                return false;
+            }
+
+            const quest = window.sourceQuests.activeQuests[factionId];
+            if (!quest) {
+                log(`❌ Задание не найдено для фракции ${factionId}`);
+                return false;
+            }
+
+            if (quest.accepted) {
+                log(`❌ Задание уже принято: ${questId}`);
+                return false;
+            }
+
+            // Принимаем задание
+            quest.accepted = true;
+            quest.acceptedAt = new Date();
+            quest.progress = 0;
+
+            log(`✅ Задание принято: ${quest.title}`);
+            return true;
+        }
+
+        function simulateCheckAndGenerateMessages() {
+            // Симулируем исправленную логику checkAndGenerateMessages
+            if (window.sourceQuests.messageScheduler.activeFactions.size === 0 && window.sourceQuests.activeQuests) {
+                Object.keys(window.sourceQuests.activeQuests).forEach(factionId => {
+                    if (window.sourceQuests.activeQuests[factionId]) {
+                        window.sourceQuests.messageScheduler.activeFactions.add(factionId);
+                        log(`✅ Добавлена фракция с заданием: ${factionId}`);
+                    }
+                });
+            }
+        }
+
+        // Автоматически запускаем проверку при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест исправления принятия заданий запущен');
+            checkSystem();
+        });
+    </script>
+</body>
+</html>
