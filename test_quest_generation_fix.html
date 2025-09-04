@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест генерации заданий при установке источника</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .message {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #4CAF50;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .quest-item {
+            background: #333;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border-left: 3px solid #4CAF50;
+        }
+        .message-actions {
+            margin-top: 10px;
+        }
+        .message-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 0 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .message-btn.decline {
+            background: #f44336;
+        }
+        .message-btn:hover {
+            opacity: 0.8;
+        }
+        .faction-content {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Тест генерации заданий при установке источника</h1>
+    
+    <div class="test-section">
+        <h2>📋 Проверка системы генерации заданий</h2>
+        <div id="quest-generation-status">Проверяем...</div>
+        <button onclick="checkQuestGenerationSystem()">Проверить систему</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест генерации заданий для разных источников</h2>
+        <div id="quest-generation-results"></div>
+        <button onclick="testQuestGeneration()">Тестировать генерацию</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Демонстрация работы с источниками</h2>
+        <div id="source-demo"></div>
+        <button onclick="demoSourceQuests()">Показать демо</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <!-- Подключаем систему заданий -->
+    <script src="src/core/quests-data.js"></script>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Инициализируем систему sourceQuests для тестирования
+        function initializeTestSystem() {
+            if (!window.sourceQuests) {
+                window.sourceQuests = {
+                    messageHistory: {},
+                    activeQuests: {},
+                    messageScheduler: {
+                        activeFactions: new Set(['hq', 'rebels', 'mystery']),
+                        lastMessageTime: {}
+                    }
+                };
+            }
+
+            // Инициализируем questManager
+            if (!window.questManager) {
+                window.questManager = {
+                    getRandomQuest: function(factionId) {
+                        if (window.questData && window.questData.getRandomQuest) {
+                            return window.questData.getRandomQuest(factionId);
+                        }
+                        return null;
+                    }
+                };
+            }
+
+            // Инициализируем QuestUtils
+            if (!window.QuestUtils) {
+                window.QuestUtils = {
+                    getGradeColor: function(grade) {
+                        const colors = {
+                            'common': '#8B8B8B',
+                            'uncommon': '#4CAF50',
+                            'rare': '#2196F3',
+                            'epic': '#9C27B0',
+                            'legendary': '#FF9800'
+                        };
+                        return colors[grade] || '#8B8B8B';
+                    },
+                    getGradeLabel: function(grade) {
+                        const labels = {
+                            'common': 'Обычное',
+                            'uncommon': 'Необычное',
+                            'rare': 'Редкое',
+                            'epic': 'Эпическое',
+                            'legendary': 'Легендарное'
+                        };
+                        return labels[grade] || 'Обычное';
+                    }
+                };
+            }
+        }
+
+        function checkQuestGenerationSystem() {
+            log('=== ПРОВЕРКА СИСТЕМЫ ГЕНЕРАЦИИ ЗАДАНИЙ ===');
+            
+            const statusDiv = document.getElementById('quest-generation-status');
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            log('✅ Тестовая система инициализирована');
+
+            // Проверяем наличие функций
+            if (typeof window.getInitialMessageContent === 'function') {
+                log('✅ getInitialMessageContent найдена');
+            } else {
+                log('❌ getInitialMessageContent не найдена');
+                statusDiv.innerHTML = '<span class="error">❌ Функция getInitialMessageContent не найдена</span>';
+                return;
+            }
+
+            if (typeof window.getSourceContent === 'function') {
+                log('✅ getSourceContent найдена');
+            } else {
+                log('❌ getSourceContent не найдена');
+                statusDiv.innerHTML = '<span class="error">❌ Функция getSourceContent не найдена</span>';
+                return;
+            }
+
+            if (window.questManager && typeof window.questManager.getRandomQuest === 'function') {
+                log('✅ questManager.getRandomQuest найдена');
+            } else {
+                log('❌ questManager.getRandomQuest не найдена');
+                statusDiv.innerHTML = '<span class="error">❌ questManager.getRandomQuest не найдена</span>';
+                return;
+            }
+
+            statusDiv.innerHTML = '<span class="success">✅ Система генерации заданий готова к тестированию</span>';
+            log('✅ Система генерации заданий готова к тестированию');
+        }
+
+        function testQuestGeneration() {
+            log('=== ТЕСТ ГЕНЕРАЦИИ ЗАДАНИЙ ===');
+            
+            const resultsDiv = document.getElementById('quest-generation-results');
+            resultsDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            
+            // Тестируем разные источники
+            const sources = [
+                { id: 'gps', faction: 'rebels', name: 'GPS-навигатор' },
+                { id: 'radio', faction: 'hq', name: 'Радио' },
+                { id: 'laptop', faction: 'free', name: 'Ноутбук' },
+                { id: 'phone', faction: 'marauders', name: 'Телефон' },
+                { id: 'transmitter', faction: 'mystery', name: 'Передатчик' }
+            ];
+
+            sources.forEach(source => {
+                log(`\n--- Тестируем ${source.name} (${source.id}) ---`);
+                
+                // Очищаем activeQuests для чистого теста
+                window.sourceQuests.activeQuests = {};
+                
+                try {
+                    // Тестируем getInitialMessageContent
+                    const initialContent = window.getInitialMessageContent(source.id);
+                    log(`✅ getInitialMessageContent для ${source.id}: ${initialContent.substring(0, 100)}...`);
+                    
+                    // Проверяем, сохранилось ли задание в activeQuests
+                    const savedQuest = window.sourceQuests.activeQuests[source.faction];
+                    if (savedQuest) {
+                        log(`✅ Задание сохранено в activeQuests для ${source.faction}: ${savedQuest.title}`);
+                        
+                        // Создаем демо-блок
+                        const sourceDiv = document.createElement('div');
+                        sourceDiv.className = 'faction-content';
+                        sourceDiv.innerHTML = `
+                            <h3>📡 ${source.name} (${source.faction})</h3>
+                            <div class="quest-item">
+                                <strong>${savedQuest.title}</strong><br>
+                                <span style="color: ${window.QuestUtils.getGradeColor(savedQuest.grade)};">
+                                    [${window.QuestUtils.getGradeLabel(savedQuest.grade)}]
+                                </span><br>
+                                ${savedQuest.description}<br>
+                                <em>Награда: ${savedQuest.reward ? savedQuest.reward.value : 'Неизвестно'}</em>
+                                <div class="message-actions">
+                                    <button class="message-btn decline">Отказаться</button>
+                                    <button class="message-btn accept">Принять</button>
+                                </div>
+                            </div>
+                        `;
+                        resultsDiv.appendChild(sourceDiv);
+                    } else {
+                        log(`❌ Задание НЕ сохранено в activeQuests для ${source.faction}`);
+                        
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'faction-content';
+                        errorDiv.innerHTML = `
+                            <h3>📡 ${source.name} (${source.faction})</h3>
+                            <div style="color: #f44336;">❌ Задание не сгенерировано</div>
+                        `;
+                        resultsDiv.appendChild(errorDiv);
+                    }
+                } catch (error) {
+                    log(`❌ Ошибка при тестировании ${source.id}: ${error.message}`);
+                    
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'faction-content';
+                    errorDiv.innerHTML = `
+                        <h3>📡 ${source.name} (${source.faction})</h3>
+                        <div style="color: #f44336;">❌ Ошибка: ${error.message}</div>
+                    `;
+                    resultsDiv.appendChild(errorDiv);
+                }
+            });
+
+            log('✅ Тест генерации заданий завершен');
+        }
+
+        function demoSourceQuests() {
+            log('=== ДЕМОНСТРАЦИЯ РАБОТЫ С ИСТОЧНИКАМИ ===');
+            
+            const demoDiv = document.getElementById('source-demo');
+            demoDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            
+            // Создаем демо для GPS (rebels)
+            log('Создаем демо для GPS (rebels)');
+            
+            // Очищаем activeQuests
+            window.sourceQuests.activeQuests = {};
+            
+            // Генерируем задание
+            const initialContent = window.getInitialMessageContent('gps');
+            const savedQuest = window.sourceQuests.activeQuests['rebels'];
+            
+            if (savedQuest) {
+                const demoContent = `
+                    <div class="faction-content">
+                        <h3>📡 GPS-навигатор (Повстанцы)</h3>
+                        <div class="message-content">
+                            <div class="message-text">
+                                <strong>Братья и сестры по борьбе!</strong><br><br>
+                                У нас есть новое задание для вас!<br><br>
+                                <strong>Задание: ${savedQuest.title}</strong><br>
+                                <span style="color: ${window.QuestUtils.getGradeColor(savedQuest.grade)}; font-weight: bold;">
+                                    [${window.QuestUtils.getGradeLabel(savedQuest.grade)}]
+                                </span><br><br>
+                                ${savedQuest.description}<br><br>
+                                <em>Награда: ${savedQuest.reward ? savedQuest.reward.value : 'Неизвестно'}</em>
+                            </div>
+                            <div class="message-actions">
+                                <button class="message-btn decline">Отказаться</button>
+                                <button class="message-btn accept">Принять</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                demoDiv.innerHTML = demoContent;
+                log('✅ Демо создано успешно');
+            } else {
+                demoDiv.innerHTML = '<div style="color: #f44336;">❌ Не удалось сгенерировать задание</div>';
+                log('❌ Не удалось сгенерировать задание');
+            }
+        }
+
+        // Автоматически запускаем проверку при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест генерации заданий запущен');
+            checkQuestGenerationSystem();
+        });
+    </script>
+</body>
+</html>

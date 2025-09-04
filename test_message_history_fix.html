@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест исправления истории сообщений фракций</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .message {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #4CAF50;
+        }
+        .message-separator {
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+            margin: 10px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .faction-content {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Тест исправления истории сообщений фракций</h1>
+    
+    <div class="test-section">
+        <h2>📋 Проверка системы сообщений</h2>
+        <div id="system-status">Проверяем...</div>
+        <button onclick="checkSystem()">Проверить систему</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Тест истории сообщений</h2>
+        <div id="history-test-results"></div>
+        <button onclick="testMessageHistory()">Тестировать историю сообщений</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест единой ленты</h2>
+        <div id="unified-feed-results"></div>
+        <button onclick="testUnifiedFeed()">Тестировать единую ленту</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Демонстрация контента</h2>
+        <div id="content-demo"></div>
+        <button onclick="demoContent()">Показать демо контента</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <!-- Подключаем систему сообщений фракций -->
+    <script src="src/core/faction-messages.js"></script>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Инициализируем систему sourceQuests для тестирования
+        function initializeTestSystem() {
+            if (!window.sourceQuests) {
+                window.sourceQuests = {
+                    messageHistory: {},
+                    activeQuests: {},
+                    messageScheduler: {
+                        activeFactions: new Set(['mystery', 'rebels', 'hq']),
+                        lastMessageTime: {}
+                    }
+                };
+            }
+        }
+
+        function checkSystem() {
+            log('=== ПРОВЕРКА СИСТЕМЫ ===');
+            
+            const statusDiv = document.getElementById('system-status');
+            
+            // Проверяем загрузку основных компонентов
+            if (typeof window.FACTION_MESSAGES_DATA !== 'undefined') {
+                log('✅ FACTION_MESSAGES_DATA загружен');
+            } else {
+                log('❌ FACTION_MESSAGES_DATA не найден');
+                statusDiv.innerHTML = '<span class="error">❌ Система не загружена</span>';
+                return;
+            }
+
+            if (typeof window.FactionMessages !== 'undefined') {
+                log('✅ FactionMessages API загружен');
+            } else {
+                log('❌ FactionMessages API не найден');
+                statusDiv.innerHTML = '<span class="error">❌ API не загружен</span>';
+                return;
+            }
+
+            // Инициализируем тестовую систему
+            initializeTestSystem();
+            log('✅ Тестовая система инициализирована');
+
+            statusDiv.innerHTML = '<span class="success">✅ Система готова к тестированию</span>';
+            log('✅ Система готова к тестированию');
+        }
+
+        function testMessageHistory() {
+            log('=== ТЕСТ ИСТОРИИ СООБЩЕНИЙ ===');
+            
+            const resultsDiv = document.getElementById('history-test-results');
+            resultsDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            
+            // Создаем тестовые сообщения для фракции mystery
+            const testMessages = [
+                {
+                    id: 'test_msg_1',
+                    type: 'faction_message',
+                    timestamp: new Date(Date.now() - 300000).toISOString(), // 5 минут назад
+                    data: {
+                        message: {
+                            id: 'mystery_sig_001',
+                            text: 'Шшшш... *статика* ...мы наблюдаем... *треск* ...ваши страхи становятся реальностью...',
+                            type: 'mysterious',
+                            category: 'signals'
+                        }
+                    }
+                },
+                {
+                    id: 'test_msg_2',
+                    type: 'faction_message',
+                    timestamp: new Date(Date.now() - 60000).toISOString(), // 1 минуту назад
+                    data: {
+                        message: {
+                            id: 'mystery_war_001',
+                            text: 'Осторожно... *шепот* ...луна в крови... мутации ускоряются... бегите...',
+                            type: 'warning',
+                            category: 'warnings'
+                        }
+                    }
+                },
+                {
+                    id: 'test_msg_3',
+                    type: 'faction_message',
+                    timestamp: new Date().toISOString(), // сейчас
+                    data: {
+                        message: {
+                            id: 'mystery_thought_001',
+                            text: 'Мысли существ: *шепот* Голод... вечный голод... нужна плоть...',
+                            type: 'mysterious',
+                            category: 'thoughts'
+                        }
+                    }
+                }
+            ];
+
+            // Добавляем сообщения в историю
+            window.sourceQuests.messageHistory.mystery = testMessages;
+            log(`📝 Добавлено ${testMessages.length} тестовых сообщений для mystery`);
+
+            // Тестируем получение сообщений
+            const factionMessages = window.sourceQuests.messageHistory.mystery || [];
+            const factionMessageEntries = factionMessages.filter(msg => msg.type === 'faction_message');
+            
+            log(`📊 Найдено ${factionMessageEntries.length} сообщений фракции`);
+            
+            if (factionMessageEntries.length > 0) {
+                resultsDiv.innerHTML = '<span class="success">✅ История сообщений работает корректно</span>';
+                log('✅ История сообщений работает корректно');
+                
+                // Показываем сообщения
+                factionMessageEntries.forEach((msg, index) => {
+                    log(`  ${index + 1}. ${msg.data.message.text.substring(0, 50)}...`);
+                });
+            } else {
+                resultsDiv.innerHTML = '<span class="error">❌ Сообщения не найдены</span>';
+                log('❌ Сообщения не найдены');
+            }
+        }
+
+        function testUnifiedFeed() {
+            log('=== ТЕСТ ЕДИНОЙ ЛЕНТЫ ===');
+            
+            const resultsDiv = document.getElementById('unified-feed-results');
+            resultsDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            
+            // Создаем тестовые данные
+            const testMessages = [
+                {
+                    id: 'test_msg_1',
+                    type: 'faction_message',
+                    timestamp: new Date(Date.now() - 300000).toISOString(),
+                    data: {
+                        message: {
+                            id: 'mystery_sig_001',
+                            text: 'Первое сообщение: Шшшш... *статика* ...мы наблюдаем...',
+                            type: 'mysterious',
+                            category: 'signals'
+                        }
+                    }
+                },
+                {
+                    id: 'test_msg_2',
+                    type: 'faction_message',
+                    timestamp: new Date(Date.now() - 60000).toISOString(),
+                    data: {
+                        message: {
+                            id: 'mystery_war_001',
+                            text: 'Второе сообщение: Осторожно... *шепот* ...луна в крови...',
+                            type: 'warning',
+                            category: 'warnings'
+                        }
+                    }
+                },
+                {
+                    id: 'test_msg_3',
+                    type: 'faction_message',
+                    timestamp: new Date().toISOString(),
+                    data: {
+                        message: {
+                            id: 'mystery_thought_001',
+                            text: 'Третье сообщение: Мысли существ... *шепот* Голод...',
+                            type: 'mysterious',
+                            category: 'thoughts'
+                        }
+                    }
+                }
+            ];
+
+            // Добавляем тестовое задание
+            const testQuest = {
+                id: 'test_quest_1',
+                factionId: 'mystery',
+                title: 'Собрать артефакты',
+                description: 'Найти 3 древних артефакта в руинах',
+                reward: 'Ресурс: energy',
+                accepted: true,
+                timestamp: new Date(Date.now() - 120000).toISOString()
+            };
+
+            window.sourceQuests.messageHistory.mystery = testMessages;
+            window.sourceQuests.activeQuests.mystery = testQuest;
+            
+            log('📝 Добавлены тестовые данные: 3 сообщения + 1 задание');
+
+            // Тестируем функцию getFactionUnifiedContent
+            if (typeof window.getFactionUnifiedContent === 'function') {
+                const unifiedContent = window.getFactionUnifiedContent('mystery', 'transmitter');
+                log('✅ getFactionUnifiedContent работает');
+                
+                resultsDiv.innerHTML = '<span class="success">✅ Единая лента работает корректно</span>';
+                log('✅ Единая лента работает корректно');
+                
+                // Показываем результат
+                const demoDiv = document.createElement('div');
+                demoDiv.className = 'faction-content';
+                demoDiv.innerHTML = unifiedContent;
+                resultsDiv.appendChild(demoDiv);
+                
+            } else {
+                resultsDiv.innerHTML = '<span class="error">❌ getFactionUnifiedContent не найдена</span>';
+                log('❌ getFactionUnifiedContent не найдена');
+            }
+        }
+
+        function demoContent() {
+            log('=== ДЕМОНСТРАЦИЯ КОНТЕНТА ===');
+            
+            const demoDiv = document.getElementById('content-demo');
+            demoDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            
+            // Создаем демо-данные для разных фракций
+            const demos = [
+                {
+                    factionId: 'mystery',
+                    sourceType: 'transmitter',
+                    messages: [
+                        {
+                            text: 'Шшшш... *статика* ...мы наблюдаем... *треск* ...ваши страхи становятся реальностью...',
+                            timestamp: new Date(Date.now() - 300000).toISOString()
+                        },
+                        {
+                            text: 'Осторожно... *шепот* ...луна в крови... мутации ускоряются... бегите...',
+                            timestamp: new Date(Date.now() - 60000).toISOString()
+                        },
+                        {
+                            text: 'Мысли существ: *шепот* Голод... вечный голод... нужна плоть...',
+                            timestamp: new Date().toISOString()
+                        }
+                    ],
+                    quest: {
+                        title: 'Собрать артефакты',
+                        description: 'Найти 3 древних артефакта в руинах',
+                        reward: 'Ресурс: energy',
+                        accepted: true
+                    }
+                },
+                {
+                    factionId: 'rebels',
+                    sourceType: 'gps',
+                    messages: [
+                        {
+                            text: 'Операция "Молот" начата! Мы атакуем конвой Штаба в квадрате 8-10. Поддержите нас!',
+                            timestamp: new Date(Date.now() - 180000).toISOString()
+                        },
+                        {
+                            text: 'Готовим засаду на патруль. Они идут по маршруту 5-9. Все готовы к бою?',
+                            timestamp: new Date(Date.now() - 30000).toISOString()
+                        }
+                    ],
+                    quest: {
+                        title: 'Собрать ресурсы',
+                        description: 'Собрать 100 единиц дерева',
+                        reward: 'Ресурс: wood',
+                        accepted: true
+                    }
+                }
+            ];
+
+            demos.forEach(demo => {
+                // Настраиваем данные
+                window.sourceQuests.messageHistory[demo.factionId] = demo.messages.map((msg, index) => ({
+                    id: `demo_msg_${index}`,
+                    type: 'faction_message',
+                    timestamp: msg.timestamp,
+                    data: { message: { text: msg.text, type: 'useful', category: 'test' } }
+                }));
+                
+                window.sourceQuests.activeQuests[demo.factionId] = {
+                    ...demo.quest,
+                    id: `demo_quest_${demo.factionId}`,
+                    factionId: demo.factionId,
+                    timestamp: new Date(Date.now() - 240000).toISOString()
+                };
+
+                // Создаем демо-блок
+                const factionDiv = document.createElement('div');
+                factionDiv.className = 'faction-content';
+                factionDiv.innerHTML = `
+                    <h3>📡 ${demo.factionId.toUpperCase()} (${demo.sourceType})</h3>
+                    <div id="demo-${demo.factionId}">Загрузка...</div>
+                `;
+                demoDiv.appendChild(factionDiv);
+
+                // Генерируем контент
+                if (typeof window.getFactionUnifiedContent === 'function') {
+                    const content = window.getFactionUnifiedContent(demo.factionId, demo.sourceType);
+                    document.getElementById(`demo-${demo.factionId}`).innerHTML = content;
+                } else {
+                    document.getElementById(`demo-${demo.factionId}`).innerHTML = '<span class="error">Функция getFactionUnifiedContent не найдена</span>';
+                }
+            });
+
+            log('✅ Демонстрация контента создана');
+        }
+
+        // Автоматически запускаем проверку при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест исправления истории сообщений запущен');
+            checkSystem();
+        });
+    </script>
+</body>
+</html>

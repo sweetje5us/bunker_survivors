@@ -8134,7 +8134,7 @@ export class GameScene extends Phaser.Scene {
         const sourceTypeToFactionId: Record<string, FactionId> = {
           'radio': 'hq' as FactionId,
           'gps': 'rebels' as FactionId,
-          'laptop': 'freedom' as FactionId,
+          'laptop': 'free' as FactionId,  // исправлено с 'freedom' на 'free'
           'phone': 'marauders' as FactionId,
           'transmitter': 'mystery' as FactionId,
           'map': 'treasures' as FactionId

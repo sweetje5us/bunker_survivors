@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест сообщений повстанцев - категория attacks</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success { background: #2e7d32; }
+        .error { background: #c62828; }
+        .warning { background: #f57c00; }
+        .message {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #4CAF50;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Тест сообщений повстанцев - категория "attacks"</h1>
+    
+    <div id="test-results"></div>
+    <button onclick="runTest()">Запустить тест</button>
+    <button onclick="clearResults()">Очистить результаты</button>
+
+    <!-- Подключаем систему сообщений фракций -->
+    <script src="src/core/faction-messages.js"></script>
+
+    <script>
+        function runTest() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '';
+            
+            console.log('=== ТЕСТ КАТЕГОРИИ ATTACKS ДЛЯ ПОВСТАНЦЕВ ===');
+            
+            // Проверка 1: Загрузка данных
+            if (typeof window.FACTION_MESSAGES_DATA === 'undefined') {
+                addResult('❌ FACTION_MESSAGES_DATA не загружен', 'error');
+                return;
+            }
+            addResult('✅ FACTION_MESSAGES_DATA загружен', 'success');
+            
+            // Проверка 2: Наличие фракции rebels
+            if (!window.FACTION_MESSAGES_DATA.rebels) {
+                addResult('❌ Фракция rebels не найдена', 'error');
+                return;
+            }
+            addResult('✅ Фракция rebels найдена', 'success');
+            
+            // Проверка 3: Наличие категории attacks
+            if (!window.FACTION_MESSAGES_DATA.rebels.attacks) {
+                addResult('❌ Категория attacks не найдена для rebels', 'error');
+                return;
+            }
+            addResult('✅ Категория attacks найдена для rebels', 'success');
+            
+            // Проверка 4: Количество сообщений в категории attacks
+            const attacksMessages = window.FACTION_MESSAGES_DATA.rebels.attacks;
+            addResult(`📊 Найдено ${attacksMessages.length} сообщений в категории attacks`, 'success');
+            
+            // Проверка 5: Структура сообщений
+            let validMessages = 0;
+            attacksMessages.forEach((message, index) => {
+                const requiredFields = ['id', 'text', 'type', 'category', 'factionId'];
+                const missingFields = requiredFields.filter(field => !(field in message));
+                
+                if (missingFields.length === 0) {
+                    validMessages++;
+                } else {
+                    addResult(`❌ Сообщение ${index + 1} неполное: отсутствуют ${missingFields.join(', ')}`, 'error');
+                }
+            });
+            
+            if (validMessages === attacksMessages.length) {
+                addResult(`✅ Все ${validMessages} сообщений имеют корректную структуру`, 'success');
+            }
+            
+            // Проверка 6: Тест API функций
+            if (typeof window.FactionMessages !== 'undefined') {
+                addResult('✅ FactionMessages API загружен', 'success');
+                
+                // Тест getFactionMessagesByCategory
+                const categoryMessages = window.FactionMessages.getFactionMessagesByCategory('rebels', 'attacks');
+                if (categoryMessages.length > 0) {
+                    addResult(`✅ getFactionMessagesByCategory работает: найдено ${categoryMessages.length} сообщений`, 'success');
+                } else {
+                    addResult('❌ getFactionMessagesByCategory не работает для rebels/attacks', 'error');
+                }
+                
+                // Тест getRandomFactionMessage
+                const randomMessage = window.FactionMessages.getRandomFactionMessage('rebels');
+                if (randomMessage) {
+                    addResult('✅ getRandomFactionMessage работает для rebels', 'success');
+                } else {
+                    addResult('❌ getRandomFactionMessage не работает для rebels', 'error');
+                }
+            } else {
+                addResult('❌ FactionMessages API не загружен', 'error');
+            }
+            
+            // Проверка 7: Показ примеров сообщений
+            addResult('<h3>📝 Примеры сообщений из категории attacks:</h3>', 'success');
+            attacksMessages.slice(0, 3).forEach((message, index) => {
+                addResult(`<div class="message"><strong>${index + 1}.</strong> ${message.text}</div>`, 'success');
+            });
+            
+            // Проверка 8: Тест генерации сообщения (имитация логики из игры)
+            addResult('<h3>🎲 Тест генерации сообщения (имитация игровой логики):</h3>', 'success');
+            
+            const random = Math.random();
+            const category = random < 0.3 ? 'coordinates' : random < 0.5 ? 'intelligence' : random < 0.7 ? 'attacks' : 'ideology';
+            
+            addResult(`Случайное значение: ${random.toFixed(3)}`, 'warning');
+            addResult(`Выбранная категория: ${category}`, 'warning');
+            
+            if (category === 'attacks') {
+                const message = window.FactionMessages.getFactionMessagesByCategory('rebels', 'attacks');
+                if (message.length > 0) {
+                    const selectedMessage = message[Math.floor(Math.random() * message.length)];
+                    addResult(`✅ Сообщение сгенерировано: "${selectedMessage.text}"`, 'success');
+                } else {
+                    addResult('❌ Не удалось сгенерировать сообщение для attacks', 'error');
+                }
+            } else {
+                addResult(`ℹ️ Выбрана другая категория: ${category}`, 'warning');
+            }
+            
+            console.log('=== ТЕСТ ЗАВЕРШЕН ===');
+        }
+        
+        function addResult(message, type) {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = message;
+            resultsDiv.appendChild(resultDiv);
+            
+            console.log(message);
+        }
+        
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+        }
+        
+        // Автоматически запускаем тест при загрузке
+        window.addEventListener('load', function() {
+            console.log('🚀 Тест категории attacks для повстанцев запущен');
+            runTest();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест отображения непринятых заданий</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .message {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #4CAF50;
+        }
+        .message-separator {
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+            margin: 10px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .faction-content {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+        .quest-item {
+            background: #333;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            border-left: 3px solid #4CAF50;
+        }
+        .message-actions {
+            margin-top: 10px;
+        }
+        .message-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 0 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .message-btn.decline {
+            background: #f44336;
+        }
+        .message-btn:hover {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Тест отображения непринятых заданий</h1>
+    
+    <div class="test-section">
+        <h2>📋 Проверка системы непринятых заданий</h2>
+        <div id="pending-quest-status">Проверяем...</div>
+        <button onclick="checkPendingQuestSystem()">Проверить систему</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест отображения непринятых заданий</h2>
+        <div id="pending-quest-results"></div>
+        <button onclick="testPendingQuestDisplay()">Тестировать отображение</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Демонстрация с непринятыми заданиями</h2>
+        <div id="pending-demo"></div>
+        <button onclick="demoPendingQuests()">Показать демо</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <!-- Подключаем систему сообщений фракций -->
+    <script src="src/core/faction-messages.js"></script>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        // Инициализируем систему sourceQuests для тестирования
+        function initializeTestSystem() {
+            if (!window.sourceQuests) {
+                window.sourceQuests = {
+                    messageHistory: {},
+                    activeQuests: {},
+                    messageScheduler: {
+                        activeFactions: new Set(['hq', 'rebels', 'mystery']),
+                        lastMessageTime: {}
+                    }
+                };
+            }
+        }
+
+        function checkPendingQuestSystem() {
+            log('=== ПРОВЕРКА СИСТЕМЫ НЕПРИНЯТЫХ ЗАДАНИЙ ===');
+            
+            const statusDiv = document.getElementById('pending-quest-status');
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            log('✅ Тестовая система инициализирована');
+
+            // Проверяем наличие функций
+            if (typeof window.getFactionUnifiedContent === 'function') {
+                log('✅ getFactionUnifiedContent найдена');
+            } else {
+                log('❌ getFactionUnifiedContent не найдена');
+                statusDiv.innerHTML = '<span class="error">❌ Функция getFactionUnifiedContent не найдена</span>';
+                return;
+            }
+
+            if (typeof window.getPendingQuestContent === 'function') {
+                log('✅ getPendingQuestContent найдена');
+            } else {
+                log('❌ getPendingQuestContent не найдена');
+                statusDiv.innerHTML = '<span class="error">❌ Функция getPendingQuestContent не найдена</span>';
+                return;
+            }
+
+            statusDiv.innerHTML = '<span class="success">✅ Система непринятых заданий готова к тестированию</span>';
+            log('✅ Система непринятых заданий готова к тестированию');
+        }
+
+        function testPendingQuestDisplay() {
+            log('=== ТЕСТ ОТОБРАЖЕНИЯ НЕПРИНЯТЫХ ЗАДАНИЙ ===');
+            
+            const resultsDiv = document.getElementById('pending-quest-results');
+            resultsDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            
+            // Создаем непринятое задание для фракции rebels
+            const pendingQuest = {
+                id: 'rebels_1',
+                factionId: 'rebels',
+                title: 'Собрать ресурсы',
+                description: 'Собрать 100 единиц дерева для строительства укреплений',
+                reward: { type: 'resource', value: 'wood' },
+                grade: 'common',
+                accepted: false,
+                timestamp: new Date().toISOString()
+            };
+
+            // Добавляем непринятое задание в activeQuests
+            window.sourceQuests.activeQuests.rebels = pendingQuest;
+            log('📝 Добавлено непринятое задание для rebels');
+
+            // Создаем тестовые сообщения
+            const testMessages = [
+                {
+                    id: 'test_msg_rebels_001',
+                    type: 'faction_message',
+                    timestamp: new Date(Date.now() - 60000).toISOString(),
+                    data: {
+                        message: {
+                            id: 'rebels_att_001',
+                            text: 'Операция "Молот" начата! Мы атакуем конвой Штаба в квадрате 8-10.',
+                            type: 'warning',
+                            category: 'attacks'
+                        }
+                    }
+                }
+            ];
+
+            window.sourceQuests.messageHistory.rebels = testMessages;
+            log('📝 Добавлены тестовые сообщения для rebels');
+
+            // Тестируем отображение
+            try {
+                const unifiedContent = window.getFactionUnifiedContent('rebels', 'gps');
+                log('✅ getFactionUnifiedContent работает');
+                
+                resultsDiv.innerHTML = '<span class="success">✅ Отображение непринятых заданий работает корректно</span>';
+                log('✅ Отображение непринятых заданий работает корректно');
+                
+                // Показываем результат
+                const demoDiv = document.createElement('div');
+                demoDiv.className = 'faction-content';
+                demoDiv.innerHTML = unifiedContent;
+                resultsDiv.appendChild(demoDiv);
+                
+            } catch (error) {
+                resultsDiv.innerHTML = '<span class="error">❌ Ошибка при отображении непринятых заданий: ' + error.message + '</span>';
+                log('❌ Ошибка при отображении непринятых заданий: ' + error.message);
+            }
+        }
+
+        function demoPendingQuests() {
+            log('=== ДЕМОНСТРАЦИЯ НЕПРИНЯТЫХ ЗАДАНИЙ ===');
+            
+            const demoDiv = document.getElementById('pending-demo');
+            demoDiv.innerHTML = '';
+            
+            // Инициализируем систему
+            initializeTestSystem();
+            
+            // Создаем демо-данные для разных фракций
+            const demos = [
+                {
+                    factionId: 'rebels',
+                    sourceType: 'gps',
+                    messages: [
+                        {
+                            text: 'Операция "Молот" начата! Мы атакуем конвой Штаба в квадрате 8-10.',
+                            timestamp: new Date(Date.now() - 300000).toISOString()
+                        },
+                        {
+                            text: 'Готовим засаду на патруль. Они идут по маршруту 5-9.',
+                            timestamp: new Date(Date.now() - 60000).toISOString()
+                        }
+                    ],
+                    pendingQuest: {
+                        id: 'rebels_1',
+                        title: 'Собрать ресурсы',
+                        description: 'Собрать 100 единиц дерева для строительства укреплений',
+                        reward: { type: 'resource', value: 'wood' },
+                        grade: 'common',
+                        accepted: false,
+                        timestamp: new Date().toISOString()
+                    }
+                },
+                {
+                    factionId: 'hq',
+                    sourceType: 'radio',
+                    messages: [
+                        {
+                            text: 'Внимание! Все граждане обязаны соблюдать комендантский час с 22:00 до 06:00.',
+                            timestamp: new Date(Date.now() - 240000).toISOString()
+                        }
+                    ],
+                    pendingQuest: {
+                        id: 'hq_1',
+                        title: 'Провести перекличку',
+                        description: 'Провести перекличку всех жителей бункера',
+                        reward: { type: 'reputation', value: 10 },
+                        grade: 'rare',
+                        accepted: false,
+                        timestamp: new Date().toISOString()
+                    }
+                }
+            ];
+
+            demos.forEach(demo => {
+                // Настраиваем данные
+                window.sourceQuests.messageHistory[demo.factionId] = demo.messages.map((msg, index) => ({
+                    id: `demo_msg_${demo.factionId}_${index}`,
+                    type: 'faction_message',
+                    timestamp: msg.timestamp,
+                    data: { message: { text: msg.text, type: 'useful', category: 'test' } }
+                }));
+                
+                window.sourceQuests.activeQuests[demo.factionId] = {
+                    ...demo.pendingQuest,
+                    factionId: demo.factionId
+                };
+
+                // Создаем демо-блок
+                const factionDiv = document.createElement('div');
+                factionDiv.className = 'faction-content';
+                factionDiv.innerHTML = `
+                    <h3>📡 ${demo.factionId.toUpperCase()} (${demo.sourceType})</h3>
+                    <div id="demo-${demo.factionId}">Загрузка...</div>
+                `;
+                demoDiv.appendChild(factionDiv);
+
+                // Генерируем контент
+                try {
+                    const content = window.getFactionUnifiedContent(demo.factionId, demo.sourceType);
+                    document.getElementById(`demo-${demo.factionId}`).innerHTML = content;
+                    log(`✅ Демо для ${demo.factionId} создано`);
+                } catch (error) {
+                    document.getElementById(`demo-${demo.factionId}`).innerHTML = '<span class="error">Ошибка: ' + error.message + '</span>';
+                    log(`❌ Ошибка для ${demo.factionId}: ${error.message}`);
+                }
+            });
+
+            log('✅ Демонстрация непринятых заданий создана');
+        }
+
+        // Автоматически запускаем проверку при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест отображения непринятых заданий запущен');
+            checkPendingQuestSystem();
+        });
+    </script>
+</body>
+</html>

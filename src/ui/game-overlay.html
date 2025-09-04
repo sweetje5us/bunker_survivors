@@ -4312,6 +4312,145 @@
             `;
         }
 
+        // Функция для отображения единой ленты сообщений и заданий фракции
+        function getFactionUnifiedContent(factionId, itemId) {
+            const factionData = getFactionDataByFactionId(factionId);
+            console.log('[getFactionUnifiedContent] Создаем единую ленту для фракции', factionId);
+
+            // Получаем сообщения фракции
+            const factionMessages = window.sourceQuests.messageHistory[factionId] || [];
+            const factionMessageEntries = factionMessages.filter(msg => msg.type === 'faction_message');
+
+            // Получаем задания фракции
+            const acceptedQuest = factionId ? window.sourceQuests.activeQuests[factionId] : null;
+            
+            // Получаем все непринятые задания
+            const allPendingQuests = Object.entries(window.sourceQuests.activeQuests || {})
+                .filter(([fid, quest]) => quest && quest.accepted === false)
+                .map(([fid, quest]) => ({ factionId: fid, ...quest }));
+
+            // Создаем единый массив элементов для отображения
+            const unifiedItems = [];
+
+            // Добавляем сообщения фракции
+            factionMessageEntries.forEach(messageEntry => {
+                unifiedItems.push({
+                    type: 'message',
+                    data: messageEntry,
+                    timestamp: new Date(messageEntry.timestamp)
+                });
+            });
+
+            // Добавляем принятое задание
+            if (acceptedQuest && acceptedQuest.accepted) {
+                console.log('[getFactionUnifiedContent] Найдено принятое задание:', acceptedQuest);
+                unifiedItems.push({
+                    type: 'quest',
+                    data: acceptedQuest,
+                    timestamp: new Date(acceptedQuest.timestamp || Date.now())
+                });
+            } else {
+                console.log('[getFactionUnifiedContent] Нет принятых заданий для фракции', factionId);
+            }
+
+            // Добавляем непринятые задания (если нет принятых заданий)
+            if (!acceptedQuest || !acceptedQuest.accepted) {
+                if (allPendingQuests.length > 0) {
+                    console.log('[getFactionUnifiedContent] Найдены непринятые задания:', allPendingQuests.length);
+                    // Берем первое непринятое задание
+                    const pendingQuest = allPendingQuests[0];
+                    unifiedItems.push({
+                        type: 'pending_quest',
+                        data: pendingQuest,
+                        timestamp: new Date(pendingQuest.timestamp || Date.now())
+                    });
+                } else {
+                    console.log('[getFactionUnifiedContent] Нет непринятых заданий, генерируем первое задание');
+                    // Генерируем первое задание для фракции
+                    if (window.sourceQuests && window.sourceQuests.getRandomQuest) {
+                        try {
+                            const quest = window.sourceQuests.getRandomQuest(itemId);
+                            if (quest) {
+                                // Сохраняем задание в activeQuests
+                                const questData = {
+                                    ...quest,
+                                    factionId: factionId,
+                                    progress: 0,
+                                    accepted: false,
+                                    acceptedAt: new Date(),
+                                    timestamp: new Date().toISOString()
+                                };
+                                window.sourceQuests.activeQuests[factionId] = questData;
+                                console.log('[getFactionUnifiedContent] Сгенерировано первое задание:', questData);
+                                
+                                // Добавляем в unifiedItems
+                                unifiedItems.push({
+                                    type: 'pending_quest',
+                                    data: questData,
+                                    timestamp: new Date(questData.timestamp)
+                                });
+                            }
+                        } catch (error) {
+                            console.warn('[getFactionUnifiedContent] Ошибка при генерации задания:', error);
+                        }
+                    }
+                }
+            }
+
+            // Сортируем по времени (новые сверху)
+            unifiedItems.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            // Ограничиваем количество отображаемых элементов (последние 10)
+            const displayItems = unifiedItems.slice(0, 10);
+            
+            console.log('[getFactionUnifiedContent] Всего элементов:', unifiedItems.length);
+            console.log('[getFactionUnifiedContent] Элементы для отображения:', displayItems.length);
+            displayItems.forEach((item, index) => {
+                console.log(`[getFactionUnifiedContent] Элемент ${index + 1}:`, item.type, item.data);
+            });
+
+            if (displayItems.length === 0) {
+                return `
+                    <div class="message-content">
+                        <div class="message-text">
+                            <em>Ожидание сообщений от ${factionData ? factionData.name : factionId}...</em>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Генерируем HTML для всех элементов
+            let content = '';
+            displayItems.forEach((item, index) => {
+                if (item.type === 'message') {
+                    content += getFactionMessageContent(factionId, item.data);
+                } else if (item.type === 'quest') {
+                    // Адаптируем данные задания для getActiveQuestContent
+                    const questData = {
+                        ...item.data,
+                        faction: factionId,
+                        acceptedAt: item.data.timestamp || item.data.acceptedAt || new Date().toISOString(),
+                        progress: item.data.progress || 0,
+                        target: item.data.target || 1,
+                        grade: item.data.grade || 'common',
+                        reward: item.data.reward || { type: 'resource', value: 'unknown' }
+                    };
+                    content += getActiveQuestContent(itemId, questData);
+                } else if (item.type === 'pending_quest') {
+                    // Обрабатываем непринятые задания
+                    const questFactionData = getFactionDataByFactionId(item.data.factionId);
+                    content += getPendingQuestContent(itemId, item.data, questFactionData);
+                }
+                
+                // Добавляем разделитель между элементами (кроме последнего)
+                if (index < displayItems.length - 1) {
+                    content += '<div class="message-separator" style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>';
+                }
+            });
+
+            return content;
+        }
+
         // Получить контент для типа источника
         function getSourceContent(itemId) {
             console.log('[getSourceContent] Начало для itemId:', itemId);
@@ -4321,20 +4460,44 @@
             const factionId = getFactionIdFromSourceType(itemId);
             console.log('[getSourceContent] factionData:', factionData, 'factionId:', factionId);
 
-            // ПРОВЕРКА НА НОВЫЕ СООБЩЕНИЯ ФРАКЦИИ - имеет наивысший приоритет
+            // ПРОВЕРКА НА СООБЩЕНИЯ И ЗАДАНИЯ ФРАКЦИИ - используем единую ленту
             if (factionId && window.sourceQuests && window.sourceQuests.messageHistory) {
                 const factionMessages = window.sourceQuests.messageHistory[factionId] || [];
                 console.log('[getSourceContent] Сообщения фракции', factionId + ':', factionMessages.length);
 
-                // Ищем последнее сообщение фракции (не задание)
-                const latestFactionMessage = factionMessages
-                    .filter(msg => msg.type === 'faction_message')
-                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                // Используем единую ленту сообщений и заданий
+                return getFactionUnifiedContent(factionId, itemId);
+            }
 
-                if (latestFactionMessage) {
-                    console.log('[getSourceContent] Найдено последнее сообщение фракции:', latestFactionMessage.data.message.text);
-                    return getFactionMessageContent(factionId, latestFactionMessage);
+            // Если нет сообщений, но есть фракция - генерируем первое задание
+            if (factionId && window.sourceQuests && !window.sourceQuests.activeQuests[factionId]) {
+                console.log('[getSourceContent] Генерируем первое задание для фракции', factionId);
+                // Генерируем задание напрямую
+                if (window.sourceQuests.getRandomQuest) {
+                    try {
+                        const quest = window.sourceQuests.getRandomQuest(itemId);
+                        if (quest) {
+                            const questData = {
+                                ...quest,
+                                factionId: factionId,
+                                progress: 0,
+                                accepted: false,
+                                acceptedAt: new Date(),
+                                timestamp: new Date().toISOString()
+                            };
+                            window.sourceQuests.activeQuests[factionId] = questData;
+                            console.log('[getSourceContent] Задание сгенерировано и сохранено:', questData);
+                            
+                            // Обновляем UI
+                            if (typeof window.updateQuestsDisplay === 'function') {
+                                window.updateQuestsDisplay(itemId);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('[getSourceContent] Ошибка при генерации задания:', error);
+                    }
                 }
+                return getInitialMessageContent(itemId);
             }
 
             // Сначала проверяем есть ли принятое задание для фракции
@@ -4366,7 +4529,7 @@
                 } else {
                     // Нет заданий - показать первое сообщение с предложением принять задание
                     console.log('[getSourceContent] Путь: первое сообщение');
-                    return getInitialMessageContent(itemId, factionData);
+                    return getInitialMessageContent(itemId);
                 }
             }
         }
@@ -5936,6 +6099,34 @@
                 try {
                     const quest = window.sourceQuests.getRandomQuest(sourceType);
                     if (quest) {
+                        // Определяем фракцию по типу источника
+                        const factionMap = {
+                            'radio': 'hq',
+                            'gps': 'rebels',
+                            'phone': 'marauders',
+                            'laptop': 'free',
+                            'transmitter': 'mystery'
+                        };
+                        const factionId = factionMap[sourceType];
+                        
+                        // Сохраняем задание в activeQuests, если его еще нет
+                        if (factionId && !window.sourceQuests.activeQuests[factionId]) {
+                            window.sourceQuests.activeQuests[factionId] = {
+                                ...quest,
+                                factionId: factionId,
+                                progress: 0,
+                                accepted: false,
+                                acceptedAt: new Date(),
+                                timestamp: new Date().toISOString()
+                            };
+                            console.log('[getInitialMessageContent] Задание сохранено в activeQuests:', window.sourceQuests.activeQuests[factionId]);
+                            
+                            // Обновляем UI после сохранения задания
+                            if (typeof window.updateQuestsDisplay === 'function') {
+                                window.updateQuestsDisplay(sourceType);
+                            }
+                        }
+                        
                         const gradeLabel = window.QuestUtils ? window.QuestUtils.getGradeLabel(quest.grade) : 'Обычное';
                         return `Новое задание от фракции!\n\n${quest.title}\n${quest.description}\n\nНаграда: ${gradeLabel} (${quest.reward ? quest.reward.value : 'Неизвестно'})`;
                     }

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест исправления системы сообщений фракций</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .message {
+            background: #2a2a2a;
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 3px solid #4CAF50;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover { background: #45a049; }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Тест исправления системы сообщений фракций</h1>
+    
+    <div class="test-section">
+        <h2>📋 Проверка загрузки данных</h2>
+        <div id="data-status">Проверяем...</div>
+        <button onclick="checkDataLoad()">Проверить загрузку данных</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Тест генерации сообщений по категориям</h2>
+        <div id="category-test-results"></div>
+        <button onclick="testCategoryGeneration()">Тестировать генерацию по категориям</button>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Тест полной системы генерации</h2>
+        <div id="full-test-results"></div>
+        <button onclick="testFullSystem()">Тестировать полную систему</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Статистика сообщений</h2>
+        <div id="stats-results"></div>
+        <button onclick="showStats()">Показать статистику</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Лог тестирования</h2>
+        <div id="test-log" class="log"></div>
+        <button onclick="clearLog()">Очистить лог</button>
+    </div>
+
+    <!-- Подключаем систему сообщений фракций -->
+    <script src="src/core/faction-messages.js"></script>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+        }
+
+        function checkDataLoad() {
+            log('=== ПРОВЕРКА ЗАГРУЗКИ ДАННЫХ ===');
+            
+            const statusDiv = document.getElementById('data-status');
+            
+            // Проверяем загрузку основных объектов
+            if (typeof window.FACTION_MESSAGES_DATA !== 'undefined') {
+                log('✅ FACTION_MESSAGES_DATA загружен');
+                
+                const factions = Object.keys(window.FACTION_MESSAGES_DATA);
+                log(`📊 Найдено фракций: ${factions.length} - ${factions.join(', ')}`);
+                
+                // Проверяем каждую фракцию
+                factions.forEach(factionId => {
+                    const factionData = window.FACTION_MESSAGES_DATA[factionId];
+                    const categories = Object.keys(factionData);
+                    log(`  ${factionId}: ${categories.length} категорий - ${categories.join(', ')}`);
+                    
+                    // Подсчитываем общее количество сообщений
+                    let totalMessages = 0;
+                    categories.forEach(category => {
+                        totalMessages += factionData[category].length;
+                    });
+                    log(`    Всего сообщений: ${totalMessages}`);
+                });
+                
+                statusDiv.innerHTML = '<span class="success">✅ Данные загружены успешно</span>';
+            } else {
+                log('❌ FACTION_MESSAGES_DATA не найден');
+                statusDiv.innerHTML = '<span class="error">❌ Ошибка загрузки данных</span>';
+            }
+
+            // Проверяем функции
+            if (typeof window.FactionMessages !== 'undefined') {
+                log('✅ FactionMessages API загружен');
+                log(`📋 Доступные функции: ${Object.keys(window.FactionMessages).join(', ')}`);
+            } else {
+                log('❌ FactionMessages API не найден');
+            }
+
+            // Проверяем категории
+            if (typeof window.MESSAGE_CATEGORIES !== 'undefined') {
+                log('✅ MESSAGE_CATEGORIES загружен');
+                Object.keys(window.MESSAGE_CATEGORIES).forEach(factionId => {
+                    log(`  ${factionId}: ${window.MESSAGE_CATEGORIES[factionId].join(', ')}`);
+                });
+            } else {
+                log('❌ MESSAGE_CATEGORIES не найден');
+            }
+        }
+
+        function testCategoryGeneration() {
+            log('=== ТЕСТ ГЕНЕРАЦИИ ПО КАТЕГОРИЯМ ===');
+            
+            const resultsDiv = document.getElementById('category-test-results');
+            resultsDiv.innerHTML = '';
+            
+            if (typeof window.FactionMessages === 'undefined') {
+                log('❌ FactionMessages не загружен');
+                resultsDiv.innerHTML = '<span class="error">❌ FactionMessages не загружен</span>';
+                return;
+            }
+
+            const factions = ['hq', 'rebels', 'free', 'mystery', 'marauders'];
+            let allTestsPassed = true;
+
+            factions.forEach(factionId => {
+                log(`\n--- Тестируем фракцию: ${factionId} ---`);
+                
+                if (!window.MESSAGE_CATEGORIES[factionId]) {
+                    log(`❌ Категории для ${factionId} не найдены`);
+                    allTestsPassed = false;
+                    return;
+                }
+
+                const categories = window.MESSAGE_CATEGORIES[factionId];
+                log(`📋 Категории: ${categories.join(', ')}`);
+
+                categories.forEach(category => {
+                    log(`  Тестируем категорию: ${category}`);
+                    
+                    const messages = window.FactionMessages.getFactionMessagesByCategory(factionId, category);
+                    
+                    if (messages.length > 0) {
+                        log(`    ✅ Найдено ${messages.length} сообщений`);
+                        
+                        // Тестируем случайный выбор
+                        const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+                        log(`    📝 Пример: "${randomMessage.text.substring(0, 50)}..."`);
+                    } else {
+                        log(`    ❌ Сообщения не найдены`);
+                        allTestsPassed = false;
+                    }
+                });
+            });
+
+            if (allTestsPassed) {
+                resultsDiv.innerHTML = '<span class="success">✅ Все тесты категорий прошли успешно</span>';
+                log('✅ Все тесты категорий прошли успешно');
+            } else {
+                resultsDiv.innerHTML = '<span class="error">❌ Некоторые тесты не прошли</span>';
+                log('❌ Некоторые тесты не прошли');
+            }
+        }
+
+        function testFullSystem() {
+            log('=== ТЕСТ ПОЛНОЙ СИСТЕМЫ ГЕНЕРАЦИИ ===');
+            
+            const resultsDiv = document.getElementById('full-test-results');
+            resultsDiv.innerHTML = '';
+            
+            if (typeof window.FactionMessages === 'undefined') {
+                log('❌ FactionMessages не загружен');
+                resultsDiv.innerHTML = '<span class="error">❌ FactionMessages не загружен</span>';
+                return;
+            }
+
+            const factions = ['hq', 'rebels', 'free', 'mystery', 'marauders'];
+            let allTestsPassed = true;
+
+            factions.forEach(factionId => {
+                log(`\n--- Тестируем полную генерацию для: ${factionId} ---`);
+                
+                // Тест 1: Случайное сообщение
+                const randomMessage = window.FactionMessages.getRandomFactionMessage(factionId);
+                if (randomMessage) {
+                    log(`  ✅ Случайное сообщение: "${randomMessage.text.substring(0, 50)}..."`);
+                } else {
+                    log(`  ❌ Не удалось получить случайное сообщение`);
+                    allTestsPassed = false;
+                }
+
+                // Тест 2: Сообщения по типу
+                const usefulMessages = window.FactionMessages.getFactionMessagesByType(factionId, 'useful');
+                if (usefulMessages.length > 0) {
+                    log(`  ✅ Полезные сообщения: ${usefulMessages.length} шт.`);
+                } else {
+                    log(`  ⚠️ Полезных сообщений не найдено`);
+                }
+
+                // Тест 3: Проверка структуры сообщения
+                if (randomMessage) {
+                    const requiredFields = ['id', 'text', 'type', 'category', 'factionId'];
+                    const missingFields = requiredFields.filter(field => !(field in randomMessage));
+                    
+                    if (missingFields.length === 0) {
+                        log(`  ✅ Структура сообщения корректна`);
+                    } else {
+                        log(`  ❌ Отсутствуют поля: ${missingFields.join(', ')}`);
+                        allTestsPassed = false;
+                    }
+                }
+            });
+
+            if (allTestsPassed) {
+                resultsDiv.innerHTML = '<span class="success">✅ Полная система работает корректно</span>';
+                log('✅ Полная система работает корректно');
+            } else {
+                resultsDiv.innerHTML = '<span class="error">❌ Обнаружены проблемы в системе</span>';
+                log('❌ Обнаружены проблемы в системе');
+            }
+        }
+
+        function showStats() {
+            log('=== СТАТИСТИКА СООБЩЕНИЙ ===');
+            
+            const statsDiv = document.getElementById('stats-results');
+            
+            if (typeof window.FactionMessages === 'undefined') {
+                log('❌ FactionMessages не загружен');
+                statsDiv.innerHTML = '<span class="error">❌ FactionMessages не загружен</span>';
+                return;
+            }
+
+            const stats = window.FactionMessages.getFactionMessageStats();
+            log('📊 Статистика по фракциям:');
+            
+            let statsHtml = '<div class="message">';
+            
+            Object.keys(stats).forEach(factionId => {
+                const factionStats = stats[factionId];
+                log(`\n${factionId.toUpperCase()}:`);
+                log(`  Всего сообщений: ${factionStats.total}`);
+                
+                log(`  По типам:`);
+                Object.keys(factionStats.byType).forEach(type => {
+                    log(`    ${type}: ${factionStats.byType[type]}`);
+                });
+                
+                log(`  По категориям:`);
+                Object.keys(factionStats.byCategory).forEach(category => {
+                    log(`    ${category}: ${factionStats.byCategory[category]}`);
+                });
+
+                statsHtml += `<div><strong>${factionId.toUpperCase()}</strong>: ${factionStats.total} сообщений</div>`;
+            });
+            
+            statsHtml += '</div>';
+            statsDiv.innerHTML = statsHtml;
+            
+            log('✅ Статистика загружена');
+        }
+
+        // Автоматически запускаем проверку при загрузке
+        window.addEventListener('load', function() {
+            log('🚀 Тест исправления системы сообщений фракций запущен');
+            checkDataLoad();
+        });
+    </script>
+</body>
+</html>
