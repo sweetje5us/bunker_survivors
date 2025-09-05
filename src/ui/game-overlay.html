@@ -4565,15 +4565,20 @@
             const factionMessageEntries = factionMessages.filter(msg => msg.type === 'faction_message');
             console.log('[getFactionUnifiedContent] Сообщения фракции', factionId + ':', factionMessageEntries.length);
 
-            // Получаем принятые задания для фракции
+            // Получаем принятые задания ТОЛЬКО для текущей фракции (экипированного источника)
             const acceptedQuest = window.sourceQuests.activeQuests[factionId];
             console.log('[getFactionUnifiedContent] Принятые задания для фракции', factionId + ':', acceptedQuest ? 1 : 0);
 
-            // Получаем непринятые задания
-            const allPendingQuests = Object.entries(window.sourceQuests.activeQuests || {})
-                .filter(([fid, quest]) => quest && quest.accepted === false)
-                .map(([fid, quest]) => ({ factionId: fid, ...quest }));
-            console.log('[getFactionUnifiedContent] Непринятые задания:', allPendingQuests.length);
+                         // Получаем непринятые задания ТОЛЬКО от текущей фракции (экипированного источника)
+             const currentFactionPendingQuest = window.sourceQuests.activeQuests[factionId];
+             const allPendingQuests = [];
+             
+             // Добавляем задание текущей фракции, если оно непринято
+             if (currentFactionPendingQuest && currentFactionPendingQuest.accepted === false) {
+                 allPendingQuests.push({ factionId: factionId, ...currentFactionPendingQuest });
+             }
+             
+             console.log('[getFactionUnifiedContent] Непринятые задания для фракции', factionId + ':', allPendingQuests.length);
 
             // Собираем все элементы для отображения в хронологическом порядке
             let elements = [];
@@ -4581,8 +4586,8 @@
             // Создаем массив всех элементов с временными метками
             let allElements = [];
 
-            // 1. Добавляем принятое задание (если есть)
-            if (acceptedQuest && acceptedQuest.accepted) {
+            // 1. Добавляем принятое задание (если есть и принято)
+            if (acceptedQuest && acceptedQuest.accepted === true) {
                 console.log('[getFactionUnifiedContent] Добавляем принятое задание:', acceptedQuest);
                 allElements.push({
                     type: 'accepted_quest',
@@ -4696,7 +4701,7 @@
                         factionId: factionId,
                         progress: 0,
                         accepted: false,
-                        acceptedAt: new Date(),
+                        acceptedAt: null,
                         timestamp: new Date().toISOString()
                     };
                     window.sourceQuests.activeQuests[factionId] = questData;
@@ -4988,7 +4993,7 @@
                         ...randomQuest,
                         progress: 0,
                         accepted: false,
-                        acceptedAt: new Date()
+                        acceptedAt: null
                     };
                     console.log(`[getInitialMessageContent] Сохранено новое задание для фракции ${factionId}:`, randomQuest);
                 }
@@ -5431,6 +5436,8 @@
                 const factionData = getFactionDataByFactionId(factionId);
                 const factionName = factionData ? factionData.name : factionId;
                 
+                console.log(`[updateStandaloneQuestsDisplay] Отображаем задание ${quest.id} для фракции ${factionId}: accepted=${quest.accepted}, acceptedAt=${quest.acceptedAt}`);
+                
                 return `
                     <div class="quest-item ${quest.accepted ? 'accepted' : 'pending'}">
                         <div class="quest-header">
@@ -5808,11 +5815,128 @@
                 // Очистка сообщений за текущий день (вызывается в полночь)
                 clearDailyMessages: function() {
                     console.log('[Faction Messages] Очистка сообщений за текущий день');
-                    // Очищаем только историю сообщений, но НЕ активные задания
-                    this.messageHistory = {};
-                    // НЕ очищаем lastMessageTime, чтобы не сбить интервалы генерации
-                    // this.messageScheduler.lastMessageTime = {};
-                    console.log('[Faction Messages] Сообщения очищены, активные задания сохранены');
+                                         // Очищаем только историю сообщений, но НЕ активные задания
+                     this.messageHistory = {};
+                     
+                     // НЕ очищаем принятые задания - они должны оставаться активными до завершения
+                     // Очищаем только историю сообщений
+                     console.log('[Faction Messages] Принятые задания НЕ очищаются - они остаются активными до завершения');
+                     
+                     // Генерируем задание ТОЛЬКО для снаряженного источника
+                     // Определяем активный источник из экипированных предметов
+                     let activeSourceType = null;
+                     let activeFactionId = null;
+                     
+                     // Сначала пытаемся получить активный источник из GameScene
+                     if (window.game && window.game.scene && window.game.scene.getScene('Game')) {
+                         const gameScene = window.game.scene.getScene('Game');
+                         if (gameScene.activeQuestItem && gameScene.activeQuestItem.id) {
+                             activeSourceType = gameScene.activeQuestItem.id;
+                             console.log(`[Faction Messages] Используем активный источник из GameScene: ${activeSourceType}`);
+                             
+                             // Определяем фракцию по типу источника
+                             const sourceTypeToFactionId = {
+                                 'radio': 'hq',
+                                 'gps': 'rebels',
+                                 'laptop': 'free',
+                                 'transmitter': 'mystery',
+                                 'phone': 'marauders'
+                             };
+                             activeFactionId = sourceTypeToFactionId[activeSourceType];
+                         }
+                     }
+                     
+                     // Если не нашли в GameScene, используем глобальную переменную
+                     if (!activeSourceType && window.currentActiveSource) {
+                         activeSourceType = window.currentActiveSource;
+                         console.log(`[Faction Messages] Используем глобальный активный источник: ${activeSourceType}`);
+                         
+                         // Определяем фракцию по типу источника
+                         const sourceTypeToFactionId = {
+                             'radio': 'hq',
+                             'gps': 'rebels',
+                             'laptop': 'free',
+                             'transmitter': 'mystery',
+                             'phone': 'marauders'
+                         };
+                         activeFactionId = sourceTypeToFactionId[activeSourceType];
+                     }
+                     
+                     // Если все еще не нашли, определяем по наличию заданий/сообщений
+                     if (!activeSourceType) {
+                         const sourceTypeToFactionId = {
+                             'radio': 'hq',
+                             'gps': 'rebels',
+                             'laptop': 'free',
+                             'transmitter': 'mystery',
+                             'phone': 'marauders'
+                         };
+                         
+                         console.log(`[Faction Messages] Ищем экипированный источник по наличию заданий/сообщений...`);
+                         
+                         // Проверяем каждый источник на экипированность
+                         for (const [sourceType, factionId] of Object.entries(sourceTypeToFactionId)) {
+                             const hasQuests = !!this.activeQuests[factionId];
+                             const hasMessages = !!(this.messageHistory[factionId] && this.messageHistory[factionId].length > 0);
+                             
+                             console.log(`[Faction Messages] Проверяем ${sourceType} (${factionId}): задания=${hasQuests}, сообщения=${hasMessages}`);
+                             
+                             if (hasQuests || hasMessages) {
+                                 activeSourceType = sourceType;
+                                 activeFactionId = factionId;
+                                 console.log(`[Faction Messages] Найден экипированный источник ${sourceType} для фракции ${factionId}`);
+                                 break;
+                             }
+                         }
+                     }
+                     
+                     // Если все еще не определили фракцию, определяем по типу источника
+                     if (activeSourceType && !activeFactionId) {
+                         const sourceTypeToFactionId = {
+                             'radio': 'hq',
+                             'gps': 'rebels',
+                             'laptop': 'free',
+                             'transmitter': 'mystery',
+                             'phone': 'marauders'
+                         };
+                         activeFactionId = sourceTypeToFactionId[activeSourceType];
+                     }
+                     
+                     // Если не нашли активный источник, используем radio как дефолт (штаб)
+                     if (!activeSourceType) {
+                         activeSourceType = 'radio';
+                         activeFactionId = 'hq';
+                         console.log(`[Faction Messages] Используем дефолтный активный источник: ${activeSourceType} (${activeFactionId})`);
+                     }
+                     
+                     console.log(`[Faction Messages] Экипированный источник: ${activeSourceType}, фракция: ${activeFactionId}`);
+                     console.log(`[Faction Messages] Проверяем наличие задания у фракции ${activeFactionId}:`, this.activeQuests[activeFactionId] ? 'ЕСТЬ' : 'НЕТ');
+                     
+                     // Генерируем задание ТОЛЬКО для экипированного источника, если у него нет задания
+                     if (!this.activeQuests[activeFactionId]) {
+                         try {
+                             const newQuest = this.getRandomQuest(activeSourceType);
+                             
+                             if (newQuest) {
+                                 // Сохраняем новое задание для фракции экипированного источника
+                                 this.activeQuests[activeFactionId] = {
+                                     ...newQuest,
+                                     progress: 0,
+                                     accepted: false,
+                                     acceptedAt: null
+                                 };
+                                 console.log(`[Faction Messages] Сгенерировано новое задание для экипированного источника ${activeSourceType} (фракция ${activeFactionId}):`, newQuest.id);
+                             }
+                         } catch (error) {
+                             console.warn(`[Faction Messages] Ошибка при генерации задания для экипированного источника ${activeSourceType}:`, error);
+                         }
+                     } else {
+                         console.log(`[Faction Messages] У экипированного источника ${activeSourceType} уже есть задание, новое не генерируется`);
+                     }
+                     
+                     // НЕ очищаем lastMessageTime, чтобы не сбить интервалы генерации
+                     // this.messageScheduler.lastMessageTime = {};
+                     console.log('[Faction Messages] Сообщения и принятые задания очищены, непринятые задания сохранены, новые задания сгенерированы');
                 }
         };
 
@@ -6305,6 +6429,906 @@
             }
         }
 
+        // ===== ГЕНЕРАЦИЯ ПОЛНОЙ БАЗЫ ЗАДАНИЙ =====
+        
+        // Задания для Штаба (HQ)
+        function createHQQuests() {
+            return [
+                // Common grade (1-25)
+                {
+                    id: 'hq_recruit_1',
+                    faction: 'hq',
+                    title: 'Прием новобранцев',
+                    description: 'Принять 3 новых жителей в бункер',
+                    type: 'recruit',
+                    grade: 'common',
+                    rarity: 20,
+                    target: 3,
+                    reward: { type: 'experience', value: 50 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_ammo_1',
+                    faction: 'hq',
+                    title: 'Боеприпасы для защиты',
+                    description: 'Собрать 10 патронов для обороны',
+                    type: 'collect_resource',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 10,
+                    reward: { type: 'resource', value: 'ammo', amount: 5 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_food_1',
+                    faction: 'hq',
+                    title: 'Продовольственный запас',
+                    description: 'Накопить 20 единиц еды',
+                    type: 'collect_resource',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 20,
+                    reward: { type: 'resource', value: 'food', amount: 10 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_bedroom_1',
+                    faction: 'hq',
+                    title: 'Расширение жилья',
+                    description: 'Построить 2 спальни',
+                    type: 'build_room',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 2,
+                    reward: { type: 'reputation', value: 25 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_engineer_1',
+                    faction: 'hq',
+                    title: 'Инженерный персонал',
+                    description: 'Принять 2 инженеров',
+                    type: 'accept_profession',
+                    grade: 'common',
+                    rarity: 10,
+                    target: 2,
+                    reward: { type: 'experience', value: 75 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon grade (26-50)
+                {
+                    id: 'hq_kill_zombies_1',
+                    faction: 'hq',
+                    title: 'Очистка территории',
+                    description: 'Уничтожить 5 зомби',
+                    type: 'kill_enemy',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 5,
+                    reward: { type: 'reputation', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_defense_1',
+                    faction: 'hq',
+                    title: 'Укрепление обороны',
+                    description: 'Повысить защиту бункера до 75%',
+                    type: 'collect_resource',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 75,
+                    reward: { type: 'item', value: 'backpack' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_refuse_unemployed_1',
+                    faction: 'hq',
+                    title: 'Строгий отбор',
+                    description: 'Отказать 3 безработным',
+                    type: 'refuse_profession',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 3,
+                    reward: { type: 'experience', value: 60 },
+                    penalty: { type: 'reputation', value: -10 }
+                },
+                {
+                    id: 'hq_male_only_1',
+                    faction: 'hq',
+                    title: 'Мужская команда',
+                    description: 'Принять только мужчин (отказать 5 женщинам)',
+                    type: 'refuse_gender',
+                    grade: 'uncommon',
+                    rarity: 4,
+                    target: 5,
+                    reward: { type: 'reputation', value: 35 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_metal_1',
+                    faction: 'hq',
+                    title: 'Металлические запасы',
+                    description: 'Накопить 15 единиц металла',
+                    type: 'collect_resource',
+                    grade: 'uncommon',
+                    rarity: 7,
+                    target: 15,
+                    reward: { type: 'resource', value: 'metal', amount: 8 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare grade (51-75)
+                {
+                    id: 'hq_water_1',
+                    faction: 'hq',
+                    title: 'Водоснабжение',
+                    description: 'Накопить 30 единиц воды',
+                    type: 'collect_resource',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 30,
+                    reward: { type: 'item', value: 'water_filter' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_medic_1',
+                    faction: 'hq',
+                    title: 'Медицинский персонал',
+                    description: 'Принять 3 медиков',
+                    type: 'accept_profession',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 3,
+                    reward: { type: 'reputation', value: 60 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_energy_1',
+                    faction: 'hq',
+                    title: 'Энергетическая система',
+                    description: 'Накопить 25 единиц энергии',
+                    type: 'collect_resource',
+                    grade: 'rare',
+                    rarity: 4,
+                    target: 25,
+                    reward: { type: 'item', value: 'solar_panel' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_security_1',
+                    faction: 'hq',
+                    title: 'Охранная служба',
+                    description: 'Принять 4 охранников',
+                    type: 'accept_profession',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 4,
+                    reward: { type: 'experience', value: 100 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_weapon_1',
+                    faction: 'hq',
+                    title: 'Вооружение',
+                    description: 'Накопить 20 единиц оружия',
+                    type: 'collect_resource',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 20,
+                    reward: { type: 'item', value: 'assault_rifle' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Epic grade (76-90)
+                {
+                    id: 'hq_leader_1',
+                    faction: 'hq',
+                    title: 'Лидерство',
+                    description: 'Принять 1 лидера',
+                    type: 'accept_profession',
+                    grade: 'epic',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'reputation', value: 100 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'hq_legendary_1',
+                    faction: 'hq',
+                    title: 'Легендарное задание',
+                    description: 'Выполнить все предыдущие задания',
+                    type: 'complete_all',
+                    grade: 'epic',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'item', value: 'legendary_weapon' },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Задания для Повстанцев (Rebels)
+        function createRebelsQuests() {
+            return [
+                // Common grade (1-25)
+                {
+                    id: 'rebels_sabotage_1',
+                    faction: 'rebels',
+                    title: 'Саботаж',
+                    description: 'Провести 2 акта саботажа',
+                    type: 'sabotage',
+                    grade: 'common',
+                    rarity: 20,
+                    target: 2,
+                    reward: { type: 'experience', value: 60 },
+                    penalty: { type: 'reputation', value: -5 }
+                },
+                {
+                    id: 'rebels_info_1',
+                    faction: 'rebels',
+                    title: 'Сбор информации',
+                    description: 'Собрать информацию о 3 целях',
+                    type: 'gather_info',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 3,
+                    reward: { type: 'reputation', value: 30 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_supplies_1',
+                    faction: 'rebels',
+                    title: 'Поставка припасов',
+                    description: 'Передать 15 единиц еды повстанцам',
+                    type: 'deliver_supplies',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 15,
+                    reward: { type: 'experience', value: 45 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_weapons_1',
+                    faction: 'rebels',
+                    title: 'Вооружение',
+                    description: 'Передать 10 единиц оружия',
+                    type: 'deliver_weapons',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 10,
+                    reward: { type: 'reputation', value: 25 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_recruit_1',
+                    faction: 'rebels',
+                    title: 'Вербовка',
+                    description: 'Вербовать 2 новых повстанцев',
+                    type: 'recruit_rebels',
+                    grade: 'common',
+                    rarity: 10,
+                    target: 2,
+                    reward: { type: 'experience', value: 70 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon grade (26-50)
+                {
+                    id: 'rebels_attack_1',
+                    faction: 'rebels',
+                    title: 'Атака на конвой',
+                    description: 'Атаковать 1 конвой противника',
+                    type: 'attack_convoy',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 1,
+                    reward: { type: 'reputation', value: 50 },
+                    penalty: { type: 'reputation', value: -15 }
+                },
+                {
+                    id: 'rebels_rescue_1',
+                    faction: 'rebels',
+                    title: 'Спасение союзников',
+                    description: 'Спасти 3 союзников из плена',
+                    type: 'rescue_allies',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 3,
+                    reward: { type: 'experience', value: 80 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_tech_1',
+                    faction: 'rebels',
+                    title: 'Технологический саботаж',
+                    description: 'Вывести из строя 2 системы противника',
+                    type: 'tech_sabotage',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 2,
+                    reward: { type: 'item', value: 'tech_device' },
+                    penalty: { type: 'reputation', value: -10 }
+                },
+                {
+                    id: 'rebels_underground_1',
+                    faction: 'rebels',
+                    title: 'Подпольная сеть',
+                    description: 'Создать 3 тайных убежища',
+                    type: 'create_safehouses',
+                    grade: 'uncommon',
+                    rarity: 7,
+                    target: 3,
+                    reward: { type: 'reputation', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_communication_1',
+                    faction: 'rebels',
+                    title: 'Связь',
+                    description: 'Установить связь с 2 другими группами',
+                    type: 'establish_contact',
+                    grade: 'uncommon',
+                    rarity: 4,
+                    target: 2,
+                    reward: { type: 'experience', value: 65 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare grade (51-75)
+                {
+                    id: 'rebels_leader_1',
+                    faction: 'rebels',
+                    title: 'Лидер повстанцев',
+                    description: 'Встретиться с лидером повстанцев',
+                    type: 'meet_leader',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 1,
+                    reward: { type: 'reputation', value: 80 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'rebels_revolution_1',
+                    faction: 'rebels',
+                    title: 'Революция',
+                    description: 'Организовать 1 массовое выступление',
+                    type: 'organize_uprising',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 1,
+                    reward: { type: 'experience', value: 120 },
+                    penalty: { type: 'reputation', value: -20 }
+                },
+                {
+                    id: 'rebels_weapon_factory_1',
+                    faction: 'rebels',
+                    title: 'Оружейная фабрика',
+                    description: 'Захватить 1 оружейную фабрику',
+                    type: 'capture_factory',
+                    grade: 'rare',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'item', value: 'weapon_blueprint' },
+                    penalty: { type: 'reputation', value: -25 }
+                }
+            ];
+        }
+
+        // Задания для Мародеров (Marauders)
+        function createMaraudersQuests() {
+            return [
+                // Common grade (1-25)
+                {
+                    id: 'marauders_raid_1',
+                    faction: 'marauders',
+                    title: 'Налет',
+                    description: 'Провести 2 налета на соседние поселения',
+                    type: 'raid_settlement',
+                    grade: 'common',
+                    rarity: 20,
+                    target: 2,
+                    reward: { type: 'experience', value: 55 },
+                    penalty: { type: 'reputation', value: -10 }
+                },
+                {
+                    id: 'marauders_loot_1',
+                    faction: 'marauders',
+                    title: 'Добыча',
+                    description: 'Собрать 20 единиц добычи',
+                    type: 'collect_loot',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 20,
+                    reward: { type: 'resource', value: 'loot', amount: 15 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_territory_1',
+                    faction: 'marauders',
+                    title: 'Территория',
+                    description: 'Захватить 1 новую территорию',
+                    type: 'capture_territory',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 1,
+                    reward: { type: 'reputation', value: 35 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_fight_1',
+                    faction: 'marauders',
+                    title: 'Бой',
+                    description: 'Уничтожить 4 врагов',
+                    type: 'kill_enemy',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 4,
+                    reward: { type: 'experience', value: 50 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_supplies_1',
+                    faction: 'marauders',
+                    title: 'Припасы',
+                    description: 'Захватить 25 единиц припасов',
+                    type: 'steal_supplies',
+                    grade: 'common',
+                    rarity: 10,
+                    target: 25,
+                    reward: { type: 'resource', value: 'supplies', amount: 20 },
+                    penalty: { type: 'reputation', value: -5 }
+                },
+                // Uncommon grade (26-50)
+                {
+                    id: 'marauders_stronghold_1',
+                    faction: 'marauders',
+                    title: 'Крепость',
+                    description: 'Захватить 1 крепость',
+                    type: 'capture_stronghold',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 1,
+                    reward: { type: 'reputation', value: 60 },
+                    penalty: { type: 'reputation', value: -20 }
+                },
+                {
+                    id: 'marauders_weapons_1',
+                    faction: 'marauders',
+                    title: 'Оружие',
+                    description: 'Захватить 15 единиц оружия',
+                    type: 'steal_weapons',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 15,
+                    reward: { type: 'item', value: 'stolen_weapon' },
+                    penalty: { type: 'reputation', value: -15 }
+                },
+                {
+                    id: 'marauders_prisoners_1',
+                    faction: 'marauders',
+                    title: 'Пленники',
+                    description: 'Захватить 3 пленников',
+                    type: 'capture_prisoners',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 3,
+                    reward: { type: 'experience', value: 75 },
+                    penalty: { type: 'reputation', value: -10 }
+                },
+                {
+                    id: 'marauders_alliance_1',
+                    faction: 'marauders',
+                    title: 'Союз',
+                    description: 'Заключить союз с 1 группой мародеров',
+                    type: 'form_alliance',
+                    grade: 'uncommon',
+                    rarity: 7,
+                    target: 1,
+                    reward: { type: 'reputation', value: 45 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_territory_2',
+                    faction: 'marauders',
+                    title: 'Расширение',
+                    description: 'Захватить 2 новые территории',
+                    type: 'capture_territory',
+                    grade: 'uncommon',
+                    rarity: 4,
+                    target: 2,
+                    reward: { type: 'experience', value: 70 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare grade (51-75)
+                {
+                    id: 'marauders_leader_1',
+                    faction: 'marauders',
+                    title: 'Лидер мародеров',
+                    description: 'Стать лидером группы мародеров',
+                    type: 'become_leader',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 1,
+                    reward: { type: 'reputation', value: 100 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_empire_1',
+                    faction: 'marauders',
+                    title: 'Империя',
+                    description: 'Создать империю мародеров',
+                    type: 'create_empire',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 1,
+                    reward: { type: 'item', value: 'crown' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'marauders_legendary_1',
+                    faction: 'marauders',
+                    title: 'Легендарный мародер',
+                    description: 'Стать легендой среди мародеров',
+                    type: 'become_legend',
+                    grade: 'rare',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'experience', value: 150 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Задания для Свободных (Free)
+        function createFreeQuests() {
+            return [
+                // Common grade (1-25)
+                {
+                    id: 'free_trade_1',
+                    faction: 'free',
+                    title: 'Торговля',
+                    description: 'Провести 3 торговые сделки',
+                    type: 'trade',
+                    grade: 'common',
+                    rarity: 20,
+                    target: 3,
+                    reward: { type: 'experience', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_diplomacy_1',
+                    faction: 'free',
+                    title: 'Дипломатия',
+                    description: 'Установить дипломатические отношения с 2 группами',
+                    type: 'establish_diplomacy',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 2,
+                    reward: { type: 'reputation', value: 30 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_help_1',
+                    faction: 'free',
+                    title: 'Помощь',
+                    description: 'Помочь 4 нуждающимся группам',
+                    type: 'help_others',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 4,
+                    reward: { type: 'reputation', value: 25 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_peace_1',
+                    faction: 'free',
+                    title: 'Мир',
+                    description: 'Заключить мир между 2 враждующими группами',
+                    type: 'negotiate_peace',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 1,
+                    reward: { type: 'experience', value: 60 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_knowledge_1',
+                    faction: 'free',
+                    title: 'Знания',
+                    description: 'Поделиться знаниями с 3 группами',
+                    type: 'share_knowledge',
+                    grade: 'common',
+                    rarity: 10,
+                    target: 3,
+                    reward: { type: 'reputation', value: 20 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon grade (26-50)
+                {
+                    id: 'free_alliance_1',
+                    faction: 'free',
+                    title: 'Альянс',
+                    description: 'Создать альянс между 3 группами',
+                    type: 'create_alliance',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 1,
+                    reward: { type: 'reputation', value: 50 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_technology_1',
+                    faction: 'free',
+                    title: 'Технология',
+                    description: 'Поделиться технологией с 2 группами',
+                    type: 'share_technology',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 2,
+                    reward: { type: 'item', value: 'tech_blueprint' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_resources_1',
+                    faction: 'free',
+                    title: 'Ресурсы',
+                    description: 'Поделиться ресурсами с 5 группами',
+                    type: 'share_resources',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 5,
+                    reward: { type: 'experience', value: 70 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_mediation_1',
+                    faction: 'free',
+                    title: 'Посредничество',
+                    description: 'Выступить посредником в 2 конфликтах',
+                    type: 'mediate_conflict',
+                    grade: 'uncommon',
+                    rarity: 7,
+                    target: 2,
+                    reward: { type: 'reputation', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_culture_1',
+                    faction: 'free',
+                    title: 'Культура',
+                    description: 'Поделиться культурой с 3 группами',
+                    type: 'share_culture',
+                    grade: 'uncommon',
+                    rarity: 4,
+                    target: 3,
+                    reward: { type: 'experience', value: 55 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare grade (51-75)
+                {
+                    id: 'free_leader_1',
+                    faction: 'free',
+                    title: 'Лидер',
+                    description: 'Стать лидером свободных групп',
+                    type: 'become_leader',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 1,
+                    reward: { type: 'reputation', value: 80 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_federation_1',
+                    faction: 'free',
+                    title: 'Федерация',
+                    description: 'Создать федерацию свободных групп',
+                    type: 'create_federation',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 1,
+                    reward: { type: 'item', value: 'federation_badge' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'free_legendary_1',
+                    faction: 'free',
+                    title: 'Легенда',
+                    description: 'Стать легендой среди свободных',
+                    type: 'become_legend',
+                    grade: 'rare',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'experience', value: 120 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Задания для Тайных (Mystery)
+        function createMysteryQuests() {
+            return [
+                // Common grade (1-25)
+                {
+                    id: 'mystery_investigate_1',
+                    faction: 'mystery',
+                    title: 'Расследование',
+                    description: 'Провести 2 расследования',
+                    type: 'investigate',
+                    grade: 'common',
+                    rarity: 20,
+                    target: 2,
+                    reward: { type: 'experience', value: 45 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_secret_1',
+                    faction: 'mystery',
+                    title: 'Секрет',
+                    description: 'Раскрыть 1 секрет',
+                    type: 'reveal_secret',
+                    grade: 'common',
+                    rarity: 18,
+                    target: 1,
+                    reward: { type: 'reputation', value: 35 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_clue_1',
+                    faction: 'mystery',
+                    title: 'Зацепка',
+                    description: 'Найти 3 зацепки',
+                    type: 'find_clues',
+                    grade: 'common',
+                    rarity: 15,
+                    target: 3,
+                    reward: { type: 'experience', value: 35 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_contact_1',
+                    faction: 'mystery',
+                    title: 'Контакт',
+                    description: 'Установить контакт с 2 тайными агентами',
+                    type: 'contact_agents',
+                    grade: 'common',
+                    rarity: 12,
+                    target: 2,
+                    reward: { type: 'reputation', value: 25 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_info_1',
+                    faction: 'mystery',
+                    title: 'Информация',
+                    description: 'Собрать информацию о 4 целях',
+                    type: 'gather_intel',
+                    grade: 'common',
+                    rarity: 10,
+                    target: 4,
+                    reward: { type: 'experience', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Uncommon grade (26-50)
+                {
+                    id: 'mystery_operation_1',
+                    faction: 'mystery',
+                    title: 'Операция',
+                    description: 'Провести 1 тайную операцию',
+                    type: 'covert_operation',
+                    grade: 'uncommon',
+                    rarity: 8,
+                    target: 1,
+                    reward: { type: 'reputation', value: 50 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_agent_1',
+                    faction: 'mystery',
+                    title: 'Агент',
+                    description: 'Вербовать 1 тайного агента',
+                    type: 'recruit_agent',
+                    grade: 'uncommon',
+                    rarity: 6,
+                    target: 1,
+                    reward: { type: 'experience', value: 65 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_network_1',
+                    faction: 'mystery',
+                    title: 'Сеть',
+                    description: 'Создать сеть из 3 агентов',
+                    type: 'create_network',
+                    grade: 'uncommon',
+                    rarity: 5,
+                    target: 3,
+                    reward: { type: 'reputation', value: 40 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_mission_1',
+                    faction: 'mystery',
+                    title: 'Миссия',
+                    description: 'Выполнить 2 тайные миссии',
+                    type: 'secret_mission',
+                    grade: 'uncommon',
+                    rarity: 7,
+                    target: 2,
+                    reward: { type: 'experience', value: 55 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_intel_1',
+                    faction: 'mystery',
+                    title: 'Разведка',
+                    description: 'Провести разведку 2 целей',
+                    type: 'reconnaissance',
+                    grade: 'uncommon',
+                    rarity: 4,
+                    target: 2,
+                    reward: { type: 'reputation', value: 35 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                // Rare grade (51-75)
+                {
+                    id: 'mystery_leader_1',
+                    faction: 'mystery',
+                    title: 'Лидер',
+                    description: 'Стать лидером тайной организации',
+                    type: 'become_leader',
+                    grade: 'rare',
+                    rarity: 3,
+                    target: 1,
+                    reward: { type: 'reputation', value: 90 },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_organization_1',
+                    faction: 'mystery',
+                    title: 'Организация',
+                    description: 'Создать тайную организацию',
+                    type: 'create_organization',
+                    grade: 'rare',
+                    rarity: 2,
+                    target: 1,
+                    reward: { type: 'item', value: 'secret_badge' },
+                    penalty: { type: 'none', value: 0 }
+                },
+                {
+                    id: 'mystery_legendary_1',
+                    faction: 'mystery',
+                    title: 'Легенда',
+                    description: 'Стать легендой среди тайных агентов',
+                    type: 'become_legend',
+                    grade: 'rare',
+                    rarity: 1,
+                    target: 1,
+                    reward: { type: 'experience', value: 130 },
+                    penalty: { type: 'none', value: 0 }
+                }
+            ];
+        }
+
+        // Генерация дополнительных заданий для фракции
+        function generateAdditionalQuestsForFaction(factionId, baseQuests, count) {
+            const additionalQuests = [];
+            
+            for (let i = 0; i < count; i++) {
+                const baseQuest = baseQuests[Math.floor(Math.random() * baseQuests.length)];
+                const variation = Math.floor(Math.random() * 1000); // Для уникальности ID
+                
+                additionalQuests.push({
+                    ...baseQuest,
+                    id: `${baseQuest.id}_v${variation}`,
+                    target: Math.floor(baseQuest.target * (0.8 + Math.random() * 0.4)), // 80-120% от базовой цели
+                    reward: {
+                        ...baseQuest.reward,
+                        value: typeof baseQuest.reward.value === 'number'
+                            ? Math.floor(baseQuest.reward.value * (0.9 + Math.random() * 0.2))
+                            : baseQuest.reward.value
+                    }
+                });
+            }
+            
+            return additionalQuests;
+        }
+
         // Создание полной базы заданий (500 заданий по 100 на фракцию)
         function createFullQuestDatabase() {
             const quests = [];
@@ -6401,41 +7425,79 @@
                 }
 
                 // Ищем задание в sourceQuests.activeQuests по factionId
-                const quest = this.activeQuests[factionId];
+                // Получаем задание по factionId или ищем по questId во всех фракциях
+                let quest = this.activeQuests[factionId];
+                let actualFactionId = factionId;
+                
                 if (!quest) {
-                    console.warn('[sourceQuests] Quest not found in activeQuests for faction:', factionId);
+                    // Если задание не найдено в текущей фракции, ищем по questId во всех фракциях
+                    console.log('[sourceQuests] Quest not found in faction', factionId, ', searching by questId:', questId);
+                    for (const [fid, q] of Object.entries(this.activeQuests)) {
+                        if (q && q.id === questId) {
+                            quest = q;
+                            actualFactionId = fid;
+                            console.log('[sourceQuests] Found quest in faction:', fid);
+                            break;
+                        }
+                    }
+                }
+                
+                if (!quest) {
+                    console.warn('[sourceQuests] Quest not found anywhere:', questId);
                     console.log('[sourceQuests] Available active quests:', Object.keys(this.activeQuests));
-                    console.log('[sourceQuests] Current faction quest:', this.activeQuests[factionId]);
                     // Удаляем из списка обрабатываемых при ошибке
                     window.sourceQuests._processingQuests.delete(processingKey);
                     return false;
                 }
                 
-                // Проверяем, что задание еще не принято
-                if (quest.accepted) {
-                    console.warn('[sourceQuests] Quest already accepted:', questId);
-                    window.sourceQuests._processingQuests.delete(processingKey);
-                    return false;
-                }
+                                 // Проверяем, что задание еще не принято
+                 if (quest.accepted === true) {
+                     console.warn('[sourceQuests] Quest already accepted:', questId);
+                     window.sourceQuests._processingQuests.delete(processingKey);
+                     return false;
+                 }
+                 
+                 // Проверяем общий лимит принятых заданий (5 максимум всего)
+                 const totalActiveCount = Object.values(this.activeQuests).filter(q => 
+                     q && q.accepted === true
+                 ).length;
+                 if (totalActiveCount >= 5) {
+                     console.warn('[sourceQuests] Превышен общий лимит активных заданий (5)');
+                     if (window.showToast) {
+                         window.showToast(`Превышен лимит активных заданий (5)! Завершите существующие задания.`);
+                     }
+                     window.sourceQuests._processingQuests.delete(processingKey);
+                     return false;
+                 }
 
-                // Сохраняем задание по factionId, а не по sourceType
-                if (factionId) {
-                    this.activeQuests[factionId] = {
+                // Сохраняем задание по actualFactionId (где оно реально находится)
+                if (actualFactionId) {
+                    console.log(`[sourceQuests] ДО сохранения задания. Всего активных заданий:`, Object.keys(this.activeQuests).length);
+                    console.log(`[sourceQuests] Активные задания ДО:`, Object.keys(this.activeQuests));
+                    
+                    this.activeQuests[actualFactionId] = {
                         ...quest,
                         progress: 0,
                         accepted: true,
                         acceptedAt: new Date()
                     };
+                    
+                    console.log(`[sourceQuests] ПОСЛЕ сохранения задания. Всего активных заданий:`, Object.keys(this.activeQuests).length);
+                    console.log(`[sourceQuests] Активные задания ПОСЛЕ:`, Object.keys(this.activeQuests));
+                    console.log(`[sourceQuests] Задание сохранено с accepted: true для фракции ${actualFactionId}:`, this.activeQuests[actualFactionId]);
 
                     // Добавляем сообщение о принятии задания в историю
-                    const factionData = getFactionDataByFactionId(factionId);
-                    this.addMessageToHistory(factionId, 'accepted_quest', {
-                        quest: this.activeQuests[factionId],
+                    const factionData = getFactionDataByFactionId(actualFactionId);
+                    this.addMessageToHistory(actualFactionId, 'accepted_quest', {
+                        quest: this.activeQuests[actualFactionId],
                         factionData: factionData
                     });
+                    
+                    console.log(`[sourceQuests] После добавления в историю, задание все еще accepted: true:`, this.activeQuests[actualFactionId].accepted);
+                    console.log(`[sourceQuests] Финальное состояние activeQuests:`, Object.keys(this.activeQuests));
                 }
 
-                console.log(`[sourceQuests] Задание принято: ${quest.title}`);
+                console.log(`[sourceQuests] Задание принято: ${quest.title} (фракция: ${actualFactionId})`);
 
                 // Обновляем отдельный блок заданий
                 if (typeof updateStandaloneQuestsDisplay === 'function') {
@@ -6867,7 +7929,7 @@
                                 factionId: factionId,
                                 progress: 0,
                                 accepted: false,
-                                acceptedAt: new Date(),
+                                acceptedAt: null,
                                 timestamp: new Date().toISOString()
                             };
                             console.log('[getInitialMessageContent] Задание сохранено в activeQuests:', window.sourceQuests.activeQuests[factionId]);
@@ -7285,687 +8347,6 @@
             
             // Блоки остаются свернутыми по умолчанию
         });
-
-        // ===== ГЕНЕРАЦИЯ ПОЛНОЙ БАЗЫ ЗАДАНИЙ =====
-        
-        // Задания для Штаба (HQ)
-        function createHQQuests() {
-            return [
-                // Common grade (1-25)
-                {
-                    id: 'hq_recruit_1',
-                    faction: 'hq',
-                    title: 'Прием новобранцев',
-                    description: 'Принять 3 новых жителей в бункер',
-                    type: 'recruit',
-                    grade: 'common',
-                    rarity: 20,
-                    target: 3,
-                    reward: { type: 'experience', value: 50 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_ammo_1',
-                    faction: 'hq',
-                    title: 'Боеприпасы для защиты',
-                    description: 'Собрать 10 патронов для обороны',
-                    type: 'collect_resource',
-                    grade: 'common',
-                    rarity: 15,
-                    target: 10,
-                    reward: { type: 'resource', value: 'ammo', amount: 5 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_food_1',
-                    faction: 'hq',
-                    title: 'Продовольственный запас',
-                    description: 'Накопить 20 единиц еды',
-                    type: 'collect_resource',
-                    grade: 'common',
-                    rarity: 18,
-                    target: 20,
-                    reward: { type: 'resource', value: 'food', amount: 10 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_bedroom_1',
-                    faction: 'hq',
-                    title: 'Расширение жилплощади',
-                    description: 'Построить 2 спальни',
-                    type: 'build_room',
-                    grade: 'common',
-                    rarity: 12,
-                    target: 2,
-                    reward: { type: 'reputation', value: 25 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_engineer_1',
-                    faction: 'hq',
-                    title: 'Найм специалистов',
-                    description: 'Принять 2 инженеров',
-                    type: 'accept_profession',
-                    grade: 'common',
-                    rarity: 10,
-                    target: 2,
-                    reward: { type: 'experience', value: 75 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Uncommon grade (26-50)
-                {
-                    id: 'hq_kill_zombies_1',
-                    faction: 'hq',
-                    title: 'Очистка от нежити',
-                    description: 'Уничтожить 5 зомби',
-                    type: 'kill_enemy',
-                    grade: 'uncommon',
-                    rarity: 8,
-                    target: 5,
-                    reward: { type: 'reputation', value: 40 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_defense_1',
-                    faction: 'hq',
-                    title: 'Укрепление позиций',
-                    description: 'Повысить защиту бункера до 75%',
-                    type: 'collect_resource',
-                    grade: 'uncommon',
-                    rarity: 6,
-                    target: 75,
-                    reward: { type: 'item', value: 'backpack' },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_refuse_unemployed_1',
-                    faction: 'hq',
-                    title: 'Отсев неэффективных',
-                    description: 'Отказать 3 безработным',
-                    type: 'refuse_profession',
-                    grade: 'uncommon',
-                    rarity: 5,
-                    target: 3,
-                    reward: { type: 'experience', value: 60 },
-                    penalty: { type: 'reputation', value: -10 }
-                },
-                {
-                    id: 'hq_male_only_1',
-                    faction: 'hq',
-                    title: 'Строгий отбор',
-                    description: 'Принять только мужчин (отказать 5 женщинам)',
-                    type: 'refuse_gender',
-                    grade: 'uncommon',
-                    rarity: 4,
-                    target: 5,
-                    reward: { type: 'reputation', value: 35 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_metal_1',
-                    faction: 'hq',
-                    title: 'Металлический запас',
-                    description: 'Накопить 15 единиц металла',
-                    type: 'collect_resource',
-                    grade: 'uncommon',
-                    rarity: 7,
-                    target: 15,
-                    reward: { type: 'resource', value: 'metal', amount: 8 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Rare grade (51-75)
-                {
-                    id: 'hq_elite_soldiers_1',
-                    faction: 'hq',
-                    title: 'Элитные солдаты',
-                    description: 'Принять 3 солдат с навыком "сила"',
-                    type: 'accept_skill',
-                    grade: 'rare',
-                    rarity: 3,
-                    target: 3,
-                    reward: { type: 'experience', value: 150 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_weapon_cache_1',
-                    faction: 'hq',
-                    title: 'Оружейный склад',
-                    description: 'Собрать 25 патронов',
-                    type: 'collect_resource',
-                    grade: 'rare',
-                    rarity: 2,
-                    target: 25,
-                    reward: { type: 'item', value: 'ammo' },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_armory_1',
-                    faction: 'hq',
-                    title: 'Строительство арсенала',
-                    description: 'Построить оружейную',
-                    type: 'build_room',
-                    grade: 'rare',
-                    rarity: 1,
-                    target: 1,
-                    reward: { type: 'reputation', value: 100 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_exile_weak_1',
-                    faction: 'hq',
-                    title: 'Чистка рядов',
-                    description: 'Изгнать 2 жителей с низким здоровьем',
-                    type: 'exile',
-                    grade: 'rare',
-                    rarity: 2,
-                    target: 2,
-                    reward: { type: 'experience', value: 120 },
-                    penalty: { type: 'reputation', value: -25 }
-                },
-                {
-                    id: 'hq_kill_marauders_1',
-                    faction: 'hq',
-                    title: 'Уничтожение мародеров',
-                    description: 'Уничтожить 3 мародера',
-                    type: 'kill_enemy',
-                    grade: 'rare',
-                    rarity: 2,
-                    target: 3,
-                    reward: { type: 'resource', value: 'ammo', amount: 15 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Epic grade (76-90)
-                {
-                    id: 'hq_max_defense_1',
-                    faction: 'hq',
-                    title: 'Непроницаемая крепость',
-                    description: 'Достичь максимальной защиты (100%)',
-                    type: 'collect_resource',
-                    grade: 'epic',
-                    rarity: 1,
-                    target: 100,
-                    reward: { type: 'experience', value: 300 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_sacrifice_1',
-                    faction: 'hq',
-                    title: 'Жертва ради порядка',
-                    description: 'Принести в жертву жителя с низким здоровьем',
-                    type: 'sacrifice',
-                    grade: 'epic',
-                    rarity: 0.5,
-                    target: 1,
-                    reward: { type: 'reputation', value: 150 },
-                    penalty: { type: 'reputation', value: -50 }
-                },
-                {
-                    id: 'hq_attack_rebels_1',
-                    faction: 'hq',
-                    title: 'Уничтожение повстанцев',
-                    description: 'Напасть на бункер повстанцев',
-                    type: 'attack_bunker',
-                    grade: 'epic',
-                    rarity: 0.5,
-                    target: 1,
-                    reward: { type: 'experience', value: 400 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Legendary grade (91-100)
-                {
-                    id: 'hq_elite_army_1',
-                    faction: 'hq',
-                    title: 'Элитная армия',
-                    description: 'Принять 5 солдат с навыками "сила" и "выносливость"',
-                    type: 'accept_skill',
-                    grade: 'legendary',
-                    rarity: 0.1,
-                    target: 5,
-                    reward: { type: 'reputation', value: 500 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'hq_complete_control_1',
-                    faction: 'hq',
-                    title: 'Полный контроль',
-                    description: 'Достичь максимального порядка (100% морали и счастья)',
-                    type: 'collect_resource',
-                    grade: 'legendary',
-                    rarity: 0.1,
-                    target: 100,
-                    reward: { type: 'experience', value: 1000 },
-                    penalty: { type: 'none', value: 0 }
-                }
-            ];
-        }
-
-        // Задания для Повстанцев (Rebels)
-        function createRebelsQuests() {
-            return [
-                // Common
-                {
-                    id: 'rebels_recruit_1',
-                    faction: 'rebels',
-                    title: 'Новые бойцы',
-                    description: 'Принять 4 новых жителя',
-                    type: 'recruit',
-                    grade: 'common',
-                    rarity: 20,
-                    target: 4,
-                    reward: { type: 'experience', value: 40 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'rebels_scout_1',
-                    faction: 'rebels',
-                    title: 'Разведка местности',
-                    description: 'Принять 2 разведчиков',
-                    type: 'accept_profession',
-                    grade: 'common',
-                    rarity: 15,
-                    target: 2,
-                    reward: { type: 'reputation', value: 30 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Uncommon
-                {
-                    id: 'rebels_attack_hq_1',
-                    faction: 'rebels',
-                    title: 'Нападение на Штаб',
-                    description: 'Напасть на бункер Штаба',
-                    type: 'attack_bunker',
-                    grade: 'uncommon',
-                    rarity: 8,
-                    target: 1,
-                    reward: { type: 'experience', value: 200 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'rebels_kill_soldiers_1',
-                    faction: 'rebels',
-                    title: 'Борьба с угнетателями',
-                    description: 'Уничтожить 4 солдат Штаба',
-                    type: 'kill_enemy',
-                    grade: 'uncommon',
-                    rarity: 6,
-                    target: 4,
-                    reward: { type: 'resource', value: 'ammo', amount: 12 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Rare
-                {
-                    id: 'rebels_sabotage_1',
-                    faction: 'rebels',
-                    title: 'Диверсионные действия',
-                    description: 'Ослабить оборону противника',
-                    type: 'kill_enemy',
-                    grade: 'rare',
-                    rarity: 3,
-                    target: 1,
-                    reward: { type: 'reputation', value: 80 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'rebels_recruit_warriors_1',
-                    faction: 'rebels',
-                    title: 'Набор воинов',
-                    description: 'Принять 3 жителей с навыком "сила"',
-                    type: 'accept_skill',
-                    grade: 'rare',
-                    rarity: 2,
-                    target: 3,
-                    reward: { type: 'item', value: 'backpack' },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Epic
-                {
-                    id: 'rebels_destroy_hq_1',
-                    faction: 'rebels',
-                    title: 'Революция',
-                    description: 'Уничтожить бункер Штаба',
-                    type: 'attack_bunker',
-                    grade: 'epic',
-                    rarity: 1,
-                    target: 1,
-                    reward: { type: 'experience', value: 500 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Legendary
-                {
-                    id: 'rebels_free_world_1',
-                    faction: 'rebels',
-                    title: 'Свободный мир',
-                    description: 'Уничтожить все бункеры Штаба',
-                    type: 'attack_bunker',
-                    grade: 'legendary',
-                    rarity: 0.05,
-                    target: 5,
-                    reward: { type: 'reputation', value: 1000 },
-                    penalty: { type: 'none', value: 0 }
-                }
-            ];
-        }
-
-        // Задания для Мародеров (Marauders)
-        function createMaraudersQuests() {
-            return [
-                // Common
-                {
-                    id: 'marauders_loot_1',
-                    faction: 'marauders',
-                    title: 'Добыча ресурсов',
-                    description: 'Собрать 15 единиц металла',
-                    type: 'collect_resource',
-                    grade: 'common',
-                    rarity: 18,
-                    target: 15,
-                    reward: { type: 'resource', value: 'metal', amount: 8 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'marauders_attack_1',
-                    faction: 'marauders',
-                    title: 'Охота на слабых',
-                    description: 'Напасть на бункер Свободных',
-                    type: 'attack_bunker',
-                    grade: 'common',
-                    rarity: 12,
-                    target: 1,
-                    reward: { type: 'resource', value: 'money', amount: 50 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Uncommon
-                {
-                    id: 'marauders_kill_1',
-                    faction: 'marauders',
-                    title: 'Кровавая жатва',
-                    description: 'Уничтожить 6 жителей других бункеров',
-                    type: 'kill_enemy',
-                    grade: 'uncommon',
-                    rarity: 8,
-                    target: 6,
-                    reward: { type: 'experience', value: 100 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'marauders_steal_1',
-                    faction: 'marauders',
-                    title: 'Кража технологий',
-                    description: 'Украсть предмет из другого бункера',
-                    type: 'get_item',
-                    grade: 'uncommon',
-                    rarity: 5,
-                    target: 1,
-                    reward: { type: 'item', value: 'multi_tool' },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Rare
-                {
-                    id: 'marauders_rampage_1',
-                    faction: 'marauders',
-                    title: 'Разгром',
-                    description: 'Уничтожить 10 жителей',
-                    type: 'kill_enemy',
-                    grade: 'rare',
-                    rarity: 3,
-                    target: 10,
-                    reward: { type: 'reputation', value: 120 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Epic
-                {
-                    id: 'marauders_empire_1',
-                    faction: 'marauders',
-                    title: 'Империя хаоса',
-                    description: 'Уничтожить 3 бункера',
-                    type: 'attack_bunker',
-                    grade: 'epic',
-                    rarity: 1,
-                    target: 3,
-                    reward: { type: 'experience', value: 600 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Legendary
-                {
-                    id: 'marauders_apocalypse_1',
-                    faction: 'marauders',
-                    title: 'Апокалипсис',
-                    description: 'Уничтожить все выжившие бункеры',
-                    type: 'attack_bunker',
-                    grade: 'legendary',
-                    rarity: 0.01,
-                    target: 10,
-                    reward: { type: 'reputation', value: 2000 },
-                    penalty: { type: 'none', value: 0 }
-                }
-            ];
-        }
-
-        // Задания для Свободных (Free)
-        function createFreeQuests() {
-            return [
-                // Common
-                {
-                    id: 'free_trade_1',
-                    faction: 'free',
-                    title: 'Свободная торговля',
-                    description: 'Организовать торговый обмен',
-                    type: 'trade',
-                    grade: 'common',
-                    rarity: 15,
-                    target: 1,
-                    reward: { type: 'resource', value: 'money', amount: 30 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'free_community_1',
-                    faction: 'free',
-                    title: 'Сообщество',
-                    description: 'Принять 5 новых жителей',
-                    type: 'recruit',
-                    grade: 'common',
-                    rarity: 18,
-                    target: 5,
-                    reward: { type: 'reputation', value: 40 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Uncommon
-                {
-                    id: 'free_neutrality_1',
-                    faction: 'free',
-                    title: 'Нейтралитет',
-                    description: 'Найти предмет "Нейтралитет"',
-                    type: 'find_sidequest',
-                    grade: 'uncommon',
-                    rarity: 7,
-                    target: 1,
-                    reward: { type: 'experience', value: 90 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'free_balance_1',
-                    faction: 'free',
-                    title: 'Баланс сил',
-                    description: 'Поддерживать нейтральные отношения со всеми фракциями',
-                    type: 'recruit',
-                    grade: 'uncommon',
-                    rarity: 5,
-                    target: 1,
-                    reward: { type: 'reputation', value: 60 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Rare
-                {
-                    id: 'free_alliance_1',
-                    faction: 'free',
-                    title: 'Альянс',
-                    description: 'Помочь другой фракции в кризисной ситуации',
-                    type: 'trade',
-                    grade: 'rare',
-                    rarity: 3,
-                    target: 1,
-                    reward: { type: 'experience', value: 180 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Epic
-                {
-                    id: 'free_peace_1',
-                    faction: 'free',
-                    title: 'Мир во всем мире',
-                    description: 'Достичь мирных отношений со всеми фракциями',
-                    type: 'recruit',
-                    grade: 'epic',
-                    rarity: 1,
-                    target: 1,
-                    reward: { type: 'reputation', value: 300 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Legendary
-                {
-                    id: 'free_utopia_1',
-                    faction: 'free',
-                    title: 'Утопия',
-                    description: 'Создать идеальное общество без конфликтов',
-                    type: 'recruit',
-                    grade: 'legendary',
-                    rarity: 0.02,
-                    target: 1,
-                    reward: { type: 'experience', value: 2000 },
-                    penalty: { type: 'none', value: 0 }
-                }
-            ];
-        }
-
-        // Задания для Тайны (Mystery)
-        function createMysteryQuests() {
-            return [
-                // Common
-                {
-                    id: 'mystery_explore_1',
-                    faction: 'mystery',
-                    title: 'Исследование',
-                    description: 'Найти предмет "Истина"',
-                    type: 'find_sidequest',
-                    grade: 'common',
-                    rarity: 12,
-                    target: 1,
-                    reward: { type: 'experience', value: 70 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'mystery_zombie_1',
-                    faction: 'mystery',
-                    title: 'Изучение нежити',
-                    description: 'Уничтожить 3 зомби',
-                    type: 'kill_enemy',
-                    grade: 'common',
-                    rarity: 15,
-                    target: 3,
-                    reward: { type: 'reputation', value: 25 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Uncommon
-                {
-                    id: 'mystery_mutant_1',
-                    faction: 'mystery',
-                    title: 'Мутантная угроза',
-                    description: 'Уничтожить 2 мутанта',
-                    type: 'kill_enemy',
-                    grade: 'uncommon',
-                    rarity: 8,
-                    target: 2,
-                    reward: { type: 'item', value: 'medicine' },
-                    penalty: { type: 'none', value: 0 }
-                },
-                {
-                    id: 'mystery_lie_1',
-                    faction: 'mystery',
-                    title: 'Поиск обмана',
-                    description: 'Найти предмет "Ложь"',
-                    type: 'find_sidequest',
-                    grade: 'uncommon',
-                    rarity: 6,
-                    target: 1,
-                    reward: { type: 'experience', value: 110 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Rare
-                {
-                    id: 'mystery_insanity_1',
-                    faction: 'mystery',
-                    title: 'Безумие',
-                    description: 'Довести жителя до безумия',
-                    type: 'insanity',
-                    grade: 'rare',
-                    rarity: 3,
-                    target: 1,
-                    reward: { type: 'reputation', value: 90 },
-                    penalty: { type: 'reputation', value: -30 }
-                },
-                {
-                    id: 'mystery_enemy_in_1',
-                    faction: 'mystery',
-                    title: 'Эксперимент',
-                    description: 'Впустить врага в бункер',
-                    type: 'let_enemy_in',
-                    grade: 'rare',
-                    rarity: 2,
-                    target: 1,
-                    reward: { type: 'experience', value: 250 },
-                    penalty: { type: 'none', value: 0 }
-                },
-                // Epic
-                {
-                    id: 'mystery_transformation_1',
-                    faction: 'mystery',
-                    title: 'Трансформация',
-                    description: 'Преобразовать 3 жителей в мутантов',
-                    type: 'insanity',
-                    grade: 'epic',
-                    rarity: 1,
-                    target: 3,
-                    reward: { type: 'reputation', value: 200 },
-                    penalty: { type: 'reputation', value: -100 }
-                },
-                // Legendary
-                {
-                    id: 'mystery_apocalypse_1',
-                    faction: 'mystery',
-                    title: 'Истинный апокалипсис',
-                    description: 'Уничтожить все живое',
-                    type: 'kill_enemy',
-                    grade: 'legendary',
-                    rarity: 0.005,
-                    target: 100,
-                    reward: { type: 'experience', value: 5000 },
-                    penalty: { type: 'none', value: 0 }
-                }
-            ];
-        }
-
-        // Генерация дополнительных заданий для фракции
-        function generateAdditionalQuestsForFaction(factionId, baseQuests, count) {
-            const additionalQuests = [];
-            
-            for (let i = 0; i < count; i++) {
-                const baseQuest = baseQuests[Math.floor(Math.random() * baseQuests.length)];
-                const variation = Math.floor(Math.random() * 1000); // Для уникальности ID
-                
-                additionalQuests.push({
-                    ...baseQuest,
-                    id: `${baseQuest.id}_v${variation}`,
-                    target: Math.floor(baseQuest.target * (0.8 + Math.random() * 0.4)), // 80-120% от базовой цели
-                    reward: {
-                        ...baseQuest.reward,
-                        value: typeof baseQuest.reward.value === 'number'
-                            ? Math.floor(baseQuest.reward.value * (0.9 + Math.random() * 0.2))
-                            : baseQuest.reward.value
-                    }
-                });
-            }
-            
-            return additionalQuests;
-        }
     </script>
 </body>
 </html>
